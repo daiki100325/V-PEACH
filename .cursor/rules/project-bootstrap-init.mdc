@@ -1,0 +1,38 @@
+---
+description: Initialize copied template by replacing PROJECT placeholders
+alwaysApply: true
+---
+
+# Project Bootstrap Init Rule
+
+Apply this only when the current project still contains template placeholders.
+
+## Trigger condition
+
+If any of these exist, bootstrap is required:
+- `PROJECT` in file names or file contents
+- `project/project-slug` in tags
+- note files named `PROJECT_*.md`
+
+## Required behavior on first task
+
+Before implementing the user's requested code change:
+1. Detect whether placeholders still exist.
+2. If they exist, ask once for:
+   - project name (folder name, e.g. `NEW-APP`)
+   - project tag slug (e.g. `new-app`)
+3. Run bootstrap updates in the same task:
+   - Replace `PROJECT` -> `<project-name>` in note links and headings.
+   - Replace `project/project-slug` -> `project/<slug>`.
+   - Rename files:
+     - `notes/PROJECT_architecture.md` -> `notes/<project-name>_architecture.md`
+     - `notes/PROJECT_requirements.md` -> `notes/<project-name>_requirements.md`
+     - `notes/PROJECT_release-plan.md` -> `notes/<project-name>_release-plan.md`
+4. Update `notes/_index.md` links so they match renamed files.
+5. Add one entry to `CHANGELOG_DEV.md` for bootstrap initialization.
+
+## Safety
+
+- Do not modify application code during bootstrap.
+- Only touch template/bootstrap-related docs and links.
+- If placeholders are already gone, skip bootstrap and continue normal work.

@@ -1,0 +1,34 @@
+---
+description: Keep project docs in sync after code changes
+alwaysApply: true
+---
+
+# Obsidian Doc Sync Rule
+
+When making code changes, update project documentation in the same task.
+
+## Required doc checks after code edits
+
+1. Update these files when relevant:
+- `notes/_index.md` (new key docs/entry points)
+- `notes/*_architecture.md` (structure, components, data flow changes)
+- `notes/*_requirements.md` (behavior/constraints/UX requirements changes)
+- `notes/*_release-plan.md` (rollout steps, verification focus, next actions)
+- `DECISIONS.md` (non-trivial technical/product decisions)
+- `TROUBLESHOOTING.md` (new failure mode + fix/prevention)
+- `CHANGELOG_DEV.md` (date entry for what/why/files/related)
+
+2. Keep source of truth clear:
+- Do not duplicate full specs into notes.
+- In notes, keep concise summaries and add `Source: [[...]]` links to primary docs.
+
+3. Update policy:
+- If code behavior changed, update at least one `notes/*` file and `CHANGELOG_DEV.md`.
+- If architecture/trade-off changed, append an ADR-style item in `DECISIONS.md`.
+- If bug fix was non-obvious, add a short case in `TROUBLESHOOTING.md`.
+
+## Output expectation for each task
+
+Before finishing, report:
+- Which docs were updated
+- Why those updates were needed
