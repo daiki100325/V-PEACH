@@ -7,7 +7,7 @@
 -- 1. 店舗別固定費設定
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pe_store_settings (
-  store_id uuid PRIMARY KEY REFERENCES stores(id),
+  store_id bigint PRIMARY KEY REFERENCES stores(id),
   fixed_rent numeric DEFAULT 0,
   fixed_utilities numeric DEFAULT 0,
   fixed_sundries numeric DEFAULT 0,
@@ -33,7 +33,7 @@ INSERT INTO pe_company_settings (id) VALUES (1) ON CONFLICT DO NOTHING;
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pe_monthly_records (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id uuid REFERENCES stores(id),
+  store_id bigint REFERENCES stores(id),
   period_key integer NOT NULL,   -- YYYYMM（例: 202605）
   total_sales numeric DEFAULT 0,
   labor_cost numeric DEFAULT 0,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS pe_monthly_records (
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pe_benchmarks (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id uuid REFERENCES stores(id),
+  store_id bigint REFERENCES stores(id),
   item_name text NOT NULL,
   target_value numeric,
   is_percentage boolean DEFAULT true,
