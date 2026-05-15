@@ -6,31 +6,47 @@ parent: [[V-PEACH/notes/_index]]
 # V-PEACH — Release Plan
 
 ## Summary
-- 3フェーズ構成。設定→入力→分析の順に積み上げてリリース
+- 設定→入力→分析の順に積み上げてリリース
 - 各フェーズ完了でそれ単体として使える状態にする
+- デプロイ：Cloudflare Pages（obsidian-vault からの `git subtree push` 運用）
 
-## フェーズ構成
+## フェーズ状況
 
-### Phase 1：基盤 & 設定モード
-- Supabase テーブル作成（`pe_monthly_records` / `pe_store_settings` / `pe_benchmarks`）
-- V-MINT 2.0 連携View の作成
-- 設定モードUI：家賃・光熱費・役員報酬・借入返済・物販利益率・目標値の入力
+### ✅ Phase 0：プロジェクトセットアップ（2026-05-15 完了）
+- Vite + Vue3 + Tailwind CSS + Supabase プロジェクト構成
+- GitHub リポジトリ `daiki100325/V-PEACH` 作成・subtree push 設定
+- Cloudflare Pages 接続・初回デプロイ完了
+- PIN認証設定済み
 
-### Phase 2：月次入力モード
-- Step 入力UI（総売上 → 経費 → 人件費）
-- 設定値からの自動入力・プレースホルダ（前月実績）
-- バリデーション（異常値アラート）
-- Supabase への保存
+### 🔲 Phase 1：DBマイグレーション（実行待ち）
+- `DB_MIGRATION.sql` 作成済み → Supabase SQL Editor で実行するだけ
+- 作成テーブル: `pe_store_settings` / `pe_company_settings` / `pe_monthly_records` / `pe_benchmarks` / `pe_merchandise_price_masters`
+- 作成View: `pe_merchandise_sales_view`
 
-### Phase 3：PLモード（分析・可視化）
-- ビジュアルPL（収益 vs 経費・利益の対照表）
-- Health Highlight（RED/GREEN判定）
-- トレンドチャート（Chart.js）：月次・3ヶ月移動平均・年次フィルター
-- 人件費率と営業利益率の相関表示
+### ✅ Phase 2：共通基盤・月次入力モード・設定モード（2026-05-15 完了）
+- `src/api.js`：全 pe_ テーブルの CRUD + V-MINT cost_reports 参照
+- `src/utils/finance.js`：PL計算・変動費計算・3ヶ月平均ロジック
+- `InputApp.vue`：店舗別（総売上・人件費・各経費）+ 全社共通費（役員報酬・借入返済）のステップ入力
+- `SettingsApp.vue`：店舗別固定費・全社共通費・物販販売値改定（effective_from管理）・ベンチマーク（スタブ）
 
-## Details
-- バージョン管理：V-MINT 2.0 と同一モノレポ or 別リポジトリは Phase 1 着手前に決定
-- デプロイ：Cloudflare Pages（V-MINT 2.0 と同様の subtree push 運用を想定）
+### ✅ Phase 3：PLモード 基本実装（2026-05-15 完了）
+- `PLApp.vue`：月次PL表示（全社集計・店舗別）
+- 売上・変動費・固定費・営業利益・最終手残りの表示
+- 労働分配率の自動計算・表示
+- フィルター：拠点選択・期間モード選択（月次/3ヶ月平均/年次）
+
+### 🔲 Phase 4：PLモード 完全実装（未着手）
+- トレンドチャート（Chart.js 折れ線）：月次・3ヶ月移動平均・年次
+- Health Highlight（RED/GREEN判定）：ベンチマーク目標値との比較
+- 3ヶ月平均・年次集計ロジックの実装（現在はTODO）
+- ベンチマーク設定UIの実装
+
+## 次のアクション
+1. Supabase SQL Editor で `DB_MIGRATION.sql` を実行
+2. ローカルで `npm install` → `npm run dev` で動作確認
+3. 設定モードで各店舗の固定費・物販販売値を初期設定
+4. 月次入力モードでテストデータを投入
+5. Phase 4（トレンドチャート）着手
 
 ## Related
 - [[V-PEACH/DECISIONS]]
