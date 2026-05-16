@@ -229,11 +229,13 @@
                     </div>
                 </div>
 
-                <!-- Trend Chart (年次のみ) -->
-                <div v-if="selectedPeriodMode === 'annual' && trendMonthly.length > 0"
+                <!-- Trend Chart -->
+                <div v-if="trendMonthly.length > 0"
                     class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
-                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">月次推移（{{ selectedYear }}年）</span>
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            月次推移（{{ selectedPeriodMode === 'annual' ? selectedYear + '年' : '直近12ヶ月' }}）
+                        </span>
                     </div>
                     <div class="p-4">
                         <PLTrendChart :labels="trendLabels" :datasets="trendDatasets" />
@@ -379,9 +381,19 @@ export default {
                 this.benchmarks = await getBenchmarks(null)
 
                 if (this.selectedPeriodMode === 'monthly') {
-                    this.plResult = await this.loadMonthlyPL(this.selectedStoreKey, this.periodKey)
+                    const [pl, monthly] = await Promise.all([
+                        this.loadMonthlyPL(this.selectedStoreKey, this.periodKey),
+                        this.loadTrendForPeriod(this.selectedStoreKey, this.periodKey)
+                    ])
+                    this.plResult = pl
+                    this.trendMonthly = monthly
                 } else if (this.selectedPeriodMode === 'rolling3') {
-                    this.plResult = await this.loadRolling3PL(this.selectedStoreKey, this.periodKey)
+                    const [pl, monthly] = await Promise.all([
+                        this.loadRolling3PL(this.selectedStoreKey, this.periodKey),
+                        this.loadTrendForPeriod(this.selectedStoreKey, this.periodKey)
+                    ])
+                    this.plResult = pl
+                    this.trendMonthly = monthly
                 } else if (this.selectedPeriodMode === 'annual') {
                     const { pl, monthly } = await this.loadAnnualPL(this.selectedStoreKey, this.selectedYear)
                     this.plResult = pl
@@ -459,6 +471,20 @@ export default {
                 periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
             )
             return calcRolling3MonthAvg(plResults)
+        },
+
+        // 月次・3ヶ月平均用トレンドデータ（直近12ヶ月）
+        async loadTrendForPeriod(storeKey, periodKey) {
+            const isAll = storeKey === 'all'
+            const companySettings = isAll ? await getCompanySettings() : null
+            const periodKeys = getNPrevPeriodKeys(periodKey, 12)
+            const pls = await Promise.all(
+                periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
+            )
+            return periodKeys.map((pk, i) => ({
+                label: `${String(pk).slice(2, 4)}/${String(pk % 100).padStart(2, '0')}`,
+                pl: pls[i]
+            }))
         },
 
         // 年次PL（指定年の全月合計 + チャート用月次データ）
