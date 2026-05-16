@@ -6,8 +6,14 @@
 - Files: `package.json`, `vite.config.js`, `tailwind.config.js`, `postcss.config.js`, `index.html`, `.env.local`, `.gitignore`, `src/main.js`, `src/style.css`
 - Related: [[V-PEACH/notes/V-PEACH_architecture]]
 
+## 2026-05-16
+- What: Phase 1 — Supabase SQL Editor でマイグレーション実行完了
+- Why: stores.id が bigint のため store_id を uuid→bigint に修正して再実行
+- Files: `DB_MIGRATION.sql`
+- Related: [[V-PEACH/notes/V-PEACH_architecture]]
+
 ## 2026-05-15
-- What: Phase 1 — DB_MIGRATION.sql 作成（Supabase実行待ち）
+- What: Phase 1 — DB_MIGRATION.sql 作成
 - Why: V-MINT 2.0と同一Supabaseプロジェクトに `pe_` プレフィックスで5テーブル＋1Viewを追加
 - Files: `DB_MIGRATION.sql`
 - Related: [[V-PEACH/notes/V-PEACH_architecture]]

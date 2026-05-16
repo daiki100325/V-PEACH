@@ -12,7 +12,7 @@ tags: [project/v-peach, type/hub]
 
 ## 現在のステータス（2026-05-15）
 - Phase 0（セットアップ）: ✅ 完了
-- Phase 1（DBマイグレーション）: 🔲 **Supabase SQL Editorで実行待ち**
+- Phase 1（DBマイグレーション）: ✅ 完了（2026-05-16）
 - Phase 2（月次入力・設定モード）: ✅ 完了
 - Phase 3（PLモード基本）: ✅ 完了
 - Phase 4（トレンドチャート・ベンチマーク）: 🔲 未着手
@@ -31,7 +31,7 @@ tags: [project/v-peach, type/hub]
 - Wins:
 - Risks:
 - Next Actions:
-  1. Supabase SQL Editorで `DB_MIGRATION.sql` を実行
-  2. `npm install` → `npm run dev` でローカル動作確認
-  3. 設定モードで各店舗の固定費・物販販売値を初期設定
+  1. `npm install` → `npm run dev` でローカル動作確認
+  2. 設定モードで各店舗の固定費・物販販売値を初期設定
+  3. 月次入力モードでテストデータ投入
   4. Phase 4（トレンドチャート）着手

@@ -18,10 +18,11 @@ parent: [[V-PEACH/notes/_index]]
 - Cloudflare Pages 接続・初回デプロイ完了
 - PIN認証設定済み
 
-### 🔲 Phase 1：DBマイグレーション（実行待ち）
-- `DB_MIGRATION.sql` 作成済み → Supabase SQL Editor で実行するだけ
+### ✅ Phase 1：DBマイグレーション（2026-05-16 完了）
+- `DB_MIGRATION.sql` を Supabase SQL Editor で実行完了
 - 作成テーブル: `pe_store_settings` / `pe_company_settings` / `pe_monthly_records` / `pe_benchmarks` / `pe_merchandise_price_masters`
 - 作成View: `pe_merchandise_sales_view`
+- 注: `stores.id` が `bigint` のため `store_id` を `uuid→bigint` に修正して実行
 
 ### ✅ Phase 2：共通基盤・月次入力モード・設定モード（2026-05-15 完了）
 - `src/api.js`：全 pe_ テーブルの CRUD + V-MINT cost_reports 参照
@@ -42,11 +43,10 @@ parent: [[V-PEACH/notes/_index]]
 - ベンチマーク設定UIの実装
 
 ## 次のアクション
-1. Supabase SQL Editor で `DB_MIGRATION.sql` を実行
-2. ローカルで `npm install` → `npm run dev` で動作確認
-3. 設定モードで各店舗の固定費・物販販売値を初期設定
-4. 月次入力モードでテストデータを投入
-5. Phase 4（トレンドチャート）着手
+1. ローカルで `npm install` → `npm run dev` で動作確認
+2. 設定モードで各店舗の固定費・物販販売値を初期設定
+3. 月次入力モードでテストデータを投入
+4. Phase 4（トレンドチャート）着手
 
 ## Related
 - [[V-PEACH/DECISIONS]]
