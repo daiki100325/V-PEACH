@@ -89,7 +89,6 @@
                 <p class="text-sm">データを集計中...</p>
             </div>
 
-            <!-- PLデータ表示（TODO: 完全実装） -->
             <template v-else-if="plResult">
                 <!-- 売上セクション -->
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -204,6 +203,42 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Health Check -->
+                <div v-if="healthHighlights.some(h => h.actual != null)" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Health Check</span>
+                        <span v-if="!benchmarks.length" class="text-xs text-slate-400">設定でベンチマーク目標値を設定できます</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-px bg-slate-100">
+                        <div v-for="h in healthHighlights" :key="h.label" class="bg-white px-4 py-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs text-slate-500">{{ h.label }}</span>
+                                <span v-if="h.isGood === true"
+                                    class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">OK</span>
+                                <span v-else-if="h.isGood === false"
+                                    class="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">要注意</span>
+                            </div>
+                            <div class="text-sm font-bold text-slate-800">
+                                {{ h.actual != null ? fmtPct(h.actual) : '—' }}
+                            </div>
+                            <div class="text-xs text-slate-400 mt-0.5">
+                                目標: {{ h.target != null ? fmtPct(h.target) : '未設定' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trend Chart (年次のみ) -->
+                <div v-if="selectedPeriodMode === 'annual' && trendMonthly.length > 0"
+                    class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">月次推移（{{ selectedYear }}年）</span>
+                    </div>
+                    <div class="p-4">
+                        <PLTrendChart :labels="trendLabels" :datasets="trendDatasets" />
+                    </div>
+                </div>
             </template>
 
             <!-- データなし -->
@@ -217,14 +252,26 @@
 
 <script>
 import {
-    getMonthlyRecord, getMonthlyRecordsForYear, getStoreSettings, getCompanySettings,
+    getMonthlyRecord, getStoreSettings, getCompanySettings, getBenchmarks,
     getCostReportForPE, getCostPriceForPeriod, getMerchandisePriceForPeriod
 } from '../../api.js'
-import { calcPL, calcVariableCostFromCostReport, calcMerchandiseSalesQty, formatJPY, formatPct } from '../../utils/finance.js'
-import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel } from '../../utils/periods.js'
+import {
+    calcPL, calcVariableCostFromCostReport, calcMerchandiseSalesQty,
+    calcRolling3MonthAvg, calcAnnualSum, formatJPY, formatPct
+} from '../../utils/finance.js'
+import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getNPrevPeriodKeys, getYearPeriodKeys } from '../../utils/periods.js'
+import PLTrendChart from '../PLTrendChart.vue'
+
+const BENCHMARK_DEFS = [
+    { key: 'labor_rate', label: '労働分配率', getActual: (pl) => pl.laborRate, isGood: (a, t) => a <= t },
+    { key: 'gross_profit_margin', label: '粗利率', getActual: (pl) => pl.totalSales > 0 ? pl.grossProfit / pl.totalSales : null, isGood: (a, t) => a >= t },
+    { key: 'operating_profit_margin', label: '営業利益率', getActual: (pl) => pl.totalSales > 0 ? pl.operatingProfit / pl.totalSales : null, isGood: (a, t) => a >= t },
+    { key: 'variable_cost_ratio', label: '変動費率', getActual: (pl) => pl.totalSales > 0 ? pl.variableCostTotal / pl.totalSales : null, isGood: (a, t) => a <= t },
+]
 
 export default {
     name: 'PLApp',
+    components: { PLTrendChart },
     props: {
         stores: { type: Array, default: () => [] }
     },
@@ -243,6 +290,8 @@ export default {
             ],
             plLoading: false,
             plResult: null,
+            trendMonthly: [],
+            benchmarks: [],
             years: buildYearOptions(),
             months: buildMonthOptions()
         }
@@ -258,13 +307,54 @@ export default {
         },
         periodLabel() {
             if (this.selectedPeriodMode === 'annual') return `${this.selectedYear}年 年次`
-            if (this.selectedPeriodMode === 'rolling3') return `${formatPeriodLabel(this.periodKey)} 3ヶ月平均`
+            if (this.selectedPeriodMode === 'rolling3') return `${formatPeriodLabel(this.periodKey)} 直近3ヶ月平均`
             return formatPeriodLabel(this.periodKey)
         },
         selectedStoreLabel() {
             if (this.selectedStoreKey === 'all') return '全店舗合計'
             const s = this.stores.find(x => x.key === this.selectedStoreKey)
             return s ? s.name : ''
+        },
+        healthHighlights() {
+            if (!this.plResult) return []
+            return BENCHMARK_DEFS.map(def => {
+                const actual = def.getActual(this.plResult)
+                const bm = this.benchmarks.find(b => b.item_name === def.key)
+                const target = bm ? Number(bm.target_value) : null
+                const isGood = (actual != null && target != null) ? def.isGood(actual, target) : null
+                return { label: def.label, actual, target, isGood }
+            })
+        },
+        trendLabels() {
+            return this.trendMonthly.map(m => m.label)
+        },
+        trendDatasets() {
+            return [
+                {
+                    label: '総売上',
+                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.totalSales) : null),
+                    borderColor: '#0d9488',
+                    backgroundColor: 'rgba(13,148,136,0.08)',
+                    tension: 0.3,
+                    spanGaps: true
+                },
+                {
+                    label: '粗利',
+                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.grossProfit) : null),
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245,158,11,0.08)',
+                    tension: 0.3,
+                    spanGaps: true
+                },
+                {
+                    label: '営業利益',
+                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.operatingProfit) : null),
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99,102,241,0.08)',
+                    tension: 0.3,
+                    spanGaps: true
+                }
+            ]
         }
     },
     methods: {
@@ -273,6 +363,7 @@ export default {
         goBackToSelection() {
             this.subModeActive = false
             this.plResult = null
+            this.trendMonthly = []
             this.$emit('update:stepActive', false)
         },
         async loadPL() {
@@ -280,18 +371,21 @@ export default {
             this.subModeActive = true
             this.plLoading = true
             this.plResult = null
+            this.trendMonthly = []
             this.$emit('update:stepActive', true)
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', 'PLを集計中...')
             try {
+                this.benchmarks = await getBenchmarks(null)
+
                 if (this.selectedPeriodMode === 'monthly') {
                     this.plResult = await this.loadMonthlyPL(this.selectedStoreKey, this.periodKey)
+                } else if (this.selectedPeriodMode === 'rolling3') {
+                    this.plResult = await this.loadRolling3PL(this.selectedStoreKey, this.periodKey)
                 } else if (this.selectedPeriodMode === 'annual') {
-                    // TODO: 年次集計（Phase 5で完全実装）
-                    this.plResult = null
-                } else {
-                    // TODO: 3ヶ月平均（Phase 5で完全実装）
-                    this.plResult = null
+                    const { pl, monthly } = await this.loadAnnualPL(this.selectedStoreKey, this.selectedYear)
+                    this.plResult = pl
+                    this.trendMonthly = monthly
                 }
             } catch (e) {
                 alert(e.message || 'PL集計に失敗しました。')
@@ -301,17 +395,24 @@ export default {
                 this.$emit('update:loading', false)
             }
         },
+
+        // 月次PL（1ヶ月分）
         async loadMonthlyPL(storeKey, periodKey) {
+            const isAll = storeKey === 'all'
+            const companySettings = isAll ? await getCompanySettings() : null
+            return this.loadMonthlyPLCore(storeKey, periodKey, companySettings)
+        },
+
+        // 内部: companySettingsを引数で受け取るコア処理（複数月ロード時の重複取得を防ぐ）
+        async loadMonthlyPLCore(storeKey, periodKey, companySettings) {
             const isAll = storeKey === 'all'
             const targetStores = isAll ? this.stores.map(s => s.key) : [storeKey]
 
-            const [companySettings, costPrices, mercPrice] = await Promise.all([
-                isAll ? getCompanySettings() : Promise.resolve(null),
+            const [costPrices, mercPrice] = await Promise.all([
                 getCostPriceForPeriod(periodKey),
                 getMerchandisePriceForPeriod(periodKey)
             ])
 
-            // 各店舗のデータを並行取得
             const storeResults = await Promise.all(
                 targetStores.map(async (sk) => {
                     const [record, settings, costReport] = await Promise.all([
@@ -319,6 +420,7 @@ export default {
                         getStoreSettings(sk),
                         getCostReportForPE(sk, periodKey)
                     ])
+                    if (!record) return null
                     const variableCosts = calcVariableCostFromCostReport(
                         costReport,
                         costPrices.price_flavor_per_g,
@@ -331,8 +433,10 @@ export default {
 
             if (!isAll) return storeResults[0]
 
-            // 全社集計: 各店舗のPLを合算してからcompanySettingsを適用
-            const summed = storeResults.reduce((acc, r) => {
+            const validResults = storeResults.filter(Boolean)
+            if (validResults.length === 0) return null
+
+            const summed = validResults.reduce((acc, r) => {
                 for (const k of Object.keys(r)) {
                     if (k === 'laborRate') continue
                     acc[k] = (acc[k] || 0) + (Number(r[k]) || 0)
@@ -344,6 +448,35 @@ export default {
             summed.finalProfit = summed.operatingProfit + summed.merchandiseProfit - summed.execRemuneration - summed.debtRepayment
             summed.laborRate = summed.grossProfit > 0 ? summed.laborCost / summed.grossProfit : null
             return summed
+        },
+
+        // 3ヶ月平均PL（periodKeyを含む直近3ヶ月の平均）
+        async loadRolling3PL(storeKey, periodKey) {
+            const isAll = storeKey === 'all'
+            const companySettings = isAll ? await getCompanySettings() : null
+            const periodKeys = getNPrevPeriodKeys(periodKey, 3)
+            const plResults = await Promise.all(
+                periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
+            )
+            return calcRolling3MonthAvg(plResults)
+        },
+
+        // 年次PL（指定年の全月合計 + チャート用月次データ）
+        async loadAnnualPL(storeKey, year) {
+            const isAll = storeKey === 'all'
+            const companySettings = isAll ? await getCompanySettings() : null
+            const periodKeys = getYearPeriodKeys(year)
+
+            const monthlyPLs = await Promise.all(
+                periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
+            )
+
+            const pl = calcAnnualSum(monthlyPLs)
+            const monthly = periodKeys.map((pk, i) => ({
+                label: `${pk % 100}月`,
+                pl: monthlyPLs[i]
+            }))
+            return { pl, monthly }
         }
     }
 }

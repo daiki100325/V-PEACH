@@ -75,6 +75,22 @@ export function getPrevPeriodKey(periodKey) {
   return year * 100 + month
 }
 
+/** periodKeyから過去n件のperiodKeyを古い順で返す（periodKey自身を含む） */
+export function getNPrevPeriodKeys(periodKey, n) {
+  const keys = []
+  let current = Number(periodKey)
+  for (let i = 0; i < n; i++) {
+    keys.unshift(current)
+    current = getPrevPeriodKey(current)
+  }
+  return keys
+}
+
+/** 指定年の12ヶ月分periodKeyを返す（例: 2026 → [202601, 202602, ..., 202612]） */
+export function getYearPeriodKeys(year) {
+  return Array.from({ length: 12 }, (_, i) => Number(year) * 100 + (i + 1))
+}
+
 export function buildPeriodOptions({ startYear = 2025, futureYears = 1, baseDate = new Date() } = {}) {
   const currentYear = baseDate.getFullYear()
   const currentMonth = baseDate.getMonth() + 1

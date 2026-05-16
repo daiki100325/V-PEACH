@@ -98,19 +98,32 @@ export function calcPL(record, settings, variableCosts, merchandiseSalesQty, mer
   }
 }
 
-/** 複数PLResultから3ヶ月移動平均を計算 */
+const PL_NUMERIC_KEYS = [
+  'totalSales', 'merchandiseSales', 'serviceSales', 'merchandiseProfit',
+  'flavorCost', 'charcoalCost', 'drinkCost', 'variableCostTotal',
+  'rent', 'laborCost', 'paymentFee', 'utilities', 'sundries', 'fixedCostTotal',
+  'grossProfit', 'operatingProfit', 'execRemuneration', 'debtRepayment', 'finalProfit'
+]
+
+/** 複数PLResultから移動平均を計算（nullを除外して平均） */
 export function calcRolling3MonthAvg(plResults) {
-  if (!plResults || plResults.length < 3) return null
-  const last3 = plResults.slice(-3)
-  const keys = [
-    'totalSales', 'merchandiseSales', 'serviceSales', 'merchandiseProfit',
-    'flavorCost', 'charcoalCost', 'drinkCost', 'variableCostTotal',
-    'rent', 'laborCost', 'paymentFee', 'utilities', 'sundries', 'fixedCostTotal',
-    'grossProfit', 'operatingProfit', 'finalProfit'
-  ]
+  const valid = (plResults || []).filter(Boolean)
+  if (valid.length === 0) return null
   const result = {}
-  for (const k of keys) {
-    result[k] = last3.reduce((sum, r) => sum + (Number(r[k]) || 0), 0) / 3
+  for (const k of PL_NUMERIC_KEYS) {
+    result[k] = valid.reduce((sum, r) => sum + (Number(r[k]) || 0), 0) / valid.length
+  }
+  result.laborRate = result.grossProfit > 0 ? result.laborCost / result.grossProfit : null
+  return result
+}
+
+/** 複数PLResultの合計を計算（nullを除外して合算） */
+export function calcAnnualSum(plResults) {
+  const valid = (plResults || []).filter(Boolean)
+  if (valid.length === 0) return null
+  const result = {}
+  for (const k of PL_NUMERIC_KEYS) {
+    result[k] = valid.reduce((sum, r) => sum + (Number(r[k]) || 0), 0)
   }
   result.laborRate = result.grossProfit > 0 ? result.laborCost / result.grossProfit : null
   return result

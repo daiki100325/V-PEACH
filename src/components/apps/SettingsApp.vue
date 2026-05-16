@@ -24,7 +24,7 @@
                         </div>
                         <div class="text-sm text-slate-500">役員報酬・借入返済など全社共通の固定費を設定します</div>
                     </button>
-                    <button @click="subMode = 'benchmark'"
+                    <button @click="openBenchmarkSettings"
                         class="text-left rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 p-5 transition-colors focus:outline-none">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="text-2xl">🎯</span>
@@ -135,11 +135,38 @@
             </template>
         </div>
 
-        <!-- ─── ベンチマーク設定（TODO） ──────────────────────────────── -->
-        <div v-if="subMode === 'benchmark'" class="text-center py-16 text-slate-400">
-            <div class="text-4xl mb-4">🎯</div>
-            <p class="font-bold text-slate-600 mb-2">ベンチマーク設定</p>
-            <p class="text-sm">近日実装予定</p>
+        <!-- ─── ベンチマーク設定 ───────────────────────────────────────── -->
+        <div v-if="subMode === 'benchmark'" class="space-y-4 pb-28">
+            <h2 class="text-base font-bold text-slate-700 mb-1">ベンチマーク目標値</h2>
+            <p class="text-xs text-slate-400 mb-4">全社共通のHealth Check目標値を設定します。PLモードで実績と比較表示されます。</p>
+
+            <div v-if="bmLoading" class="text-center py-12 text-slate-400 text-sm">読み込み中...</div>
+            <template v-else>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-5">
+                    <div v-for="item in bmItems" :key="item.key" class="space-y-1">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-medium text-slate-600">{{ item.label }}</label>
+                            <span class="text-xs text-slate-400">{{ item.hint }}</span>
+                        </div>
+                        <div class="relative flex items-center">
+                            <input type="number" min="0" max="100" step="0.1"
+                                v-model.number="bmData[item.key]"
+                                :placeholder="item.placeholder"
+                                class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl pl-4 pr-10 py-3 text-slate-800 focus:ring-2 focus:ring-teal-500 outline-none" />
+                            <span class="absolute right-4 text-slate-400 text-sm font-bold">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-4 z-20">
+                    <div class="container mx-auto max-w-lg">
+                        <button @click="saveBenchmarks" :disabled="bmSaving"
+                            class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-full shadow-lg transition-all active:scale-95 disabled:opacity-50">
+                            {{ bmSaving ? '保存中...' : '変更を保存' }}
+                        </button>
+                    </div>
+                </div>
+            </template>
         </div>
 
         <!-- ─── 物販販売値設定 ─────────────────────────────────────────── -->
@@ -235,6 +262,7 @@
 import {
     getStoreSettings, upsertStoreSettings,
     getCompanySettings, upsertCompanySettings,
+    getBenchmarks, upsertBenchmark,
     getMerchandisePriceMasters, addMerchandisePriceMaster, deleteMerchandisePriceMaster
 } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey } from '../../utils/periods.js'
@@ -258,6 +286,10 @@ export default {
             csData: { exec_remuneration: 0, debt_repayment: 0 },
             csLoading: false,
             csSaving: false,
+            // ベンチマーク
+            bmLoading: false,
+            bmSaving: false,
+            bmData: { labor_rate: null, gross_profit_margin: null, operating_profit_margin: null, variable_cost_ratio: null },
             // 物販販売値
             mpMasters: [],
             mpLoading: false,
@@ -266,6 +298,14 @@ export default {
         }
     },
     computed: {
+        bmItems() {
+            return [
+                { key: 'labor_rate', label: '労働分配率 目標（上限）', hint: '実績がこの値以下でOK判定', placeholder: '例: 40' },
+                { key: 'gross_profit_margin', label: '粗利率 目標（下限）', hint: '実績がこの値以上でOK判定', placeholder: '例: 40' },
+                { key: 'operating_profit_margin', label: '営業利益率 目標（下限）', hint: '実績がこの値以上でOK判定', placeholder: '例: 10' },
+                { key: 'variable_cost_ratio', label: '変動費率 目標（上限）', hint: '実績がこの値以下でOK判定', placeholder: '例: 35' },
+            ]
+        },
         storeSettingsFields() {
             return [
                 { key: 'fixed_rent', label: '家賃（月額）', prefix: '¥' },
@@ -345,6 +385,42 @@ export default {
                 alert(e.message || '保存に失敗しました。')
             } finally {
                 this.csSaving = false
+                this.$emit('update:loading', false)
+            }
+        },
+        // ─── ベンチマーク ────────────────────────────────────────────
+        async openBenchmarkSettings() {
+            this.subMode = 'benchmark'
+            this.bmLoading = true
+            try {
+                const bms = await getBenchmarks(null)
+                this.bmData = { labor_rate: null, gross_profit_margin: null, operating_profit_margin: null, variable_cost_ratio: null }
+                for (const bm of bms) {
+                    if (bm.item_name in this.bmData && bm.target_value != null) {
+                        this.bmData[bm.item_name] = Number((Number(bm.target_value) * 100).toFixed(2))
+                    }
+                }
+            } catch (e) {
+                alert(e.message || '読み込みに失敗しました。')
+            } finally {
+                this.bmLoading = false
+            }
+        },
+        async saveBenchmarks() {
+            this.bmSaving = true
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', '保存中...')
+            try {
+                for (const [key, val] of Object.entries(this.bmData)) {
+                    if (val != null && val !== '') {
+                        await upsertBenchmark(null, key, Number(val) / 100, true)
+                    }
+                }
+                alert('保存しました。')
+            } catch (e) {
+                alert(e.message || '保存に失敗しました。')
+            } finally {
+                this.bmSaving = false
                 this.$emit('update:loading', false)
             }
         },
