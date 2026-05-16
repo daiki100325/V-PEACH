@@ -1,32 +1,15 @@
 <template>
     <main class="container mx-auto px-4 py-6 max-w-lg md:max-w-3xl flex-grow">
 
-        <!-- Step 0: 拠点・対象月・種別選択 -->
+        <!-- Step 0: 拠点・対象月選択 -->
         <div v-if="step === 0" class="flex flex-col items-center pt-6 pb-20">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5 w-full max-w-md">
                 <div class="text-center">
                     <h2 class="text-xl font-bold text-slate-800">月次データを入力</h2>
                 </div>
 
-                <!-- 入力種別 -->
+                <!-- 拠点選択 -->
                 <div class="space-y-3">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">入力種別</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button @click="inputType = 'store'"
-                            :class="inputType === 'store' ? 'bg-brand-600 text-white border-brand-600 shadow-md shadow-brand-500/30' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-brand-50 hover:text-brand-600'"
-                            class="py-4 rounded-2xl font-bold border-2 transition-all active:scale-95 text-sm text-center">
-                            店舗別
-                        </button>
-                        <button @click="inputType = 'company'"
-                            :class="inputType === 'company' ? 'bg-slate-700 text-white border-slate-700 shadow-md shadow-slate-500/30' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
-                            class="py-4 rounded-2xl font-bold border-2 transition-all active:scale-95 text-sm text-center">
-                            全社共通費
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 拠点選択（店舗別のみ） -->
-                <div v-if="inputType === 'store'" class="space-y-3">
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">対象店舗</label>
                     <select v-model="selectedStoreKey"
                         class="appearance-none w-full bg-slate-50 border border-slate-200 text-base font-bold rounded-xl p-4 text-center focus:ring-2 focus:ring-brand-500"
@@ -65,8 +48,8 @@
             </div>
         </div>
 
-        <!-- Step 1: 売上・経費入力（店舗別） -->
-        <div v-if="step === 1 && inputType === 'store'" class="space-y-4 pb-32">
+        <!-- Step 1: 売上・経費入力 -->
+        <div v-if="step === 1" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">入力中</p>
                 <p class="text-base font-bold text-slate-800">
@@ -155,89 +138,44 @@
             </div>
         </div>
 
-        <!-- Step 1: 全社共通費入力 -->
-        <div v-if="step === 1 && inputType === 'company'" class="space-y-4 pb-32">
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">入力中</p>
-                <p class="text-base font-bold text-slate-800">全社共通費 — {{ periodLabel }}</p>
-                <p class="text-xs text-slate-400 mt-1">3店舗共通で発生する費用（役員報酬・借入返済）を入力します</p>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">役員報酬</label>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="companyFormData.exec_remuneration"
-                        :placeholder="companySettings ? String(companySettings.exec_remuneration) : '0'"
-                        class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-slate-500 outline-none" />
-                </div>
-                <p v-if="companySettings" class="text-xs text-slate-400">現在の設定値: ¥{{ Number(companySettings.exec_remuneration).toLocaleString() }}</p>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">借入返済</label>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="companyFormData.debt_repayment"
-                        :placeholder="companySettings ? String(companySettings.debt_repayment) : '0'"
-                        class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-slate-500 outline-none" />
-                </div>
-                <p v-if="companySettings" class="text-xs text-slate-400">現在の設定値: ¥{{ Number(companySettings.debt_repayment).toLocaleString() }}</p>
-            </div>
-        </div>
-
         <!-- Step 2: 確認 -->
         <div v-if="step === 2" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
                 <h3 class="text-base font-bold text-slate-700">入力内容の確認</h3>
-                <p class="text-sm text-slate-500">
-                    {{ inputType === 'store' ? selectedStoreName : '全社共通費' }} — {{ periodLabel }}
-                </p>
+                <p class="text-sm text-slate-500">{{ selectedStoreName }} — {{ periodLabel }}</p>
                 <div class="divide-y divide-slate-50">
-                    <template v-if="inputType === 'store'">
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">総売上</span>
-                            <span class="font-bold text-slate-800">¥{{ Number(formData.total_sales || 0).toLocaleString() }}</span>
-                        </div>
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">人件費</span>
-                            <span class="font-bold text-slate-800">¥{{ Number(formData.labor_cost || 0).toLocaleString() }}</span>
-                        </div>
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">家賃</span>
-                            <span class="font-bold" :class="formData.rent != null ? 'text-slate-800' : 'text-slate-400'">
-                                {{ formData.rent != null ? `¥${Number(formData.rent).toLocaleString()}` : '設定値を使用' }}
-                            </span>
-                        </div>
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">決済手数料</span>
-                            <span class="font-bold" :class="formData.payment_fee != null ? 'text-slate-800' : 'text-slate-400'">
-                                {{ formData.payment_fee != null ? `¥${Number(formData.payment_fee).toLocaleString()}` : '設定値を使用' }}
-                            </span>
-                        </div>
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">光熱費</span>
-                            <span class="font-bold" :class="formData.utilities != null ? 'text-slate-800' : 'text-slate-400'">
-                                {{ formData.utilities != null ? `¥${Number(formData.utilities).toLocaleString()}` : '設定値を使用' }}
-                            </span>
-                        </div>
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">雑費</span>
-                            <span class="font-bold" :class="formData.sundries != null ? 'text-slate-800' : 'text-slate-400'">
-                                {{ formData.sundries != null ? `¥${Number(formData.sundries).toLocaleString()}` : '設定値を使用' }}
-                            </span>
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">役員報酬</span>
-                            <span class="font-bold text-slate-800">¥{{ Number(companyFormData.exec_remuneration || 0).toLocaleString() }}</span>
-                        </div>
-                        <div class="flex justify-between py-2 text-sm">
-                            <span class="text-slate-500">借入返済</span>
-                            <span class="font-bold text-slate-800">¥{{ Number(companyFormData.debt_repayment || 0).toLocaleString() }}</span>
-                        </div>
-                    </template>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">総売上</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(formData.total_sales || 0).toLocaleString() }}</span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">人件費</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(formData.labor_cost || 0).toLocaleString() }}</span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">家賃</span>
+                        <span class="font-bold" :class="formData.rent != null ? 'text-slate-800' : 'text-slate-400'">
+                            {{ formData.rent != null ? `¥${Number(formData.rent).toLocaleString()}` : '設定値を使用' }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">決済手数料</span>
+                        <span class="font-bold" :class="formData.payment_fee != null ? 'text-slate-800' : 'text-slate-400'">
+                            {{ formData.payment_fee != null ? `¥${Number(formData.payment_fee).toLocaleString()}` : '設定値を使用' }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">光熱費</span>
+                        <span class="font-bold" :class="formData.utilities != null ? 'text-slate-800' : 'text-slate-400'">
+                            {{ formData.utilities != null ? `¥${Number(formData.utilities).toLocaleString()}` : '設定値を使用' }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">雑費</span>
+                        <span class="font-bold" :class="formData.sundries != null ? 'text-slate-800' : 'text-slate-400'">
+                            {{ formData.sundries != null ? `¥${Number(formData.sundries).toLocaleString()}` : '設定値を使用' }}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -246,7 +184,7 @@
 </template>
 
 <script>
-import { getMonthlyRecord, upsertMonthlyRecord, getStoreSettings, getCompanySettings, upsertCompanySettings } from '../../api.js'
+import { getMonthlyRecord, upsertMonthlyRecord, getStoreSettings } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getPrevPeriodKey } from '../../utils/periods.js'
 
 export default {
@@ -258,7 +196,6 @@ export default {
     data() {
         return {
             step: 0,
-            inputType: 'store',      // 'store' | 'company'
             selectedStoreKey: '',
             selectedYear: '',
             selectedMonth: '',
@@ -270,12 +207,7 @@ export default {
                 utilities: null,
                 sundries: null
             },
-            companyFormData: {
-                exec_remuneration: null,
-                debt_repayment: null
-            },
             storeSettings: null,
-            companySettings: null,
             prevRecord: null,
             years: buildYearOptions(),
             months: buildMonthOptions()
@@ -283,9 +215,7 @@ export default {
     },
     computed: {
         canStart() {
-            if (!this.selectedYear || !this.selectedMonth) return false
-            if (this.inputType === 'store' && !this.selectedStoreKey) return false
-            return true
+            return !!(this.selectedYear && this.selectedMonth && this.selectedStoreKey)
         },
         periodKey() {
             return composePeriodKey(this.selectedYear, this.selectedMonth)
@@ -298,12 +228,9 @@ export default {
             return s ? s.name : ''
         },
         canNext() {
-            if (this.step === 1 && this.inputType === 'store') {
+            if (this.step === 1) {
                 return this.formData.total_sales != null && this.formData.total_sales >= 0 &&
                        this.formData.labor_cost != null && this.formData.labor_cost >= 0
-            }
-            if (this.step === 1 && this.inputType === 'company') {
-                return true
             }
             if (this.step === 2) return true
             return false
@@ -332,34 +259,24 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '設定を読み込み中...')
             try {
-                if (this.inputType === 'store') {
-                    const [settings, existing, prev] = await Promise.all([
-                        getStoreSettings(this.selectedStoreKey),
-                        getMonthlyRecord(this.selectedStoreKey, this.periodKey),
-                        getMonthlyRecord(this.selectedStoreKey, getPrevPeriodKey(this.periodKey))
-                    ])
-                    this.storeSettings = settings
-                    this.prevRecord = prev
-                    // 既存データがあれば復元
-                    if (existing) {
-                        this.formData = {
-                            total_sales: existing.total_sales,
-                            labor_cost: existing.labor_cost,
-                            rent: existing.rent,
-                            payment_fee: existing.payment_fee,
-                            utilities: existing.utilities,
-                            sundries: existing.sundries
-                        }
-                    } else {
-                        this.formData = { total_sales: null, labor_cost: null, rent: null, payment_fee: null, utilities: null, sundries: null }
+                const [settings, existing, prev] = await Promise.all([
+                    getStoreSettings(this.selectedStoreKey),
+                    getMonthlyRecord(this.selectedStoreKey, this.periodKey),
+                    getMonthlyRecord(this.selectedStoreKey, getPrevPeriodKey(this.periodKey))
+                ])
+                this.storeSettings = settings
+                this.prevRecord = prev
+                if (existing) {
+                    this.formData = {
+                        total_sales: existing.total_sales,
+                        labor_cost: existing.labor_cost,
+                        rent: existing.rent,
+                        payment_fee: existing.payment_fee,
+                        utilities: existing.utilities,
+                        sundries: existing.sundries
                     }
                 } else {
-                    const settings = await getCompanySettings()
-                    this.companySettings = settings
-                    this.companyFormData = {
-                        exec_remuneration: settings.exec_remuneration,
-                        debt_repayment: settings.debt_repayment
-                    }
+                    this.formData = { total_sales: null, labor_cost: null, rent: null, payment_fee: null, utilities: null, sundries: null }
                 }
                 this.step = 1
             } catch (e) {
@@ -378,22 +295,15 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '保存中...')
             try {
-                if (this.inputType === 'store') {
-                    const fields = {}
-                    if (this.formData.total_sales != null) fields.total_sales = this.formData.total_sales
-                    if (this.formData.labor_cost != null) fields.labor_cost = this.formData.labor_cost
-                    // nullなら設定値を使うのでDBにはnullを保存
-                    fields.rent = this.formData.rent != null ? this.formData.rent : null
-                    fields.payment_fee = this.formData.payment_fee != null ? this.formData.payment_fee : null
-                    fields.utilities = this.formData.utilities != null ? this.formData.utilities : null
-                    fields.sundries = this.formData.sundries != null ? this.formData.sundries : null
-                    await upsertMonthlyRecord(this.selectedStoreKey, this.periodKey, fields)
-                } else {
-                    await upsertCompanySettings({
-                        exec_remuneration: this.companyFormData.exec_remuneration ?? 0,
-                        debt_repayment: this.companyFormData.debt_repayment ?? 0
-                    })
+                const fields = {
+                    total_sales: this.formData.total_sales,
+                    labor_cost: this.formData.labor_cost,
+                    rent: this.formData.rent != null ? this.formData.rent : null,
+                    payment_fee: this.formData.payment_fee != null ? this.formData.payment_fee : null,
+                    utilities: this.formData.utilities != null ? this.formData.utilities : null,
+                    sundries: this.formData.sundries != null ? this.formData.sundries : null
                 }
+                await upsertMonthlyRecord(this.selectedStoreKey, this.periodKey, fields)
                 alert('保存しました。')
                 this.step = 0
                 this.$emit('submitted')
