@@ -119,8 +119,7 @@ export async function getStoreSettings(storeKey) {
     fixed_rent: 0,
     fixed_utilities: 0,
     fixed_sundries: 0,
-    fixed_payment_fee: 0,
-    physical_profit_margin: 0.1
+    payment_fee_rate: 0.025
   }
 }
 
@@ -172,50 +171,6 @@ export async function deleteBenchmark(storeKey, itemName) {
     query = query.is('store_id', null)
   }
   const { error } = await query
-  if (error) throw error
-}
-
-// ─── pe_merchandise_price_masters ───────────────────────────────────────────
-
-export async function getMerchandisePriceMasters() {
-  requireSupabase()
-  const { data, error } = await supabase
-    .from('pe_merchandise_price_masters')
-    .select('*')
-    .order('effective_from', { ascending: false })
-  if (error) throw error
-  return data || []
-}
-
-/** 指定periodKeyに対して有効な価格（effective_from <= periodKey の最新）を返す */
-export async function getMerchandisePriceForPeriod(periodKey) {
-  requireSupabase()
-  const pk = Number(periodKey)
-  const { data, error } = await supabase
-    .from('pe_merchandise_price_masters')
-    .select('*')
-    .lte('effective_from', pk)
-    .order('effective_from', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (error) throw error
-  return data ?? { price_per_unit: 0 }
-}
-
-export async function addMerchandisePriceMaster(row) {
-  requireSupabase()
-  const { error } = await supabase
-    .from('pe_merchandise_price_masters')
-    .insert(row)
-  if (error) throw error
-}
-
-export async function deleteMerchandisePriceMaster(id) {
-  requireSupabase()
-  const { error } = await supabase
-    .from('pe_merchandise_price_masters')
-    .delete()
-    .eq('id', id)
   if (error) throw error
 }
 

@@ -19,7 +19,7 @@
                 <!-- ポータル表示 -->
                 <div v-if="appMode === null" class="flex flex-col min-w-0 leading-tight">
                     <h1 class="text-xl font-bold tracking-tight text-slate-800">V-PEACH</h1>
-                    <span class="text-[11px] text-slate-500 font-medium">経営コックピット</span>
+                    <span class="text-[11px] text-slate-500 font-medium">経営ダッシュボード</span>
                 </div>
 
                 <!-- モード名表示 -->

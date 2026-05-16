@@ -48,7 +48,7 @@
             </div>
         </div>
 
-        <!-- Step 1: 売上・経費入力 -->
+        <!-- Step 1: 売上・人件費入力 -->
         <div v-if="step === 1" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">入力中</p>
@@ -57,16 +57,28 @@
                 </p>
             </div>
 
-            <!-- 総売上 -->
+            <!-- 提供売上（税込） -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">総売上 <span class="text-red-500">*</span></label>
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">提供売上（税込） <span class="text-red-500">*</span></label>
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.total_sales"
-                        :placeholder="prevRecord ? String(prevRecord.total_sales) : '例: 1500000'"
+                    <input type="number" min="0" v-model.number="formData.service_sales"
+                        :placeholder="prevRecord ? String(prevRecord.service_sales) : '例: 1500000'"
                         class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
                 </div>
-                <p v-if="prevRecord" class="text-xs text-slate-400">前月実績: ¥{{ Number(prevRecord.total_sales).toLocaleString() }}</p>
+                <p v-if="prevRecord" class="text-xs text-slate-400">前月実績: ¥{{ Number(prevRecord.service_sales || 0).toLocaleString() }}</p>
+            </div>
+
+            <!-- 物販売上（税込） -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">物販売上（税込）</label>
+                <div class="relative">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
+                    <input type="number" min="0" v-model.number="formData.merchandise_sales"
+                        placeholder="例: 50000（なければ空欄）"
+                        class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+                </div>
+                <p class="text-xs text-slate-400">物販がない月は空欄のままで構いません（0として扱います）</p>
             </div>
 
             <!-- 人件費 -->
@@ -79,63 +91,6 @@
                         class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
                 </div>
             </div>
-
-            <!-- 家賃 -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">家賃</label>
-                    <span v-if="storeSettings?.fixed_rent" class="text-xs text-slate-400">設定値: ¥{{ Number(storeSettings.fixed_rent).toLocaleString() }}</span>
-                </div>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.rent"
-                        :placeholder="storeSettings?.fixed_rent ? String(storeSettings.fixed_rent) : '設定値を使用'"
-                        class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-                </div>
-                <p class="text-xs text-slate-400">空欄の場合、設定画面の固定値を使用します</p>
-            </div>
-
-            <!-- 決済手数料 -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">決済手数料</label>
-                    <span v-if="storeSettings?.fixed_payment_fee" class="text-xs text-slate-400">設定値: ¥{{ Number(storeSettings.fixed_payment_fee).toLocaleString() }}</span>
-                </div>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.payment_fee"
-                        :placeholder="storeSettings?.fixed_payment_fee ? String(storeSettings.fixed_payment_fee) : '設定値を使用'"
-                        class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-                </div>
-            </div>
-
-            <!-- 光熱費 -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">光熱費</label>
-                    <span v-if="storeSettings?.fixed_utilities" class="text-xs text-slate-400">設定値: ¥{{ Number(storeSettings.fixed_utilities).toLocaleString() }}</span>
-                </div>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.utilities"
-                        :placeholder="storeSettings?.fixed_utilities ? String(storeSettings.fixed_utilities) : '設定値を使用'"
-                        class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-                </div>
-            </div>
-
-            <!-- 雑費 -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">雑費</label>
-                    <span v-if="storeSettings?.fixed_sundries" class="text-xs text-slate-400">設定値: ¥{{ Number(storeSettings.fixed_sundries).toLocaleString() }}</span>
-                </div>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.sundries"
-                        :placeholder="storeSettings?.fixed_sundries ? String(storeSettings.fixed_sundries) : '設定値を使用'"
-                        class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-                </div>
-            </div>
         </div>
 
         <!-- Step 2: 確認 -->
@@ -145,38 +100,19 @@
                 <p class="text-sm text-slate-500">{{ selectedStoreName }} — {{ periodLabel }}</p>
                 <div class="divide-y divide-slate-50">
                     <div class="flex justify-between py-2 text-sm">
-                        <span class="text-slate-500">総売上</span>
-                        <span class="font-bold text-slate-800">¥{{ Number(formData.total_sales || 0).toLocaleString() }}</span>
+                        <span class="text-slate-500">提供売上（税込）</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(formData.service_sales || 0).toLocaleString() }}</span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">物販売上（税込）</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(formData.merchandise_sales || 0).toLocaleString() }}</span>
                     </div>
                     <div class="flex justify-between py-2 text-sm">
                         <span class="text-slate-500">人件費</span>
                         <span class="font-bold text-slate-800">¥{{ Number(formData.labor_cost || 0).toLocaleString() }}</span>
                     </div>
-                    <div class="flex justify-between py-2 text-sm">
-                        <span class="text-slate-500">家賃</span>
-                        <span class="font-bold" :class="formData.rent != null ? 'text-slate-800' : 'text-slate-400'">
-                            {{ formData.rent != null ? `¥${Number(formData.rent).toLocaleString()}` : '設定値を使用' }}
-                        </span>
-                    </div>
-                    <div class="flex justify-between py-2 text-sm">
-                        <span class="text-slate-500">決済手数料</span>
-                        <span class="font-bold" :class="formData.payment_fee != null ? 'text-slate-800' : 'text-slate-400'">
-                            {{ formData.payment_fee != null ? `¥${Number(formData.payment_fee).toLocaleString()}` : '設定値を使用' }}
-                        </span>
-                    </div>
-                    <div class="flex justify-between py-2 text-sm">
-                        <span class="text-slate-500">光熱費</span>
-                        <span class="font-bold" :class="formData.utilities != null ? 'text-slate-800' : 'text-slate-400'">
-                            {{ formData.utilities != null ? `¥${Number(formData.utilities).toLocaleString()}` : '設定値を使用' }}
-                        </span>
-                    </div>
-                    <div class="flex justify-between py-2 text-sm">
-                        <span class="text-slate-500">雑費</span>
-                        <span class="font-bold" :class="formData.sundries != null ? 'text-slate-800' : 'text-slate-400'">
-                            {{ formData.sundries != null ? `¥${Number(formData.sundries).toLocaleString()}` : '設定値を使用' }}
-                        </span>
-                    </div>
                 </div>
+                <p class="text-xs text-slate-400 pt-1">家賃・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
             </div>
         </div>
 
@@ -184,7 +120,7 @@
 </template>
 
 <script>
-import { getMonthlyRecord, upsertMonthlyRecord, getStoreSettings } from '../../api.js'
+import { getMonthlyRecord, upsertMonthlyRecord } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getPrevPeriodKey } from '../../utils/periods.js'
 
 export default {
@@ -200,14 +136,10 @@ export default {
             selectedYear: '',
             selectedMonth: '',
             formData: {
-                total_sales: null,
-                labor_cost: null,
-                rent: null,
-                payment_fee: null,
-                utilities: null,
-                sundries: null
+                service_sales: null,
+                merchandise_sales: null,
+                labor_cost: null
             },
-            storeSettings: null,
             prevRecord: null,
             years: buildYearOptions(),
             months: buildMonthOptions()
@@ -229,7 +161,7 @@ export default {
         },
         canNext() {
             if (this.step === 1) {
-                return this.formData.total_sales != null && this.formData.total_sales >= 0 &&
+                return this.formData.service_sales != null && this.formData.service_sales >= 0 &&
                        this.formData.labor_cost != null && this.formData.labor_cost >= 0
             }
             if (this.step === 2) return true
@@ -257,26 +189,21 @@ export default {
         async startEntry() {
             if (!this.canStart) return
             this.$emit('update:loading', true)
-            this.$emit('update:loadingMessage', '設定を読み込み中...')
+            this.$emit('update:loadingMessage', 'データを読み込み中...')
             try {
-                const [settings, existing, prev] = await Promise.all([
-                    getStoreSettings(this.selectedStoreKey),
+                const [existing, prev] = await Promise.all([
                     getMonthlyRecord(this.selectedStoreKey, this.periodKey),
                     getMonthlyRecord(this.selectedStoreKey, getPrevPeriodKey(this.periodKey))
                 ])
-                this.storeSettings = settings
                 this.prevRecord = prev
                 if (existing) {
                     this.formData = {
-                        total_sales: existing.total_sales,
-                        labor_cost: existing.labor_cost,
-                        rent: existing.rent,
-                        payment_fee: existing.payment_fee,
-                        utilities: existing.utilities,
-                        sundries: existing.sundries
+                        service_sales: existing.service_sales,
+                        merchandise_sales: existing.merchandise_sales,
+                        labor_cost: existing.labor_cost
                     }
                 } else {
-                    this.formData = { total_sales: null, labor_cost: null, rent: null, payment_fee: null, utilities: null, sundries: null }
+                    this.formData = { service_sales: null, merchandise_sales: null, labor_cost: null }
                 }
                 this.step = 1
             } catch (e) {
@@ -295,15 +222,11 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '保存中...')
             try {
-                const fields = {
-                    total_sales: this.formData.total_sales,
-                    labor_cost: this.formData.labor_cost,
-                    rent: this.formData.rent != null ? this.formData.rent : null,
-                    payment_fee: this.formData.payment_fee != null ? this.formData.payment_fee : null,
-                    utilities: this.formData.utilities != null ? this.formData.utilities : null,
-                    sundries: this.formData.sundries != null ? this.formData.sundries : null
-                }
-                await upsertMonthlyRecord(this.selectedStoreKey, this.periodKey, fields)
+                await upsertMonthlyRecord(this.selectedStoreKey, this.periodKey, {
+                    service_sales: this.formData.service_sales,
+                    merchandise_sales: this.formData.merchandise_sales ?? 0,
+                    labor_cost: this.formData.labor_cost
+                })
                 alert('保存しました。')
                 this.step = 0
                 this.$emit('submitted')

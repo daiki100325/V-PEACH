@@ -15,7 +15,7 @@ parent: [[V-PEACH/notes/_index]]
 | レイヤー | 技術 |
 |---------|------|
 | Frontend | Vue 3 + Vite + Tailwind CSS |
-| チャート | Chart.js（トレンドグラフ・Phase 4） |
+| チャート | Chart.js（PLTrendChart.vue・Phase 4 実装済み） |
 | Backend | Supabase (PostgreSQL) |
 | Infra | Cloudflare Pages |
 | V-MINT連携 | `cost_reports` / `flavor_brand_sales` / `drink_orders` 参照 |
@@ -53,7 +53,7 @@ V-PEACH/
 ### pe_store_settings（店舗別固定費）
 ```sql
 CREATE TABLE pe_store_settings (
-  store_id uuid PRIMARY KEY REFERENCES stores(id),
+  store_id bigint PRIMARY KEY REFERENCES stores(id),  -- stores.idがbigintのためuuidから変更
   fixed_rent numeric DEFAULT 0,
   fixed_utilities numeric DEFAULT 0,
   fixed_sundries numeric DEFAULT 0,
@@ -76,7 +76,7 @@ CREATE TABLE pe_company_settings (
 ```sql
 CREATE TABLE pe_monthly_records (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id uuid REFERENCES stores(id),
+  store_id bigint REFERENCES stores(id),
   period_key integer NOT NULL,   -- YYYYMM
   total_sales numeric DEFAULT 0,
   labor_cost numeric DEFAULT 0,
@@ -92,7 +92,7 @@ CREATE TABLE pe_monthly_records (
 ```sql
 CREATE TABLE pe_benchmarks (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id uuid REFERENCES stores(id),  -- NULLは全社共通
+  store_id bigint REFERENCES stores(id),  -- NULLは全社共通
   item_name text NOT NULL,
   target_value numeric,
   is_percentage boolean DEFAULT true

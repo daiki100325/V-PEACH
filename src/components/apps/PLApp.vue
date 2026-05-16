@@ -89,7 +89,12 @@
                 <p class="text-sm">データを集計中...</p>
             </div>
 
-            <template v-else-if="plResult">
+            <template v-else>
+                <!-- データなしバナー -->
+                <div v-if="!plHasData" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 text-xs">
+                    <span>この期間の月次データがありません（— は未入力）</span>
+                </div>
+
                 <!-- 売上セクション -->
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-teal-50 border-b border-teal-100">
@@ -97,108 +102,119 @@
                     </div>
                     <div class="divide-y divide-slate-50">
                         <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-600">総売上</span>
-                            <span class="text-sm font-bold text-slate-800">{{ fmt(plResult.totalSales) }}</span>
+                            <span class="text-sm text-slate-600">税込み総売上</span>
+                            <span class="text-sm font-bold text-slate-800">{{ fmt(displayPL.totalSales) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 提供売上</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.serviceSales) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.serviceSales) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 物販売上</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.merchandiseSales) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.merchandiseSales) }}</span>
+                        </div>
+                        <div class="flex justify-between px-4 py-2">
+                            <span class="text-xs text-slate-400 pl-3">− 消費税（1/11）</span>
+                            <span class="text-xs text-slate-400">{{ fmt(displayPL.consumptionTax) }}</span>
+                        </div>
+                        <div class="flex justify-between px-4 py-3 bg-teal-50/40">
+                            <span class="text-sm font-bold text-slate-700">税引き後総売上</span>
+                            <span class="text-sm font-bold text-teal-700">{{ fmt(displayPL.totalSalesAfterTax) }}</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 変動費セクション -->
+                <!-- 原価セクション -->
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-amber-50 border-b border-amber-100">
-                        <span class="text-xs font-bold text-amber-700 uppercase tracking-wider">変動費</span>
+                        <span class="text-xs font-bold text-amber-700 uppercase tracking-wider">原価</span>
                     </div>
                     <div class="divide-y divide-slate-50">
                         <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— フレーバー</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.flavorCost) }}</span>
+                            <span class="text-sm text-slate-500 pl-3">— 提供フレーバー原価</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.flavorCost) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 炭</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.charcoalCost) }}</span>
+                            <span class="text-sm text-slate-500 pl-3">— 炭原価</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.charcoalCost) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— ジュース</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.drinkCost) }}</span>
+                            <span class="text-sm text-slate-500 pl-3">— ジュース原価</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.drinkCost) }}</span>
+                        </div>
+                        <div class="flex justify-between px-4 py-3">
+                            <span class="text-sm text-slate-500 pl-3">— 物販フレーバー原価</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.merchandiseFlavorCost) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3 bg-slate-50">
                             <span class="text-sm font-bold text-slate-600">粗利</span>
-                            <span class="text-sm font-bold" :class="plResult.grossProfit >= 0 ? 'text-teal-600' : 'text-red-500'">
-                                {{ fmt(plResult.grossProfit) }}
+                            <span class="text-sm font-bold"
+                                :class="!plHasData ? 'text-slate-400' : displayPL.grossProfit >= 0 ? 'text-teal-600' : 'text-red-500'">
+                                {{ fmt(displayPL.grossProfit) }}
                             </span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 固定費セクション -->
+                <!-- 販管費セクション -->
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-rose-50 border-b border-rose-100">
-                        <span class="text-xs font-bold text-rose-700 uppercase tracking-wider">固定費</span>
+                        <span class="text-xs font-bold text-rose-700 uppercase tracking-wider">販管費</span>
                     </div>
                     <div class="divide-y divide-slate-50">
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 家賃</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.rent) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.rent) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 人件費</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.laborCost) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.laborCost) }}</span>
                         </div>
-                        <div v-if="plResult.laborRate != null" class="flex justify-between px-4 py-2 bg-rose-50/50">
+                        <div v-if="displayPL.laborRate != null" class="flex justify-between px-4 py-2 bg-rose-50/50">
                             <span class="text-xs text-rose-600 pl-3">労働分配率</span>
-                            <span class="text-xs font-bold text-rose-600">{{ fmtPct(plResult.laborRate) }}</span>
+                            <span class="text-xs font-bold text-rose-600">{{ fmtPct(displayPL.laborRate) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 決済手数料</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.paymentFee) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.paymentFee) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 光熱費</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.utilities) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.utilities) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 雑費</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.sundries) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.sundries) }}</span>
+                        </div>
+                        <div v-if="selectedStoreKey === 'all'" class="flex justify-between px-4 py-3">
+                            <span class="text-sm text-slate-500 pl-3">— 役員報酬</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.execRemuneration) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-3 bg-slate-50">
                             <span class="text-sm font-bold text-slate-600">営業利益</span>
-                            <span class="text-sm font-bold" :class="plResult.operatingProfit >= 0 ? 'text-teal-600' : 'text-red-500'">
-                                {{ fmt(plResult.operatingProfit) }}
+                            <span class="text-sm font-bold"
+                                :class="!plHasData ? 'text-slate-400' : displayPL.operatingProfit >= 0 ? 'text-teal-600' : 'text-red-500'">
+                                {{ fmt(displayPL.operatingProfit) }}
                             </span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 最終手残り（全社のみ） -->
+                <!-- 全社調整セクション（全社のみ） -->
                 <div v-if="selectedStoreKey === 'all'" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-slate-800 border-b border-slate-700">
                         <span class="text-xs font-bold text-slate-200 uppercase tracking-wider">全社調整</span>
                     </div>
                     <div class="divide-y divide-slate-50">
                         <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 役員報酬</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.execRemuneration) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 借入返済</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(plResult.debtRepayment) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">+ 物販売益</span>
-                            <span class="text-sm font-bold text-teal-600">{{ fmt(plResult.merchandiseProfit) }}</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.debtRepayment) }}</span>
                         </div>
                         <div class="flex justify-between px-4 py-4 bg-slate-50">
-                            <span class="text-base font-black text-slate-800">最終会社手残り</span>
-                            <span class="text-base font-black" :class="plResult.finalProfit >= 0 ? 'text-teal-600' : 'text-red-500'">
-                                {{ fmt(plResult.finalProfit) }}
+                            <span class="text-base font-black text-slate-800">純現金収支（会社手残り）</span>
+                            <span class="text-base font-black"
+                                :class="!plHasData ? 'text-slate-400' : displayPL.netCashFlow >= 0 ? 'text-teal-600' : 'text-red-500'">
+                                {{ fmt(displayPL.netCashFlow) }}
                             </span>
                         </div>
                     </div>
@@ -242,11 +258,6 @@
                     </div>
                 </div>
             </template>
-
-            <!-- データなし -->
-            <div v-else class="text-center py-16 text-slate-400">
-                <p class="text-sm">この期間のデータがありません</p>
-            </div>
         </div>
 
     </main>
@@ -255,10 +266,10 @@
 <script>
 import {
     getMonthlyRecord, getStoreSettings, getCompanySettings, getBenchmarks,
-    getCostReportForPE, getCostPriceForPeriod, getMerchandisePriceForPeriod
+    getCostReportForPE, getCostPriceForPeriod
 } from '../../api.js'
 import {
-    calcPL, calcVariableCostFromCostReport, calcMerchandiseSalesQty,
+    calcPL, calcVariableCostFromCostReport,
     calcRolling3MonthAvg, calcAnnualSum, formatJPY, formatPct
 } from '../../utils/finance.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getNPrevPeriodKeys, getYearPeriodKeys } from '../../utils/periods.js'
@@ -266,9 +277,9 @@ import PLTrendChart from '../PLTrendChart.vue'
 
 const BENCHMARK_DEFS = [
     { key: 'labor_rate', label: '労働分配率', getActual: (pl) => pl.laborRate, isGood: (a, t) => a <= t },
-    { key: 'gross_profit_margin', label: '粗利率', getActual: (pl) => pl.totalSales > 0 ? pl.grossProfit / pl.totalSales : null, isGood: (a, t) => a >= t },
-    { key: 'operating_profit_margin', label: '営業利益率', getActual: (pl) => pl.totalSales > 0 ? pl.operatingProfit / pl.totalSales : null, isGood: (a, t) => a >= t },
-    { key: 'variable_cost_ratio', label: '変動費率', getActual: (pl) => pl.totalSales > 0 ? pl.variableCostTotal / pl.totalSales : null, isGood: (a, t) => a <= t },
+    { key: 'gross_profit_margin', label: '粗利率', getActual: (pl) => pl.totalSalesAfterTax > 0 ? pl.grossProfit / pl.totalSalesAfterTax : null, isGood: (a, t) => a >= t },
+    { key: 'operating_profit_margin', label: '営業利益率', getActual: (pl) => pl.totalSalesAfterTax > 0 ? pl.operatingProfit / pl.totalSalesAfterTax : null, isGood: (a, t) => a >= t },
+    { key: 'cost_ratio', label: '原価率', getActual: (pl) => pl.totalSalesAfterTax > 0 ? pl.costTotal / pl.totalSalesAfterTax : null, isGood: (a, t) => a <= t },
 ]
 
 export default {
@@ -317,6 +328,20 @@ export default {
             const s = this.stores.find(x => x.key === this.selectedStoreKey)
             return s ? s.name : ''
         },
+        plHasData() {
+            return this.plResult !== null
+        },
+        displayPL() {
+            if (this.plResult) return this.plResult
+            const keys = [
+                'serviceSales', 'merchandiseSales', 'totalSales', 'consumptionTax', 'totalSalesAfterTax',
+                'flavorCost', 'charcoalCost', 'drinkCost', 'merchandiseFlavorCost', 'costTotal',
+                'grossProfit', 'laborRate',
+                'rent', 'laborCost', 'paymentFee', 'utilities', 'sundries', 'execRemuneration', 'sgaTotal',
+                'operatingProfit', 'debtRepayment', 'netCashFlow'
+            ]
+            return Object.fromEntries(keys.map(k => [k, null]))
+        },
         healthHighlights() {
             if (!this.plResult) return []
             return BENCHMARK_DEFS.map(def => {
@@ -333,8 +358,8 @@ export default {
         trendDatasets() {
             return [
                 {
-                    label: '総売上',
-                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.totalSales) : null),
+                    label: '税引後売上',
+                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.totalSalesAfterTax) : null),
                     borderColor: '#0d9488',
                     backgroundColor: 'rgba(13,148,136,0.08)',
                     tension: 0.3,
@@ -360,7 +385,7 @@ export default {
         }
     },
     methods: {
-        fmt(v) { return formatJPY(v) },
+        fmt(v) { return v == null ? '—' : formatJPY(v) },
         fmtPct(v) { return formatPct(v) },
         goBackToSelection() {
             this.subModeActive = false
@@ -420,10 +445,7 @@ export default {
             const isAll = storeKey === 'all'
             const targetStores = isAll ? this.stores.map(s => s.key) : [storeKey]
 
-            const [costPrices, mercPrice] = await Promise.all([
-                getCostPriceForPeriod(periodKey),
-                getMerchandisePriceForPeriod(periodKey)
-            ])
+            const costPrices = await getCostPriceForPeriod(periodKey)
 
             const storeResults = await Promise.all(
                 targetStores.map(async (sk) => {
@@ -438,8 +460,7 @@ export default {
                         costPrices.price_flavor_per_g,
                         costPrices.price_charcoal_per_kg
                     )
-                    const qty = calcMerchandiseSalesQty(costReport?.brandSales)
-                    return calcPL(record, settings, variableCosts, qty, mercPrice.price_per_unit, null)
+                    return calcPL(record, settings, variableCosts, null)
                 })
             )
 
@@ -457,7 +478,9 @@ export default {
             }, {})
             summed.execRemuneration = Number(companySettings?.exec_remuneration) || 0
             summed.debtRepayment = Number(companySettings?.debt_repayment) || 0
-            summed.finalProfit = summed.operatingProfit + summed.merchandiseProfit - summed.execRemuneration - summed.debtRepayment
+            summed.sgaTotal = summed.rent + summed.laborCost + summed.paymentFee + summed.utilities + summed.sundries + summed.execRemuneration
+            summed.operatingProfit = summed.grossProfit - summed.sgaTotal
+            summed.netCashFlow = summed.operatingProfit - summed.debtRepayment
             summed.laborRate = summed.grossProfit > 0 ? summed.laborCost / summed.grossProfit : null
             return summed
         },

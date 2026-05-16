@@ -1,5 +1,11 @@
 # CHANGELOG_DEV
 
+## 2026-05-16
+- What: UI・ドキュメントの表記を「経営コックピット」から「経営ダッシュボード」に統一
+- Why: プロダクト名称の表記揺れを解消
+- Files: `index.html`, `src/components/common/PinAuth.vue`, `src/components/common/AppHeader.vue`, `notes/_index.md`, `notes/V-PEACH_requirements.md`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
 ## 2026-05-15
 - What: Phase 0 — プロジェクトスキャフォールド作成
 - Why: V-MINT 2.0と同一スタック（Vue3/Vite/Tailwind/Supabase）でV-PEACHを独立リポジトリとして構築

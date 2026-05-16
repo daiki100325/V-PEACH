@@ -28,81 +28,84 @@ export function calcVariableCostFromCostReport(costReport, priceFlavorPerG, pric
   }
 }
 
-/** flavor_brand_salesから物販販売数量（merch_count + merch_count_secondary）を合計 */
-export function calcMerchandiseSalesQty(brandSales) {
-  return (brandSales || []).reduce((acc, s) => {
-    return acc + (Number(s.merch_count) || 0) + (Number(s.merch_count_secondary) || 0)
-  }, 0)
-}
-
 /**
  * PL計算メイン関数
- * @param {Object} record - pe_monthly_records行 {total_sales, labor_cost, payment_fee, utilities, sundries, rent}
- * @param {Object} settings - pe_store_settings行 {fixed_rent, fixed_utilities, fixed_sundries, fixed_payment_fee, physical_profit_margin}
+ * @param {Object} record - pe_monthly_records行 {service_sales, merchandise_sales, labor_cost}
+ * @param {Object} settings - pe_store_settings行 {fixed_rent, fixed_utilities, fixed_sundries, payment_fee_rate}
  * @param {Object} variableCosts - {flavorCost, charcoalCost, drinkCost}
- * @param {number} merchandiseSalesQty - 物販販売数量
- * @param {number} merchandiseUnitPrice - 物販1単位あたり販売値
  * @param {Object|null} companySettings - {exec_remuneration, debt_repayment}（全社集計時のみ）
  */
-export function calcPL(record, settings, variableCosts, merchandiseSalesQty, merchandiseUnitPrice, companySettings = null) {
+export function calcPL(record, settings, variableCosts, companySettings = null) {
   const n = (v) => Number(v) || 0
 
-  const totalSales = n(record?.total_sales)
-  const merchandiseSales = n(merchandiseSalesQty) * n(merchandiseUnitPrice)
-  const serviceSales = Math.max(0, totalSales - merchandiseSales)
-  const physicalMargin = n(settings?.physical_profit_margin) || 0.1
-  const merchandiseProfit = merchandiseSales * physicalMargin
+  // 売上
+  const serviceSales = n(record?.service_sales)
+  const merchandiseSales = n(record?.merchandise_sales)
+  const totalSales = serviceSales + merchandiseSales
+  const consumptionTax = totalSales / 11
+  const totalSalesAfterTax = totalSales * (10 / 11)
 
+  // 原価（V-MINTデータ + 物販フレーバー固定計算）
   const flavorCost = n(variableCosts?.flavorCost)
   const charcoalCost = n(variableCosts?.charcoalCost)
   const drinkCost = n(variableCosts?.drinkCost)
-  const variableCostTotal = flavorCost + charcoalCost + drinkCost
+  const merchandiseFlavorCost = merchandiseSales * 0.89
+  const costTotal = flavorCost + charcoalCost + drinkCost + merchandiseFlavorCost
 
-  // 各経費: レコードの値が存在すればそれを使い、なければ設定値のデフォルトを使用
-  const rent = record?.rent != null ? n(record.rent) : n(settings?.fixed_rent)
+  // 粗利
+  const grossProfit = totalSalesAfterTax - costTotal
+
+  // 販管費（家賃・光熱費・雑費は設定値。決済手数料は売上連動。役員報酬は全社時のみ）
+  const rent = n(settings?.fixed_rent)
   const laborCost = n(record?.labor_cost)
-  const paymentFee = record?.payment_fee != null ? n(record.payment_fee) : n(settings?.fixed_payment_fee)
-  const utilities = record?.utilities != null ? n(record.utilities) : n(settings?.fixed_utilities)
-  const sundries = record?.sundries != null ? n(record.sundries) : n(settings?.fixed_sundries)
-  const fixedCostTotal = rent + laborCost + paymentFee + utilities + sundries
-
-  const grossProfit = totalSales - variableCostTotal
-  const laborRate = grossProfit > 0 ? laborCost / grossProfit : null
-  const operatingProfit = grossProfit - fixedCostTotal
-
+  const paymentFeeRate = n(settings?.payment_fee_rate) || 0.025
+  const paymentFee = totalSalesAfterTax * paymentFeeRate
+  const utilities = n(settings?.fixed_utilities)
+  const sundries = n(settings?.fixed_sundries)
   const execRemuneration = companySettings ? n(companySettings.exec_remuneration) : 0
+  const sgaTotal = rent + laborCost + paymentFee + utilities + sundries + execRemuneration
+
+  // 利益
+  const laborRate = grossProfit > 0 ? laborCost / grossProfit : null
+  const operatingProfit = grossProfit - sgaTotal
+
+  // 全社調整（全社集計時のみ）
   const debtRepayment = companySettings ? n(companySettings.debt_repayment) : 0
-  const finalProfit = operatingProfit + merchandiseProfit - execRemuneration - debtRepayment
+  const netCashFlow = operatingProfit - debtRepayment
 
   return {
-    totalSales,
-    merchandiseSales,
     serviceSales,
-    merchandiseProfit,
+    merchandiseSales,
+    totalSales,
+    consumptionTax,
+    totalSalesAfterTax,
     flavorCost,
     charcoalCost,
     drinkCost,
-    variableCostTotal,
+    merchandiseFlavorCost,
+    costTotal,
+    grossProfit,
+    laborRate,
     rent,
     laborCost,
     paymentFee,
     utilities,
     sundries,
-    fixedCostTotal,
-    grossProfit,
-    laborRate,
-    operatingProfit,
     execRemuneration,
+    sgaTotal,
+    operatingProfit,
     debtRepayment,
-    finalProfit
+    netCashFlow
   }
 }
 
 const PL_NUMERIC_KEYS = [
-  'totalSales', 'merchandiseSales', 'serviceSales', 'merchandiseProfit',
-  'flavorCost', 'charcoalCost', 'drinkCost', 'variableCostTotal',
-  'rent', 'laborCost', 'paymentFee', 'utilities', 'sundries', 'fixedCostTotal',
-  'grossProfit', 'operatingProfit', 'execRemuneration', 'debtRepayment', 'finalProfit'
+  'serviceSales', 'merchandiseSales', 'totalSales', 'consumptionTax', 'totalSalesAfterTax',
+  'flavorCost', 'charcoalCost', 'drinkCost', 'merchandiseFlavorCost', 'costTotal',
+  'grossProfit',
+  'rent', 'laborCost', 'paymentFee', 'utilities', 'sundries', 'execRemuneration', 'sgaTotal',
+  'operatingProfit',
+  'debtRepayment', 'netCashFlow'
 ]
 
 /** 複数PLResultから移動平均を計算（nullを除外して平均） */
@@ -129,7 +132,7 @@ export function calcAnnualSum(plResults) {
   return result
 }
 
-/** 金額を日本円形式でフォーマット（例: 1,234,567円） */
+/** 金額を日本円形式でフォーマット（例: ¥1,234,567） */
 export function formatJPY(value) {
   if (value == null || isNaN(value)) return '—'
   return `¥${Math.round(value).toLocaleString('ja-JP')}`
