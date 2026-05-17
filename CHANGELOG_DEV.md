@@ -1,6 +1,16 @@
 # CHANGELOG_DEV
 
 ## 2026-05-17
+- What: 設定画面の「現在適用中」レコードを削除可能に変更（店舗別固定費・全社共通費・ベンチマーク目標値、2件以上ある場合のみ削除ボタン表示）
+- Why: 最新レコードは従来削除不可だったが、誤登録修正のため削除できるよう要望。削除後は次の最新レコードが自動的に適用される
+- Files: `src/components/apps/SettingsApp.vue`
+
+## 2026-05-17
+- What: pe_store_settings デフォルト値の流し込みSQL作成（フォールバック用）
+- Why: pe_store_settings_revisions が未適用の期間にフォールバックした際、固定費が0にならないようデフォルト値を設定するため
+- Files: `supabase/SEED_store_settings_defaults.sql`
+
+## 2026-05-17
 - What: 設定「店舗別固定費」を1店舗表示+セレクターバー方式に変更（全店舗一覧表示→ピル切替UI）
 - Why: 全3店舗を縦に並べると1店舗あたりのコンテンツ量が多くスクロールが深くなるため、PLモードと同様の横並びセレクターで店舗をシームレスに切り替える方式へ変更
 - Files: `src/components/apps/SettingsApp.vue`

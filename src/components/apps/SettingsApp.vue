@@ -67,9 +67,15 @@
                 <div v-if="selectedSS" class="space-y-3">
                     <!-- 現在適用中 -->
                     <div v-if="selectedSS.revisions.length > 0" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                        <div class="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center gap-2">
-                            <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">現在適用中</span>
-                            <span class="text-xs text-emerald-600">{{ revRangeLabel(selectedSS.revisions, 0) }}</span>
+                        <div class="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">現在適用中</span>
+                                <span class="text-xs text-emerald-600">{{ revRangeLabel(selectedSS.revisions, 0) }}</span>
+                            </div>
+                            <button v-if="selectedSS.revisions.length > 1"
+                                @click="deleteStoreRev(selectedSS.storeKey, selectedSS.revisions[0])"
+                                :disabled="ssSaving"
+                                class="text-xs text-red-400 hover:text-red-600 transition-colors">削除</button>
                         </div>
                         <div class="divide-y divide-slate-50">
                             <div v-for="field in storeSettingsFields" :key="field.key"
@@ -169,9 +175,15 @@
             <template v-else>
                 <!-- 現在適用中 -->
                 <div v-if="csRevisions.length > 0" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center gap-2">
-                        <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">現在適用中</span>
-                        <span class="text-xs text-emerald-600">{{ revRangeLabel(csRevisions, 0) }}</span>
+                    <div class="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">現在適用中</span>
+                            <span class="text-xs text-emerald-600">{{ revRangeLabel(csRevisions, 0) }}</span>
+                        </div>
+                        <button v-if="csRevisions.length > 1"
+                            @click="deleteCsRev(csRevisions[0])"
+                            :disabled="csSaving"
+                            class="text-xs text-red-400 hover:text-red-600 transition-colors">削除</button>
                     </div>
                     <div class="divide-y divide-slate-50">
                         <div class="flex justify-between px-4 py-2.5 text-sm">
@@ -264,9 +276,15 @@
             <template v-else>
                 <!-- 現在適用中 -->
                 <div v-if="bmRevisions.length > 0" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center gap-2">
-                        <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">現在適用中</span>
-                        <span class="text-xs text-emerald-600">{{ revRangeLabel(bmRevisions, 0) }}</span>
+                    <div class="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">現在適用中</span>
+                            <span class="text-xs text-emerald-600">{{ revRangeLabel(bmRevisions, 0) }}</span>
+                        </div>
+                        <button v-if="bmRevisions.length > 1"
+                            @click="deleteBmRev(bmRevisions[0])"
+                            :disabled="bmSaving"
+                            class="text-xs text-red-400 hover:text-red-600 transition-colors">削除</button>
                     </div>
                     <div class="divide-y divide-slate-50">
                         <div v-for="item in bmItems" :key="item.key" class="flex justify-between px-4 py-2.5 text-sm">
