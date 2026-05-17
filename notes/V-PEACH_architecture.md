@@ -15,7 +15,7 @@ parent: [[V-PEACH/notes/_index]]
 | レイヤー | 技術 |
 |---------|------|
 | Frontend | Vue 3 + Vite + Tailwind CSS |
-| チャート | Chart.js（PLTrendChart.vue・Phase 4 実装済み） |
+| チャート | Chart.js（PLTrendChart.vue・カテゴリー別トグル・二重Y軸） |
 | Backend | Supabase (PostgreSQL) |
 | Infra | Cloudflare Pages |
 | V-MINT連携 | `cost_reports` / `flavor_brand_sales` / `drink_orders` 参照 |
@@ -40,8 +40,9 @@ V-PEACH/
 │       │   ├── LoadingOverlay.vue
 │       │   ├── PinAuth.vue
 │       │   └── ConfirmDialog.vue
+│       ├── PLTrendChart.vue # 月次推移チャート（カテゴリー別トグル・二重Y軸）
 │       └── apps/
-│           ├── PLApp.vue        # (1) PLモード（シングルページ・フィルター統合）
+│           ├── PLApp.vue        # (1) PLモード（シングルページ・FLR比サマリー含む）
 │           ├── InputApp.vue     # (2) 月次入力モード（全店舗一括フロー）
 │           └── SettingsApp.vue  # (3) 設定モード（バージョン管理・改定履歴）
 ├── supabase/
@@ -150,6 +151,9 @@ CREATE TABLE pe_benchmarks_revisions (
 | 営業利益 | `grossProfit − sgaTotal` |
 | 純現金収支 | `operatingProfit − debtRepayment`（全社のみ）|
 | 労働分配率 | `laborCost / grossProfit`（grossProfit > 0 のみ）|
+| **F比** | `costTotal / totalSalesAfterTax` |
+| **L比** | `laborCost / totalSalesAfterTax` |
+| **R比** | `rent / totalSalesAfterTax` |
 
 ## デプロイフロー
 

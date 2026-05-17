@@ -61,8 +61,13 @@ parent: [[V-PEACH/notes/_index]]
 | 純現金収支 | `operatingProfit − debtRepayment` | 全社のみ |
 | 粗利率 | `grossProfit / totalSalesAfterTax` | 税引き後総売上 |
 | 原価率 | `costTotal / totalSalesAfterTax` | 税引き後総売上 |
-| 労働分配率 | `laborCost / grossProfit`（grossProfit > 0 のみ） | — |
+| 労働分配率 | `laborCost / grossProfit`（grossProfit > 0 のみ） | 粗利 |
 | 営業利益率 | `operatingProfit / totalSalesAfterTax` | 税引き後総売上 |
+| **F比** | `costTotal / totalSalesAfterTax` | 税引き後総売上 |
+| **L比** | `laborCost / totalSalesAfterTax` | 税引き後総売上 |
+| **R比** | `rent / totalSalesAfterTax` | 税引き後総売上 |
+
+> FLR比はHealth Checkとは独立したサマリーセクション（PLの中段）に常時表示。L比は売上ベース（※ベンチマークの「労働分配率」は粗利ベースで別計算）。
 
 ## 月次入力項目
 
@@ -92,15 +97,18 @@ InputApp.vue で毎月入力する項目（**3項目のみ**）：
 
 **ビジュアルPL**
 - 売上→原価→粗利→販管費→営業利益の縦積み構造
+- **FLR比サマリー**（Health Check の上）：F比・L比・R比を横並び3カードで常時表示。データなし時はハイフン
 - Health Highlight：設定した目標値（%）に対し、超過=RED・余剰=GREEN で表示
 
 **トレンドチャート（折れ線）**
 
 | 期間モード | 表示範囲 |
 |-----------|---------|
-| 月次 | 参照月が含まれる1年分（例：2026年5月参照 → 2026年1〜12月） |
-| 3ヶ月平均 | 月次と同様の年範囲で、各月の直近3ヶ月平均値をプロット |
-| 年次 | 年度別の推移（2026年・2027年・2028年…） |
+| 月次 | 参照月が含まれる直近12ヶ月 |
+| 3ヶ月平均 | 直近12ヶ月の各月直近3ヶ月平均値をプロット |
+| 年次 | 指定年の12ヶ月分 |
+
+チャートは全PL項目＋FLR比を表示可能。カテゴリー別ボタン（売上・原価・利益・FLR比・販管費）をタップしてエクスパンド、指標ごとにON/OFFを切替。初期表示は「税込総売上・F比・L比・R比・会社手残り」のみ。Y軸は二重軸（左：金額万円、右：%）。
 
 ### (2) 月次入力モード（データ投入画面）
 

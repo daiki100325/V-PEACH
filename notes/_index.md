@@ -17,6 +17,7 @@ tags: [project/v-peach, type/hub]
 - Phase 3（PLモード基本）: ✅ 完了
 - Phase 4（トレンドチャート・3ヶ月平均・年次集計・ヘルスチェック）: ✅ 完了
 - Phase 5（売上・原価体系改修）: ✅ 完了（2026-05-17）
+- Phase 6（FLR比表示・トレンドチャート全指標化）: ✅ 完了（2026-05-17）
 
 ## Key Links
 - Decisions: [[V-PEACH/DECISIONS]]
@@ -31,12 +32,13 @@ tags: [project/v-peach, type/hub]
 - [[V-PEACH/notes/V-PEACH_test-plan]] — テスト計画・テストデータ投入手順
 - [[V-PEACH/notes/old/V-PEACH_revision-plan]] ✅ 完了
 - [[V-PEACH/notes/V-PEACH_release-plan]]
+- [[V-PEACH/notes/V-PEACH_next-actions]] — 次のアクション（ベンチマーク見直し・UI変更検討）
 
 ## Weekly Review
 - Wins:
-  - Phase 5 改修完了。提供/物販売上分離・消費税ライン・原価89%固定化・売上連動決済手数料が本番稼働
+  - Phase 6 完了。FLR比サマリーセクション（F比・L比・R比）追加、月次推移チャートを全PL項目＋FLR比のカテゴリー別トグル対応に全面改修
 - Risks:
-  - 既存テストデータは旧カラム（total_sales等）で入力されているため数値確認が必要
+  - テストデータ未投入のため、FLR比・チャート表示はデータ投入後の実動確認が必要
 - Next Actions:
   - [[V-PEACH/notes/V-PEACH_test-plan]] に沿ってテストデータ投入・動作確認
   - 不具合は TROUBLESHOOTING / CHANGELOG_DEV に記録
