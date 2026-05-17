@@ -21,10 +21,13 @@ parent:
 
 | テーブル名 | 区分 | 追加タイミング | 説明 |
 |---|---|---|---|
-| `pe_store_settings` | マスタ | Phase 1 | 店舗別固定費・決済手数料率 |
-| `pe_company_settings` | マスタ | Phase 1 | 全社共通費（シングルトン `id=1`） |
+| `pe_store_settings` | マスタ | Phase 1 | 店舗別固定費・決済手数料率（改定履歴なし・フォールバック用） |
+| `pe_company_settings` | マスタ | Phase 1 | 全社共通費（シングルトン `id=1`・フォールバック用） |
 | `pe_monthly_records` | トランザクション | Phase 1 | 月次実績（提供/物販売上・人件費） |
-| `pe_benchmarks` | マスタ | Phase 1 | Health Check 目標値 |
+| `pe_benchmarks` | マスタ | Phase 1 | Health Check 目標値（旧方式・フォールバック用） |
+| `pe_store_settings_revisions` | マスタ | Phase 5+ | 店舗別固定費の改定履歴（`effective_from` ベース） |
+| `pe_company_settings_revisions` | マスタ | Phase 5+ | 全社共通費の改定履歴（`effective_from` ベース） |
+| `pe_benchmarks_revisions` | マスタ | Phase 5+ | ベンチマーク目標値の改定履歴（4指標を1行で管理） |
 
 ### 廃止済み（Phase 5 で削除）
 
@@ -133,10 +136,17 @@ flowchart TD
 - Phase 5 で `total_sales` → `service_sales` リネーム、`merchandise_sales` 追加。`rent` / `payment_fee` / `utilities` / `sundries` は削除（設定値・計算値へ移行）。
 - upsert キー: `(store_id, period_key)`。
 
-### pe_benchmarks（目標値）
+### pe_benchmarks（目標値・旧方式）
 - `store_id IS NULL` は全社共通ベンチマーク（Health Check 用）。
 - `item_name` の想定値: `labor_rate` / `gross_profit_margin` / `operating_profit_margin` / `cost_ratio`。
 - `target_value` は小数（例: 0.75 = 75%）。設定 UI から `/100` して保存。
+- 現在は `pe_benchmarks_revisions` が主系。`pe_benchmarks` はフォールバック用。
+
+### pe_store_settings_revisions / pe_company_settings_revisions / pe_benchmarks_revisions（改定履歴・主系）
+- Phase 5+ で追加。設定値を `effective_from`（YYYYMM 整数）付きで複数バージョン管理する。
+- PL 計算時は `getActiveStoreSettings` / `getActiveCompanySettings` / `getActiveBenchmarks` が `effective_from <= periodKey` の最新行を取得し、行がなければ旧テーブルにフォールバック。
+- `pe_benchmarks_revisions` は4指標（`labor_rate` / `gross_profit_margin` / `operating_profit_margin` / `cost_ratio`）を1行にフラット管理。`pe_benchmarks` の item_name 1行ごと方式とは異なる。
+- 設定 UI では「現在適用中」（最新行）と「改定履歴」（過去行一覧）を別段表示。現在適用中は2件以上ある場合のみ削除可能。
 
 ### V-MINT 参照の結合（アプリ層）
 
@@ -166,10 +176,17 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 |---|---|---|
 | `getStores` | `stores` | 店舗一覧 |
 | `getMonthlyRecord` / `upsertMonthlyRecord` / `getMonthlyRecordsForYear` | `pe_monthly_records` | 月次 CRUD・年次一括取得 |
-| `getStoreSettings` / `upsertStoreSettings` | `pe_store_settings` | 店舗固定費 |
-| `getCompanySettings` / `upsertCompanySettings` | `pe_company_settings` | 全社共通費 |
-| `getBenchmarks` / `upsertBenchmark` / `deleteBenchmark` | `pe_benchmarks` | ベンチマーク |
+| `getStoreSettings` / `upsertStoreSettings` | `pe_store_settings` | 店舗固定費（フォールバック用） |
+| `getActiveStoreSettings` | `pe_store_settings_revisions` → `pe_store_settings` | 期間に有効な店舗固定費（主系） |
+| `getStoreSettingsRevisions` / `addStoreSettingsRevision` / `deleteStoreSettingsRevision` | `pe_store_settings_revisions` | 改定履歴 CRUD |
+| `getCompanySettings` / `upsertCompanySettings` | `pe_company_settings` | 全社共通費（フォールバック用） |
+| `getActiveCompanySettings` | `pe_company_settings_revisions` → `pe_company_settings` | 期間に有効な全社共通費（主系） |
+| `getCompanySettingsRevisions` / `addCompanySettingsRevision` / `deleteCompanySettingsRevision` | `pe_company_settings_revisions` | 改定履歴 CRUD |
+| `getBenchmarks` / `upsertBenchmark` / `deleteBenchmark` | `pe_benchmarks` | ベンチマーク（旧方式） |
+| `getActiveBenchmarks` | `pe_benchmarks_revisions` | 期間に有効なベンチマーク（主系） |
+| `getBenchmarksRevisions` / `addBenchmarksRevision` / `deleteBenchmarksRevision` | `pe_benchmarks_revisions` | 改定履歴 CRUD |
 | `getCostReportForPE` | `cost_reports`, `flavor_brand_sales`, `drink_orders` | PL 変動費（読み取り） |
+| `getCostReportDates` | `cost_reports` | V-MINT 集計期間（start_date/end_date）取得 |
 | `getCostPriceForPeriod` | `cost_price_masters` | 単価解決（読み取り） |
 
 ## store_key 対応（UI ↔ DB）
@@ -186,6 +203,9 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 |---|---|
 | `supabase/DB_MIGRATION.sql` | Phase 1: `pe_store_settings` / `pe_company_settings` / `pe_monthly_records` / `pe_benchmarks` 作成。旧 `pe_merchandise_price_masters` と `pe_merchandise_sales_view` も含む（後続で廃止） |
 | `supabase/DB_MIGRATION_revision_20260517.sql` | Phase 5: 売上分離・月次経費カラム削除・`payment_fee_rate` 追加・物販マスタ/View 削除 |
+| `supabase/DB_MIGRATION_versioned_settings.sql` | Phase 5+: `pe_store_settings_revisions` / `pe_company_settings_revisions` / `pe_benchmarks_revisions` 追加。既存設定を `effective_from=202501` で移行 |
+| `supabase/DB_MIGRATION_enable_rls_20260517.sql` | Phase 5+: 全 `pe_*` テーブルで RLS を有効化（anon 全許可ポリシー） |
+| `supabase/SEED_store_settings_defaults.sql` | フォールバック用デフォルト値投入（`pe_store_settings_revisions` 未適用期間の 0 落ち防止） |
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_architecture]]

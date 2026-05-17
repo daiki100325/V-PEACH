@@ -52,6 +52,13 @@ parent: [[V-PEACH/notes/_index]]
 - PLApp.vue の原価/販管費の大カテゴリー化、`netCashFlow` 表示
 - ベンチマーク分母を `totalSalesAfterTax` に統一、`variable_cost_ratio` → `cost_ratio` にリネーム
 
+### ✅ Phase 5+：UI大改修・設定バージョン管理・RLS（2026-05-17 完了）
+- **経営PL シングルページ化**：フィルター選択+PL表示を1画面に統合
+- **月次入力 全店舗一括フロー化**：3店舗を連続入力できるステップに変更。V-MINT 集計期間を参照表示
+- **設定3種のバージョン管理化**：`pe_store_settings_revisions` / `pe_company_settings_revisions` / `pe_benchmarks_revisions` 追加。`effective_from` で改定履歴管理
+- **設定画面 UI 改修**：店舗別固定費をピルセレクター方式に変更。「現在適用中」+「改定履歴」の2段表示。現在適用中の削除（2件以上のみ）
+- **全テーブルRLS有効化**：anon 全許可ポリシーで既存動作を維持しつつ警告を解消
+
 ## 現在のステータス
 全フェーズ完了。テスト実施待ち（手順: [[V-PEACH/notes/V-PEACH_test-plan]]）。
 

@@ -41,10 +41,15 @@ V-PEACH/
 │       │   ├── PinAuth.vue
 │       │   └── ConfirmDialog.vue
 │       └── apps/
-│           ├── PLApp.vue        # (1) PLモード
-│           ├── InputApp.vue     # (2) 月次入力モード
-│           └── SettingsApp.vue  # (3) 設定モード
-├── DB_MIGRATION.sql             # Supabase実行用マイグレーション
+│           ├── PLApp.vue        # (1) PLモード（シングルページ・フィルター統合）
+│           ├── InputApp.vue     # (2) 月次入力モード（全店舗一括フロー）
+│           └── SettingsApp.vue  # (3) 設定モード（バージョン管理・改定履歴）
+├── supabase/
+│   ├── DB_MIGRATION.sql                     # Phase 1: pe_* 4テーブル作成
+│   ├── DB_MIGRATION_revision_20260517.sql   # Phase 5: 売上分離・カラム整理
+│   ├── DB_MIGRATION_versioned_settings.sql  # Phase 5+: 設定バージョン管理テーブル追加
+│   ├── DB_MIGRATION_enable_rls_20260517.sql # Phase 5+: 全テーブルRLS有効化
+│   └── SEED_store_settings_defaults.sql     # フォールバック用デフォルト値投入
 └── .env.local                   # 環境変数（gitignore済み）
 ```
 
@@ -98,6 +103,38 @@ CREATE TABLE pe_benchmarks (
 ```
 > `item_name` の値: `labor_rate` / `gross_profit_margin` / `operating_profit_margin` / `cost_ratio`
 
+### 設定バージョン管理テーブル（Phase 5+追加）
+
+設定3種を `effective_from`（YYYYMM）付きで改定履歴管理。PL計算時は `effective_from <= periodKey` の最新行を取得し、行がなければ旧テーブルにフォールバックする。
+
+```sql
+CREATE TABLE pe_store_settings_revisions (
+  id             bigserial PRIMARY KEY,
+  store_id       bigint NOT NULL REFERENCES stores(id),
+  effective_from int NOT NULL,
+  fixed_rent numeric, fixed_utilities numeric,
+  fixed_sundries numeric, payment_fee_rate numeric,
+  note text, created_at timestamptz DEFAULT now(),
+  UNIQUE(store_id, effective_from)
+);
+
+CREATE TABLE pe_company_settings_revisions (
+  id             bigserial PRIMARY KEY,
+  effective_from int NOT NULL UNIQUE,
+  exec_remuneration numeric, debt_repayment numeric,
+  note text, created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE pe_benchmarks_revisions (
+  id             bigserial PRIMARY KEY,
+  effective_from int NOT NULL UNIQUE,
+  labor_rate numeric, gross_profit_margin numeric,
+  operating_profit_margin numeric, cost_ratio numeric,
+  note text, created_at timestamptz DEFAULT now()
+);
+```
+> `pe_benchmarks_revisions` は4指標を1行に集約（`pe_benchmarks` の item_name 1行ごと方式とは異なる）。
+
 ## 財務ロジック（src/utils/finance.js）
 
 | 指標 | 計算式 |
@@ -127,6 +164,7 @@ git subtree push --prefix=V-PEACH V-PEACH main
 - Supabase プロジェクトは V-MINT 2.0 と共用（moejgsremxdksmzrowpw）
 - `pe_` プレフィックスで既存テーブルと分離
 - `.env.local` は gitignore 済み。Cloudflare環境変数で本番設定
+- 全 `pe_*` テーブルで RLS 有効（anon 全許可ポリシー）。URL非公開・PIN認証前提のため全許可で既存動作を維持
 - ER 図・V-MINT との参照関係: [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
 
 ## Related

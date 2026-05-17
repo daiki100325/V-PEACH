@@ -73,6 +73,11 @@ export function calcPL(record, settings, variableCosts, companySettings = null) 
   const debtRepayment = companySettings ? n(companySettings.debt_repayment) : 0
   const netCashFlow = operatingProfit - execRemuneration - debtRepayment
 
+  // FLR比（税引後売上ベース）
+  const fRatio = totalSalesAfterTax > 0 ? costTotal / totalSalesAfterTax : null
+  const lRatio = totalSalesAfterTax > 0 ? laborCost / totalSalesAfterTax : null
+  const rRatio = totalSalesAfterTax > 0 ? rent / totalSalesAfterTax : null
+
   return {
     serviceSales,
     merchandiseSales,
@@ -86,6 +91,9 @@ export function calcPL(record, settings, variableCosts, companySettings = null) 
     costTotal,
     grossProfit,
     laborRate,
+    fRatio,
+    lRatio,
+    rRatio,
     rent,
     laborCost,
     paymentFee,
@@ -117,6 +125,9 @@ export function calcRolling3MonthAvg(plResults) {
     result[k] = valid.reduce((sum, r) => sum + (Number(r[k]) || 0), 0) / valid.length
   }
   result.laborRate = result.grossProfit > 0 ? result.laborCost / result.grossProfit : null
+  result.fRatio = result.totalSalesAfterTax > 0 ? result.costTotal / result.totalSalesAfterTax : null
+  result.lRatio = result.totalSalesAfterTax > 0 ? result.laborCost / result.totalSalesAfterTax : null
+  result.rRatio = result.totalSalesAfterTax > 0 ? result.rent / result.totalSalesAfterTax : null
   return result
 }
 
@@ -129,6 +140,9 @@ export function calcAnnualSum(plResults) {
     result[k] = valid.reduce((sum, r) => sum + (Number(r[k]) || 0), 0)
   }
   result.laborRate = result.grossProfit > 0 ? result.laborCost / result.grossProfit : null
+  result.fRatio = result.totalSalesAfterTax > 0 ? result.costTotal / result.totalSalesAfterTax : null
+  result.lRatio = result.totalSalesAfterTax > 0 ? result.laborCost / result.totalSalesAfterTax : null
+  result.rRatio = result.totalSalesAfterTax > 0 ? result.rent / result.totalSalesAfterTax : null
   return result
 }
 

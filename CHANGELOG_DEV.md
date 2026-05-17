@@ -1,6 +1,23 @@
 # CHANGELOG_DEV
 
 ## 2026-05-17
+- What: 経営PLにFLR比サマリーセクション追加・月次推移チャートをカテゴリー別全指標トグル対応に改修
+- Why: FLR比（F比=原価率、L比=人件費/売上、R比=家賃/売上）の可視化要望。トレンドチャートは全PL項目＋FLR比を表示可能にし、カテゴリー別エクスパンドで指標ON/OFF制御。二重Y軸（左:金額、右:%）採用
+- Files: `src/utils/finance.js`, `src/components/PLTrendChart.vue`, `src/components/apps/PLApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## 2026-05-17
+- What: `notes/` 配下5ファイルを現行仕様（Phase 5+ 改修）に同期
+- Why: 設定バージョン管理テーブル・UI改修・RLS有効化・全店舗一括入力フローが実装済みだったが notes に未反映だった
+- Files: `notes/V-PEACH_architecture.md`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/V-PEACH_requirements.md`, `notes/V-PEACH_release-plan.md`, `notes/V-PEACH_test-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_architecture]], [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
+
+## 2026-05-17
+- What: 全テーブルで RLS を有効化（Option A: anon 全許可ポリシー）
+- Why: Supabase の「RLS has not been enabled」警告を解消。URL非公開・信頼ユーザー前提のため anon 全許可とし既存動作を維持
+- Files: `supabase/DB_MIGRATION_enable_rls_20260517.sql`
+
+## 2026-05-17
 - What: 設定画面の「現在適用中」レコードを削除可能に変更（店舗別固定費・全社共通費・ベンチマーク目標値、2件以上ある場合のみ削除ボタン表示）
 - Why: 最新レコードは従来削除不可だったが、誤登録修正のため削除できるよう要望。削除後は次の最新レコードが自動的に適用される
 - Files: `src/components/apps/SettingsApp.vue`

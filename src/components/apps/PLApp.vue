@@ -206,6 +206,28 @@
                     </div>
                 </div>
 
+                <!-- FLR比 -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="px-4 py-3 bg-pink-50 border-b border-pink-100">
+                        <span class="text-xs font-bold text-pink-700 uppercase tracking-wider">FLR比</span>
+                        <span class="text-xs text-slate-400 ml-2">（対税引後売上）</span>
+                    </div>
+                    <div class="grid grid-cols-3 divide-x divide-slate-100">
+                        <div class="px-4 py-4 text-center">
+                            <div class="text-xs text-slate-500 mb-1">F比（原価率）</div>
+                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.fRatio) }}</div>
+                        </div>
+                        <div class="px-4 py-4 text-center">
+                            <div class="text-xs text-slate-500 mb-1">L比（人件費率）</div>
+                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.lRatio) }}</div>
+                        </div>
+                        <div class="px-4 py-4 text-center">
+                            <div class="text-xs text-slate-500 mb-1">R比（家賃比率）</div>
+                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.rRatio) }}</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Health Check -->
                 <div v-if="healthHighlights.some(h => h.actual != null)" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
@@ -240,7 +262,7 @@
                         </span>
                     </div>
                     <div class="p-4">
-                        <PLTrendChart :labels="trendLabels" :datasets="trendDatasets" />
+                        <PLTrendChart :labels="trendLabels" :trendMonthly="trendMonthly" />
                     </div>
                 </div>
 
@@ -324,7 +346,7 @@ export default {
             const keys = [
                 'serviceSales', 'merchandiseSales', 'totalSales', 'consumptionTax', 'totalSalesAfterTax',
                 'flavorCost', 'charcoalCost', 'drinkCost', 'merchandiseFlavorCost', 'costTotal',
-                'grossProfit', 'laborRate',
+                'grossProfit', 'laborRate', 'fRatio', 'lRatio', 'rRatio',
                 'rent', 'laborCost', 'paymentFee', 'utilities', 'sundries', 'execRemuneration', 'sgaTotal',
                 'operatingProfit', 'debtRepayment', 'netCashFlow'
             ]
@@ -341,34 +363,6 @@ export default {
         },
         trendLabels() {
             return this.trendMonthly.map(m => m.label)
-        },
-        trendDatasets() {
-            return [
-                {
-                    label: '税引後売上',
-                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.totalSalesAfterTax) : null),
-                    borderColor: '#0d9488',
-                    backgroundColor: 'rgba(13,148,136,0.08)',
-                    tension: 0.3,
-                    spanGaps: true
-                },
-                {
-                    label: '粗利',
-                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.grossProfit) : null),
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245,158,11,0.08)',
-                    tension: 0.3,
-                    spanGaps: true
-                },
-                {
-                    label: '営業利益',
-                    data: this.trendMonthly.map(m => m.pl ? Math.round(m.pl.operatingProfit) : null),
-                    borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99,102,241,0.08)',
-                    tension: 0.3,
-                    spanGaps: true
-                }
-            ]
         }
     },
     methods: {
@@ -461,6 +455,9 @@ export default {
             summed.operatingProfit = summed.grossProfit - summed.sgaTotal
             summed.netCashFlow = summed.operatingProfit - summed.execRemuneration - summed.debtRepayment
             summed.laborRate = summed.grossProfit > 0 ? summed.laborCost / summed.grossProfit : null
+            summed.fRatio = summed.totalSalesAfterTax > 0 ? summed.costTotal / summed.totalSalesAfterTax : null
+            summed.lRatio = summed.totalSalesAfterTax > 0 ? summed.laborCost / summed.totalSalesAfterTax : null
+            summed.rRatio = summed.totalSalesAfterTax > 0 ? summed.rent / summed.totalSalesAfterTax : null
             return summed
         },
 
