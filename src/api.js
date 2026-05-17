@@ -132,6 +132,155 @@ export async function upsertStoreSettings(storeKey, fields) {
   if (error) throw error
 }
 
+// ─── pe_store_settings_revisions ────────────────────────────────────────────
+
+/** 指定期間に有効な店舗固定費設定を返す（effective_from <= periodKey の最新） */
+export async function getActiveStoreSettings(storeKey, periodKey) {
+  requireSupabase()
+  const storeId = await getStoreIdByKey(storeKey)
+  const pk = Number(periodKey)
+  const { data, error } = await supabase
+    .from('pe_store_settings_revisions')
+    .select('*')
+    .eq('store_id', storeId)
+    .lte('effective_from', pk)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (data) return data
+  // フォールバック: 旧テーブルを参照
+  return getStoreSettings(storeKey)
+}
+
+/** 店舗固定費の全改定履歴を新しい順で返す */
+export async function getStoreSettingsRevisions(storeKey) {
+  requireSupabase()
+  const storeId = await getStoreIdByKey(storeKey)
+  const { data, error } = await supabase
+    .from('pe_store_settings_revisions')
+    .select('*')
+    .eq('store_id', storeId)
+    .order('effective_from', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+/** 店舗固定費の改定を追加 */
+export async function addStoreSettingsRevision(storeKey, effectiveFrom, fields) {
+  requireSupabase()
+  const storeId = await getStoreIdByKey(storeKey)
+  const { error } = await supabase
+    .from('pe_store_settings_revisions')
+    .insert({ store_id: storeId, effective_from: Number(effectiveFrom), ...fields })
+  if (error) throw error
+}
+
+/** 店舗固定費の改定を削除 */
+export async function deleteStoreSettingsRevision(id) {
+  requireSupabase()
+  const { error } = await supabase
+    .from('pe_store_settings_revisions')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+// ─── pe_company_settings_revisions ──────────────────────────────────────────
+
+/** 指定期間に有効な全社共通費設定を返す */
+export async function getActiveCompanySettings(periodKey) {
+  requireSupabase()
+  const pk = Number(periodKey)
+  const { data, error } = await supabase
+    .from('pe_company_settings_revisions')
+    .select('*')
+    .lte('effective_from', pk)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (data) return data
+  return getCompanySettings()
+}
+
+/** 全社共通費の全改定履歴を新しい順で返す */
+export async function getCompanySettingsRevisions() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_company_settings_revisions')
+    .select('*')
+    .order('effective_from', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+/** 全社共通費の改定を追加 */
+export async function addCompanySettingsRevision(effectiveFrom, fields) {
+  requireSupabase()
+  const { error } = await supabase
+    .from('pe_company_settings_revisions')
+    .insert({ effective_from: Number(effectiveFrom), ...fields })
+  if (error) throw error
+}
+
+/** 全社共通費の改定を削除 */
+export async function deleteCompanySettingsRevision(id) {
+  requireSupabase()
+  const { error } = await supabase
+    .from('pe_company_settings_revisions')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+// ─── pe_benchmarks_revisions ─────────────────────────────────────────────────
+
+/** 指定期間に有効なベンチマーク目標値を返す（{ labor_rate, ... } の単一オブジェクト） */
+export async function getActiveBenchmarks(periodKey) {
+  requireSupabase()
+  const pk = Number(periodKey)
+  const { data, error } = await supabase
+    .from('pe_benchmarks_revisions')
+    .select('*')
+    .lte('effective_from', pk)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data ?? {}
+}
+
+/** ベンチマーク目標値の全改定履歴を新しい順で返す */
+export async function getBenchmarksRevisions() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_benchmarks_revisions')
+    .select('*')
+    .order('effective_from', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+/** ベンチマーク目標値の改定を追加 */
+export async function addBenchmarksRevision(effectiveFrom, fields) {
+  requireSupabase()
+  const { error } = await supabase
+    .from('pe_benchmarks_revisions')
+    .insert({ effective_from: Number(effectiveFrom), ...fields })
+  if (error) throw error
+}
+
+/** ベンチマーク目標値の改定を削除 */
+export async function deleteBenchmarksRevision(id) {
+  requireSupabase()
+  const { error } = await supabase
+    .from('pe_benchmarks_revisions')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
 // ─── pe_benchmarks ──────────────────────────────────────────────────────────
 
 /** storeKey=null で全社共通ベンチマークを取得 */
@@ -205,6 +354,21 @@ export async function getCostReportForPE(storeKey, periodKey) {
   if (drinksError) throw drinksError
 
   return { report, brandSales: brandSales || [], drinks: drinks || [] }
+}
+
+/** V-MINTの集計期間（start_date, end_date）のみを取得 */
+export async function getCostReportDates(storeKey, periodKey) {
+  requireSupabase()
+  const storeId = await getStoreIdByKey(storeKey)
+  const pk = Number(periodKey)
+  const { data, error } = await supabase
+    .from('cost_reports')
+    .select('start_date,end_date')
+    .eq('store_id', storeId)
+    .eq('period_key', pk)
+    .maybeSingle()
+  if (error) throw error
+  return data
 }
 
 /** 指定periodKeyに有効なV-MINTの単価マスター（フレーバー・炭単価）を返す */

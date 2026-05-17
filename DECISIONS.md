@@ -43,3 +43,32 @@
 
 ### Links
 - Related note: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## ADR-20260517-01: 役員報酬を販管費から切り出し、営業利益後の全社調整に移動
+
+- Status: Accepted
+- Date: 2026-05-17
+- Owners: daiki100325
+
+### Context
+- 役員報酬を販管費（sgaTotal）に含めていたため、店舗別の営業利益が比較できなかった
+- 役員報酬は会社全体に対して発生する費用であり、店舗単独のパフォーマンスに帰属させるべきでない
+- 借入返済は既に全社調整として営業利益後に差し引いていたが、役員報酬の扱いと不一致だった
+
+### Decision
+- 役員報酬（`exec_remuneration`）を `sgaTotal` から除外し、`debtRepayment` と同様に営業利益後の全社調整として差し引く
+- `netCashFlow = operatingProfit - execRemuneration - debtRepayment`
+- 店舗別PL: 販管費5項目（家賃・人件費・決済手数料・光熱費・雑費）で営業利益を算出
+- 全社合算PL: 営業利益から役員報酬・借入返済を差し引いて純現金収支を算出
+
+### Alternatives
+- 現行維持（役員報酬を販管費に含める）→ 店舗間の営業利益比較が不正確なため却下
+- 役員報酬を店舗ごとに按分 → 按分基準の根拠が薄く、管理コストに対して価値がないため却下
+
+### Consequences
+- Positive: 店舗単独の営業利益が純粋な運営パフォーマンスを反映する
+- Positive: 役員報酬・借入返済が「会社全体の調整」として視覚的・論理的に整理される
+- Negative: DB・API変更なし（pe_company_settings の構造はそのまま）
+
+### Links
+- Related note: [[V-PEACH/notes/V-PEACH_finance-spec]]

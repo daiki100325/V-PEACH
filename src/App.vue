@@ -31,7 +31,6 @@
             :stores="stores"
             @update:loading="loading = $event"
             @update:loadingMessage="loadingMessage = $event"
-            @update:stepActive="plStepActive = $event"
         />
 
         <!-- 月次入力 App -->

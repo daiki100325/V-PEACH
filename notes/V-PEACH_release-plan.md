@@ -36,17 +36,24 @@ parent: [[V-PEACH/notes/_index]]
 - 労働分配率の自動計算・表示
 - フィルター：拠点選択・期間モード選択（月次/3ヶ月平均/年次）
 
-### 🔲 Phase 4：PLモード 完全実装（未着手）
+### ✅ Phase 4：PLモード 完全実装（2026-05-16 完了）
 - トレンドチャート（Chart.js 折れ線）：月次・3ヶ月移動平均・年次
 - Health Highlight（RED/GREEN判定）：ベンチマーク目標値との比較
-- 3ヶ月平均・年次集計ロジックの実装（現在はTODO）
+- 3ヶ月平均・年次集計ロジック（`calcRolling3MonthAvg` / `calcAnnualSum`）
 - ベンチマーク設定UIの実装
 
-## 次のアクション
-1. ローカルで `npm install` → `npm run dev` で動作確認
-2. 設定モードで各店舗の固定費・物販販売値を初期設定
-3. 月次入力モードでテストデータを投入
-4. Phase 4（トレンドチャート）着手
+### ✅ Phase 5：売上・原価体系改修（2026-05-17 完了）
+- `total_sales` → `service_sales` + `merchandise_sales` 分離（月次入力・DB）
+- 消費税ライン（× 1/11）追加、税引き後総売上ベースに統一
+- 物販フレーバー原価を `merchandise_sales × 89%` 固定計算に変更
+- 決済手数料を固定額から `totalSalesAfterTax × payment_fee_rate` 売上連動に変更
+- 家賃・光熱費・雑費を月次入力から削除し設定値固定に変更
+- `pe_merchandise_price_masters` テーブル・`pe_merchandise_sales_view` 廃止
+- PLApp.vue の原価/販管費の大カテゴリー化、`netCashFlow` 表示
+- ベンチマーク分母を `totalSalesAfterTax` に統一、`variable_cost_ratio` → `cost_ratio` にリネーム
+
+## 現在のステータス
+全フェーズ完了。テスト実施待ち（手順: [[V-PEACH/notes/V-PEACH_test-plan]]）。
 
 ## Related
 - [[V-PEACH/DECISIONS]]

@@ -3,179 +3,331 @@ tags: [project/v-peach, type/note]
 parent: [[V-PEACH/notes/_index]]
 ---
 
-# V-PEACH — 計算ロジック仕様（数値フロー可視化）
+# V-PEACH 損益計算書（PL）の読み方と運用ガイド
 
-> ソース: `src/utils/finance.js` `calcPL()` / `src/components/apps/PLApp.vue`
-> 最終更新: 2026-05-16
+> 対象読者：経営層
+> 最終更新：2026-05-17（売上・原価体系改修 完了後）
 
 ---
 
-## 1. データ入力元の整理
+## はじめに
+
+PL画面の数字を、
+
+1. **何が載っているか**（全項目一覧）
+2. **どう動くか**（サンプル）
+3. **どう読むか**（指標と判断軸）
+4. **どう運用するか**（月次入力と設定）
+
+の順で示します。技術仕様はAppendixに分離。
+
+---
+
+## 1. PL全項目 — 載っている数字の全体像
+
+PLは**上から下へ足し引きしながら利益に落ちていく入れ子**です。店舗別画面では **⑱ 営業利益** まで、全社合算ではそのあと **㉑ 純現金収支** まで見ます（役員報酬・借入返済は店舗に按分できないため店舗別には出しません）。太字の **⑤・⑪・⑱・㉑**（税引き後総売上・粗利・営業利益・純現金収支）が経営判断の基準値です。
+
+### 1.1 売上ブロック（①〜⑤）
+
+| # | 項目 | 演算 | 入力／自動 | 店舗 | 全社 |
+|:---:|------|-----:|------------|:---:|:---:|
+| ① | 提供売上（税込） | — | 月次手入力（必須） | ○ | ○ |
+| ② | 物販売上（税込） | — | 月次手入力（任意・空欄=0） | ○ | ○ |
+| ③ | 税込み総売上 | ① + ② | 自動 | ○ | ○ |
+| ④ | 消費税相当 | ③ ÷ 11 | 自動（控除） | ○ | ○ |
+| ⑤ | **税引き後総売上** | ③ − ④ | 自動 | ○ | ○ |
+
+### 1.2 原価ブロック → 粗利（⑥〜⑪）
+
+| # | 項目 | 演算 | 入力／自動 | 店舗 | 全社 |
+|:---:|------|-----:|------------|:---:|:---:|
+| ⑥ | 提供フレーバー原価 | — | 在庫システム自動 | ○ | ○ |
+| ⑦ | 炭原価 | — | 在庫システム自動 | ○ | ○ |
+| ⑧ | ジュース原価 | — | 在庫システム自動 | ○ | ○ |
+| ⑨ | 物販フレーバー原価 | ② × 10/11 × 89% | 自動（固定率） | ○ | ○ |
+| ⑩ | 原価合計 | ⑥ + ⑦ + ⑧ + ⑨ | 自動 | ○ | ○ |
+| ⑪ | **粗利** | **⑤ − ⑩** | 自動 | ○ | ○ |
+
+> **粗利の読み方**：家賃・人件費を払う前の本源的な利益。⑪が⑰を下回れば店舗単体は赤字。
+
+### 1.3 販管費ブロック → 営業利益（⑫〜⑱）
+
+| # | 項目 | 演算 | 入力／自動 | 店舗 | 全社 |
+|:---:|------|-----:|------------|:---:|:---:|
+| ⑫ | 家賃 | — | 店舗設定（固定） | ○ | ○ |
+| ⑬ | 人件費 | — | 月次手入力（必須） | ○ | ○ |
+| ⑭ | 決済手数料 | ⑤ × 設定料率 | 自動（売上連動） | ○ | ○ |
+| ⑮ | 光熱費 | — | 店舗設定（固定） | ○ | ○ |
+| ⑯ | 雑費 | — | 店舗設定（固定） | ○ | ○ |
+| ⑰ | 販管費合計 | ⑫ + ⑬ + ⑭ + ⑮ + ⑯ | 自動 | ○ | ○ |
+| ⑱ | **営業利益** | **⑪ − ⑰** | 自動 | ○ | ○ |
+
+### 1.4 全社調整 → 純現金収支（⑲〜㉑）※全社合算のみ
+
+| # | 項目 | 演算 | 入力／自動 | 店舗 | 全社 |
+|:---:|------|-----:|------------|:---:|:---:|
+| ⑲ | 役員報酬 | — | 全社設定（固定） | — | ○ |
+| ⑳ | 借入返済 | — | 全社設定（固定） | — | ○ |
+| ㉑ | **純現金収支（会社手残り）** | **⑱ − ⑲ − ⑳** | 自動 | — | ○ |
+
+> ⑲⑳を販管費に入れない理由：**店舗別の事業パフォーマンスを比較可能にする**ため。会社全体の支払いは全社合算段階でのみ控除します。
+
+---
+
+## 2. サンプル — 3店舗合算1ヶ月
+
+### 入力した数字（手入力3項目）
+
+| 項目 | 金額 |
+|------|-----:|
+| 提供売上（税込） | ¥6,500,000 |
+| 物販売上（税込） | ¥500,000 |
+| 人件費 | ¥2,000,000 |
+
+### 在庫システムから自動取得
+
+| 項目 | 金額 |
+|------|-----:|
+| 提供フレーバー原価 | ¥1,000,000 |
+| 炭原価 | ¥40,000 |
+| ジュース原価 | ¥120,000 |
+
+### PL展開
+
+`▲` は控除・合算ブロックへの足し込みを示します（§1 の記号番号と対応）。
+
+#### 売上
+
+| 項目 | 金額（円） |
+|------|----------:|
+| ① 提供売上（税込） | 6,500,000 |
+| ② 物販売上（税込） | 500,000 |
+| **③ 税込み総売上**（①+②） | **7,000,000** |
+| ④ 消費税相当（③÷11） | ▲636,364 |
+| **⑤ 税引き後総売上**（③−④） | **6,363,636** |
+
+#### 原価 → 粗利
+
+| 項目 | 金額（円） |
+|------|----------:|
+| ⑥ 提供フレーバー原価 | 1,000,000 |
+| ⑦ 炭原価 | 40,000 |
+| ⑧ ジュース原価 | 120,000 |
+| ⑨ 物販フレーバー原価 | 404,545 |
+| **⑩ 原価合計**（⑥+⑦+⑧+⑨） | **▲1,564,545** |
+| **⑪ 粗利**（⑤−⑩） | **4,799,091** |
+
+#### 販管費 → 営業利益
+
+| 項目 | 金額（円） |
+|------|----------:|
+| ⑫ 家賃 | 668,000 |
+| ⑬ 人件費 | 2,000,000 |
+| ⑭ 決済手数料 | 159,091 |
+| ⑮ 光熱費 | 120,000 |
+| ⑯ 雑費 | 39,000 |
+| **⑰ 販管費合計**（⑫+⑬+⑭+⑮+⑯） | **▲2,986,091** |
+| **⑱ 営業利益**（⑪−⑰） | **1,813,000** |
+
+#### 全社調整
+
+| 項目 | 金額（円） |
+|------|----------:|
+| ⑲ 役員報酬 | ▲550,000 |
+| ⑳ 借入返済 | ▲1,000,000 |
+| **㉑ 純現金収支**（⑱−⑲−⑳） | **263,000** |
+
+> 自動算出の根拠：消費税相当 = 税込総売上 ÷ 11／物販フレーバー原価 = 物販売上 × 10/11 × 89%／決済手数料 = 税引き後総売上 × 2.5%（その他の入力源は §4 参照）
+
+### 算出される経営指標
+
+| 指標 | 計算 | 結果 | 目安 |
+|------|------|-----:|-----:|
+| 粗利率 | 粗利 ÷ 税引き後総売上 | 75.4% | 75%以上で良好 |
+| 原価率 | 原価合計 ÷ 税引き後総売上 | 24.6% | 粗利率の裏返し |
+| 営業利益率 | 営業利益 ÷ 税引き後総売上 | 28.5% | — |
+| 労働分配率 | 人件費 ÷ 粗利 | 41.7% | 50%未満で良好 |
+
+### 読み取り
+
+**営業利益181万円、役員報酬+借入返済155万円を吸収して純現金収支+26万円の黒字着地**。粗利率75.4%・労働分配率41.7%・営業利益率28.5%とも目安をクリアし健全。物販+10万円は粗利+1万円弱に過ぎないため、引き続き**粗利を伸ばす主戦場は提供売上**で、原価圧縮も合わせて効きます。
+
+---
+
+## 3. 各指標の意味と判断軸
+
+### 売上の2系統と物販原価89%固定
+
+提供売上と物販売上は**原価構造が違うため別管理**。提供売上は実消費の積み上げ（フレーバー・炭・ドリンク）、物販売上は仕入れ価格にわずかな利幅を乗せる商売で実績原価率は概ね89%——毎月実数集計のコストに見合わないため**税抜売上の89%を一律計上**しています。
+
+**判断上の含意**：物販売上100万円 → 粗利は約9万円（税込み売上の約10%）。物販は客単価の底上げ程度のインパクトで、**粗利を伸ばす主戦場は提供売上**。
+
+### 粗利 — 経営の分水嶺
+
+```
+粗利 = 税引き後総売上 − 原価合計
+```
+
+家賃・人件費を払う前の本源的な利益。**粗利が販管費を下回れば赤字**で、経営判断の起点。目安は粗利率75%以上（店舗別に変更可）。
+
+### 販管費 — 性格別の3区分
+
+| 項目 | 性格 | 月次対応 |
+|------|------|----------|
+| 人件費 | 変動 | 毎月入力 |
+| 家賃 | 完全固定（契約額） | 設定値 |
+| 光熱費・雑費 | 準固定 | 設定値（ブレが大きくなったら見直し） |
+| 決済手数料 | 売上連動 | 売上×料率で自動 |
+
+光熱費・雑費は厳密には変動しますが、月次のブレが経営判断を左右するほどではないため設定固定で運用。
+
+### 営業利益と純現金収支の段差
+
+```
+営業利益    = 粗利 − 販管費合計
+純現金収支 = 営業利益 − 役員報酬 − 借入返済
+```
+
+役員報酬と借入返済を販管費に含めず営業利益の後に置くのは、**店舗別の事業パフォーマンスを比較可能にする**ため。会社全体の支払いで店舗帰属できないので全社合算段階でのみ控除。
+
+### 4つの経営指標
+
+すべて **税引き後総売上を分母**に統一（労働分配率のみ業界慣行で粗利を分母）。
+
+| 指標 | 計算式 | 良い方向 | 解釈 |
+|------|--------|:-------:|------|
+| 粗利率 | 粗利 ÷ 税引き後総売上 | ↑ | 商品力・価格設計。低下は原価高騰か値引きを疑う |
+| 原価率 | 原価合計 ÷ 税引き後総売上 | ↓ | 仕入れ・在庫管理の効率 |
+| 営業利益率 | 営業利益 ÷ 税引き後総売上 | ↑ | 販管費まで含めた事業全体の収益性 |
+| 労働分配率 | 人件費 ÷ 粗利 | ↓ | 粗利のうち人件費比率。50%超は要注意 |
+
+目標値は店舗別に設定でき、実績割れで警告表示。
+
+### 3ヶ月平均・年次集計のクセ
+
+| モード | 各金額 | 比率（粗利率・労働分配率など） |
+|--------|--------|----------------------------|
+| 月次 | 当月実績 | 当月金額で計算 |
+| 3ヶ月平均 | 直近3ヶ月の単純平均（データなし月は除外） | **平均後の金額で再計算** |
+| 年次（12ヶ月） | 12ヶ月合算（データなし月は0扱い） | **合算後の金額で再計算** |
+
+> 比率を月次の単純平均で出すと売上規模の小さな月の異常値に引きずられるため、**金額を先に平均/合算してから再計算**する設計。
+
+---
+
+## 4. 月次に入力するもの／設定で変えるもの
+
+### 毎月手入力する数字（3つだけ）
+
+| 項目 | 必須/任意 |
+|------|----------|
+| 提供売上（税込） | 必須 |
+| 物販売上（税込） | 任意（空欄=0） |
+| 人件費 | 必須 |
+
+これ以外はすべて自動。
+
+### 自動で揃う数字
+
+| 数字 | 取得元 |
+|------|--------|
+| 提供フレーバー原価・炭原価・ジュース原価 | 在庫システムの月次集計 |
+| 物販フレーバー原価 | 物販売上 × 10/11 × 89% |
+| 家賃・光熱費・雑費 | 店舗設定値 |
+| 決済手数料 | 税引き後総売上 × 料率 |
+| 役員報酬・借入返済（全社のみ） | 全社設定値 |
+
+### 設定で固定している値（2026-05-17時点）
+
+**家賃（月額）**
+
+| 店舗 | 月額 |
+|------|-----:|
+| 馬場本店 | ¥132,000 |
+| 中野店 | ¥330,000 |
+| 馬場2号店 | ¥206,000 |
+| **3店舗合計** | **¥668,000** |
+
+**全店共通**
+
+| 項目 | 値 |
+|------|-----:|
+| 光熱費（月額） | ¥40,000 |
+| 雑費（月額） | ¥13,000 |
+| 決済手数料率 | 2.5%（税引き後総売上に対して） |
+
+**見直しタイミング**：契約変更や実態とのズレが大きくなった時点で設定画面から更新。毎月触る性質のものではありません。
+
+---
+
+## Related
+
+- [[V-PEACH/notes/V-PEACH_requirements]] — 要件定義
+- [[V-PEACH/notes/V-PEACH_architecture]] — システム構成
+
+---
+
+# Appendix — 開発者・保守担当者向け技術仕様
+
+> ここから先はアプリケーション保守のための技術詳細です。経営判断のためにPLを読む方は不要です。
+
+## A1. データ入力元の対応表
 
 | 数値 | 入力元 | 備考 |
 |------|--------|------|
-| `total_sales` | InputApp（月次手入力・必須） | 物販売上を含む総売上 |
+| `service_sales` | InputApp（月次手入力・必須） | 提供売上（税込） |
+| `merchandise_sales` | InputApp（月次手入力・任意） | 物販売上（税込）。空欄=0 |
 | `labor_cost` | InputApp（月次手入力・必須） | |
-| `rent` | InputApp（任意） → NULL時 `fixed_rent` | pe_store_settings フォールバック |
-| `payment_fee` | InputApp（任意） → NULL時 `fixed_payment_fee` | pe_store_settings フォールバック |
-| `utilities` | InputApp（任意） → NULL時 `fixed_utilities` | pe_store_settings フォールバック |
-| `sundries` | InputApp（任意） → NULL時 `fixed_sundries` | pe_store_settings フォールバック |
-| `merch_count + merch_count_secondary` | V-MINT `flavor_brand_sales`（自動） | 物販販売数量 |
-| `total_consumption_g - merch_count × grams_per_pack` | V-MINT `flavor_brand_sales`（自動） | 提供消費g（物販分を除く） |
+| `fixed_rent` | `pe_store_settings`（設定値固定） | 月次入力なし |
+| `fixed_utilities` | `pe_store_settings`（設定値固定） | 月次入力なし |
+| `fixed_sundries` | `pe_store_settings`（設定値固定） | 月次入力なし |
+| `payment_fee_rate` | `pe_store_settings`（設定値） | デフォルト 2.5%。決済手数料 = totalSalesAfterTax × rate |
+| `total_consumption_g` / `merch_count` | V-MINT `flavor_brand_sales`（自動） | 提供フレーバー原価の提供分算出に使用 |
 | `charcoal_nyanco_flat_serve + charcoal_kingco_flat_serve` | V-MINT `cost_reports`（自動） | 炭消費kg |
-| `drink_orders.amount` | V-MINT `drink_orders`（自動） | ジュース発注額 |
+| `drink_orders.amount` | V-MINT `drink_orders`（自動） | ジュース原価 |
 | `price_flavor_per_g` | V-MINT `cost_price_masters`（参照） | 期間キーで有効な最新価格 |
 | `price_charcoal_per_kg` | V-MINT `cost_price_masters`（参照） | 同上 |
-| `price_per_unit` | pe_merchandise_price_masters（参照） | 物販販売単価（期間有効価格） |
-| `physical_profit_margin` | pe_store_settings（設定） | 物販利益率デフォルト 0.1（10%） |
-| `exec_remuneration` | pe_company_settings（設定） | 全社集計時のみ使用 |
-| `debt_repayment` | pe_company_settings（設定） | 全社集計時のみ使用 |
+| `exec_remuneration` | `pe_company_settings`（設定） | 全社集計時のみ・営業利益から差し引き |
+| `debt_repayment` | `pe_company_settings`（設定） | 全社集計時のみ・営業利益から差し引き |
 
----
-
-## 2. 現行の計算フロー（finance.js `calcPL`）
+## A2. 計算フロー（`finance.js` `calcPL`）
 
 ```
-【売上分解】
-  merchandiseSalesQty  = Σ(merch_count + merch_count_secondary)
-  merchandiseSales     = merchandiseSalesQty × price_per_unit
-  serviceSales         = MAX(0, total_sales - merchandiseSales)
-  merchandiseProfit    = merchandiseSales × physical_profit_margin
+【売上】
+  totalSales           = service_sales + merchandise_sales   （税込み総売上）
+  consumptionTax       = totalSales / 11                     （消費税）
+  totalSalesAfterTax   = totalSales × (10/11)               （税引き後総売上）
 
-【変動費（シーシャ提供コストのみ）】
-  flavorServeG    = Σ MAX(0, total_consumption_g - merch_count × grams_per_pack)
-  flavorCost      = flavorServeG × price_flavor_per_g
-  charcoalCost    = (charcoal_nyanco_flat_serve + charcoal_kingco_flat_serve) × price_charcoal_per_kg
-  drinkCost       = Σ drink_orders.amount
-  variableCostTotal = flavorCost + charcoalCost + drinkCost
+【原価】
+  flavorServeG         = Σ MAX(0, total_consumption_g - merch_count × grams_per_pack)
+  flavorCost           = flavorServeG × price_flavor_per_g   （提供フレーバー原価）
+  charcoalCost         = (charcoal_nyanco_flat_serve + charcoal_kingco_flat_serve) × price_charcoal_per_kg
+  drinkCost            = Σ drink_orders.amount
+  merchandiseFlavorCost = merchandise_sales × (10/11) × 0.89  （物販フレーバー原価・税抜換算後89%固定）
+  costTotal            = flavorCost + charcoalCost + drinkCost + merchandiseFlavorCost
 
-【粗利・固定費】  ⚠️ ここに問題あり（後述）
-  grossProfit     = total_sales - variableCostTotal   ← total_salesは物販売上を含む
-  laborRate       = laborCost / grossProfit           （grossProfit > 0 のみ）
-  fixedCostTotal  = rent + laborCost + paymentFee + utilities + sundries
-  operatingProfit = grossProfit - fixedCostTotal
+【粗利】
+  grossProfit          = totalSalesAfterTax - costTotal
+
+【販管費（店舗帰属コストのみ）】
+  rent                 = pe_store_settings.fixed_rent
+  laborCost            = pe_monthly_records.labor_cost
+  paymentFee           = totalSalesAfterTax × payment_fee_rate  （売上連動）
+  utilities            = pe_store_settings.fixed_utilities
+  sundries             = pe_store_settings.fixed_sundries
+  sgaTotal             = rent + laborCost + paymentFee + utilities + sundries
+
+【利益】
+  laborRate            = laborCost / grossProfit  （grossProfit > 0 のとき）
+  operatingProfit      = grossProfit - sgaTotal
 
 【全社調整（全社集計時のみ）】
-  finalProfit     = operatingProfit + merchandiseProfit - execRemuneration - debtRepayment
+  execRemuneration     = pe_company_settings.exec_remuneration
+  debtRepayment        = pe_company_settings.debt_repayment
+  netCashFlow          = operatingProfit - execRemuneration - debtRepayment
 ```
 
-### PL表示上の構造
-
-```
-総売上          total_sales
-  └ 提供売上    serviceSales
-  └ 物販売上    merchandiseSales
-─ 変動費        variableCostTotal
-  └ フレーバー  flavorCost
-  └ 炭          charcoalCost
-  └ ジュース    drinkCost
-= 粗利          grossProfit             ← ⚠️
-─ 固定費        fixedCostTotal
-  └ 家賃        rent
-  └ 人件費      laborCost  （労働分配率 = laborCost / grossProfit）
-  └ 決済手数料  paymentFee
-  └ 光熱費      utilities
-  └ 雑費        sundries
-= 営業利益      operatingProfit         ← ⚠️
-─ 役員報酬      execRemuneration        （全社のみ）
-─ 借入返済      debtRepayment           （全社のみ）
-+ 物販売益      merchandiseProfit       （全社のみ）
-= 最終会社手残り finalProfit            （全社のみ）
-```
-
----
-
-## 3. ⚠️ 計算ロジックの問題点：物販原価の未計上
-
-### 問題の内容
-
-`grossProfit = total_sales - variableCostTotal` の計算において、
-`total_sales` には物販売上（`merchandiseSales`）が含まれているが、
-`variableCostTotal`（変動費）には物販の**仕入原価（COGS）が含まれていない**。
-
-物販の仕入原価 = `merchandiseSales × (1 - physical_profit_margin)`
-
-この仕入原価が差し引かれないまま粗利・営業利益が計算され、
-最後に `merchandiseProfit`（物販売益 = 売上 × 利益率）が加算される。
-
-### 数値例
-
-```
-total_sales          = 1,500,000 円
-  merchandiseSales   =   100,000 円（物販）
-  serviceSales       = 1,400,000 円（提供）
-physical_profit_margin = 10%
-merchandiseCOGS（未計上）= 90,000 円
-merchandiseProfit    =  10,000 円
-
-variableCostTotal    =  300,000 円（flavor+charcoal+drink、物販原価を含まない）
-
---- 現行の計算 ---
-grossProfit     = 1,500,000 - 300,000 = 1,200,000  ← 90,000円分の物販原価が混入
-operatingProfit = 1,200,000 - 900,000 =   300,000  ← 90,000円過大
-finalProfit     = 300,000 + 10,000   =   310,000  ← 90,000円過大
-
---- 正しい計算（提供ベース） ---
-grossProfit     = 1,400,000 - 300,000 = 1,100,000
-operatingProfit = 1,100,000 - 900,000 =   200,000
-finalProfit     = 200,000 + 10,000   =   210,000  ← 差額 100,000 = 物販売上分
-```
-
-### 影響範囲
-
-- `grossProfit`（粗利）: 物販売上分だけ過大
-- `operatingProfit`（営業利益）: 同じく過大
-- `laborRate`（労働分配率）: 過大な粗利を分母にするため過小評価
-- `finalProfit`（最終手残り）: 最終的には物販売上分だけ過大
-- ベンチマーク: `gross_profit_margin`・`operating_profit_margin`・`variable_cost_ratio` すべて歪む
-
----
-
-## 4. 修正案の比較
-
-### 案A：粗利の基準を提供売上（serviceSales）に変更【推奨】
-
-```js
-// finance.js calcPL() を修正
-const grossProfit = serviceSales - variableCostTotal  // total_sales → serviceSales に変更
-```
-
-- 粗利・営業利益 = シーシャ提供事業のみの損益
-- 物販は最終手残りラインで `+ merchandiseProfit` として加算（現行構造を維持）
-- PLの「粗利」行の意味が明確になる（シーシャ原価に対する粗利）
-- **变更箇所**: finance.js 1行のみ
-
-**PL上の見え方（案A後）**
-
-```
-提供売上    1,400,000
-─ 変動費      300,000
-= 粗利      1,100,000  ← シーシャ提供の粗利（正確）
-─ 固定費      900,000
-= 営業利益    200,000  ← 提供事業の営業利益
-+ 物販売益     10,000  ← 物販の純利益（物販売上 × margin）
-= 最終手残り  210,000
-```
-
-ただし「総売上」行と「粗利」の差が変動費のみでなく物販売上も含む構造になるため、
-PLの表示順・表示ラベルもあわせて変更が必要になる可能性あり。
-
-### 案B：物販仕入原価を変動費に加算
-
-```js
-const merchandiseCOGS = merchandiseSales * (1 - physicalMargin)
-const variableCostTotal = flavorCost + charcoalCost + drinkCost + merchandiseCOGS
-// finalProfit 算出時の merchandiseProfit 加算は削除
-```
-
-- grossProfit・operatingProfit が正確になる
-- `finalProfit = operatingProfit - execRemuneration - debtRepayment`
-- 物販をシーシャと同一変動費ラインで扱う構造
-- 変動費セクションに「物販仕入」行が追加される
-
----
-
-## 5. 3ヶ月平均・年次集計での挙動
+## A3. 集計関数
 
 | 関数 | 挙動 |
 |------|------|
@@ -183,25 +335,20 @@ const variableCostTotal = flavorCost + charcoalCost + drinkCost + merchandiseCOG
 | `calcAnnualSum` | 12ヶ月の各指標を合算。データなし月は 0 扱い |
 | 両方共通 | `laborRate` は平均/合算後の `laborCost / grossProfit` で再計算（月次の平均ではない） |
 
-> 問題点は月次PL同様。3ヶ月平均・年次集計でも grossProfit の過大評価が引き継がれる。
+## A4. ベンチマーク設定（healthHighlights）
 
----
-
-## 6. ベンチマーク定義（healthHighlights）
+分母はすべて `totalSalesAfterTax`（税引き後総売上）に統一。
 
 | key | 表示名 | 計算式 | 良い方向 |
 |-----|--------|--------|---------|
 | `labor_rate` | 労働分配率 | `laborCost / grossProfit` | ↓ 低いほど良い |
-| `gross_profit_margin` | 粗利率 | `grossProfit / totalSales` | ↑ 高いほど良い |
-| `operating_profit_margin` | 営業利益率 | `operatingProfit / totalSales` | ↑ 高いほど良い |
-| `variable_cost_ratio` | 変動費率 | `variableCostTotal / totalSales` | ↓ 低いほど良い |
+| `gross_profit_margin` | 粗利率 | `grossProfit / totalSalesAfterTax` | ↑ 高いほど良い |
+| `operating_profit_margin` | 営業利益率 | `operatingProfit / totalSalesAfterTax` | ↑ 高いほど良い |
+| `cost_ratio` | 原価率 | `costTotal / totalSalesAfterTax` | ↓ 低いほど良い |
 
 > 設定画面から目標値（%）を入力 → DB保存時に `/100` して小数値に変換。読み出し時もそのまま比較。
 
----
+## A5. 参照ソース
 
-## Related
-- [[V-PEACH/notes/V-PEACH_requirements]]
-- [[V-PEACH/notes/V-PEACH_architecture]]
-- ソース: `src/utils/finance.js`
-- ソース: `src/components/apps/PLApp.vue`
+- `src/utils/finance.js`（`calcPL` 本体）
+- `src/components/apps/PLApp.vue`（PL画面）

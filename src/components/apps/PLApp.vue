@@ -1,86 +1,71 @@
 <template>
     <main class="container mx-auto px-4 py-6 max-w-lg md:max-w-5xl flex-grow">
 
-        <!-- Step 0: フィルター選択 -->
-        <div v-if="!subModeActive" class="flex flex-col items-center pt-6 pb-20">
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5 w-full max-w-md">
-                <div class="text-center">
-                    <h2 class="text-xl font-bold text-slate-800">PLを確認</h2>
-                </div>
+        <!-- フィルターパネル（常時表示） -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-4">
+            <div class="flex flex-wrap gap-3 items-end">
 
-                <!-- 拠点選択 -->
-                <div class="space-y-3">
+                <!-- 拠点 -->
+                <div class="space-y-1.5 min-w-[110px]">
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">拠点</label>
                     <select v-model="selectedStoreKey"
-                        class="appearance-none w-full bg-slate-50 border border-slate-200 text-base font-bold rounded-xl p-4 text-center focus:ring-2 focus:ring-teal-500 text-slate-800">
+                        class="appearance-none w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-teal-500 text-slate-800">
                         <option value="all">全店舗合計</option>
                         <option v-for="store in stores" :key="store.key" :value="store.key">{{ store.name }}</option>
                     </select>
                 </div>
 
                 <!-- 期間モード -->
-                <div class="space-y-3">
+                <div class="space-y-1.5">
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">期間</label>
-                    <div class="grid grid-cols-3 gap-2">
+                    <div class="flex gap-1.5">
                         <button v-for="mode in periodModes" :key="mode.key"
                             @click="selectedPeriodMode = mode.key"
                             :class="selectedPeriodMode === mode.key
-                                ? 'bg-teal-600 text-white border-teal-600 shadow-md shadow-teal-500/30'
+                                ? 'bg-teal-600 text-white border-teal-600'
                                 : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-teal-50 hover:text-teal-600'"
-                            class="py-3 rounded-2xl font-bold border-2 transition-all active:scale-95 text-sm text-center">
+                            class="px-3 py-2.5 rounded-xl font-bold border-2 transition-all text-sm">
                             {{ mode.label }}
                         </button>
                     </div>
                 </div>
 
-                <!-- 参照月（月次・3ヶ月平均） -->
-                <div v-if="selectedPeriodMode !== 'annual'" class="space-y-2">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">参照月</label>
-                    <div class="grid grid-cols-2 gap-3">
+                <!-- 参照年月 -->
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        {{ selectedPeriodMode === 'annual' ? '参照年' : '参照月' }}
+                    </label>
+                    <div class="flex gap-2">
                         <select v-model="selectedYear"
-                            class="appearance-none w-full bg-slate-50 border border-slate-200 text-base font-bold rounded-xl p-4 text-center focus:ring-2 focus:ring-teal-500 text-slate-800">
-                            <option value="" disabled>年を選択</option>
+                            class="appearance-none bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-teal-500 text-slate-800">
+                            <option value="" disabled>年</option>
                             <option v-for="y in years" :key="y.value" :value="y.value">{{ y.label }}</option>
                         </select>
-                        <select v-model="selectedMonth"
-                            class="appearance-none w-full bg-slate-50 border border-slate-200 text-base font-bold rounded-xl p-4 text-center focus:ring-2 focus:ring-teal-500 text-slate-800">
-                            <option value="" disabled>月を選択</option>
+                        <select v-if="selectedPeriodMode !== 'annual'" v-model="selectedMonth"
+                            class="appearance-none bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-teal-500 text-slate-800">
+                            <option value="" disabled>月</option>
                             <option v-for="m in months" :key="m.value" :value="m.value">{{ m.label }}</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- 参照年（年次） -->
-                <div v-if="selectedPeriodMode === 'annual'" class="space-y-2">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">参照年</label>
-                    <select v-model="selectedYear"
-                        class="appearance-none w-full bg-slate-50 border border-slate-200 text-base font-bold rounded-xl p-4 text-center focus:ring-2 focus:ring-teal-500 text-slate-800">
-                        <option value="" disabled>年を選択</option>
-                        <option v-for="y in years" :key="y.value" :value="y.value">{{ y.label }}</option>
-                    </select>
-                </div>
-
+                <!-- 表示ボタン -->
                 <button
                     type="button"
                     @click="loadPL"
-                    :disabled="!canLoad"
-                    class="w-full py-4 rounded-2xl text-base font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-teal-600 hover:bg-teal-700 text-white">
-                    PLを表示
+                    :disabled="!canLoad || plLoading"
+                    class="px-6 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-teal-600 hover:bg-teal-700 text-white self-end">
+                    表示する
                 </button>
             </div>
         </div>
 
-        <!-- Step 1: PL表示 -->
-        <div v-if="subModeActive" class="space-y-4 pb-20">
+        <!-- PL表示エリア -->
+        <div class="space-y-4 pb-20">
 
-            <!-- フィルターバッジ -->
-            <div class="flex flex-wrap gap-2 mb-2">
-                <span class="text-xs font-bold px-3 py-1.5 rounded-full bg-teal-50 text-teal-700">{{ selectedStoreLabel }}</span>
-                <span class="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-600">{{ periodLabel }}</span>
-                <button @click="goBackToSelection"
-                    class="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-                    ← 条件変更
-                </button>
+            <!-- 初期状態（未ロード） -->
+            <div v-if="!hasLoaded && !plLoading" class="text-center py-16 text-slate-400">
+                <p class="text-sm">条件を選択して「表示する」を押してください</p>
             </div>
 
             <!-- ローディング -->
@@ -89,7 +74,8 @@
                 <p class="text-sm">データを集計中...</p>
             </div>
 
-            <template v-else>
+            <template v-if="hasLoaded && !plLoading">
+
                 <!-- データなしバナー -->
                 <div v-if="!plHasData" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 text-xs">
                     <span>この期間の月次データがありません（— は未入力）</span>
@@ -186,10 +172,6 @@
                             <span class="text-sm text-slate-500 pl-3">— 雑費</span>
                             <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.sundries) }}</span>
                         </div>
-                        <div v-if="selectedStoreKey === 'all'" class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 役員報酬</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.execRemuneration) }}</span>
-                        </div>
                         <div class="flex justify-between px-4 py-3 bg-slate-50">
                             <span class="text-sm font-bold text-slate-600">営業利益</span>
                             <span class="text-sm font-bold"
@@ -206,6 +188,10 @@
                         <span class="text-xs font-bold text-slate-200 uppercase tracking-wider">全社調整</span>
                     </div>
                     <div class="divide-y divide-slate-50">
+                        <div class="flex justify-between px-4 py-3">
+                            <span class="text-sm text-slate-500 pl-3">— 役員報酬</span>
+                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.execRemuneration) }}</span>
+                        </div>
                         <div class="flex justify-between px-4 py-3">
                             <span class="text-sm text-slate-500 pl-3">— 借入返済</span>
                             <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.debtRepayment) }}</span>
@@ -257,6 +243,7 @@
                         <PLTrendChart :labels="trendLabels" :datasets="trendDatasets" />
                     </div>
                 </div>
+
             </template>
         </div>
 
@@ -265,7 +252,8 @@
 
 <script>
 import {
-    getMonthlyRecord, getStoreSettings, getCompanySettings, getBenchmarks,
+    getMonthlyRecord, getStoreSettings, getCompanySettings,
+    getActiveStoreSettings, getActiveCompanySettings, getActiveBenchmarks,
     getCostReportForPE, getCostPriceForPeriod
 } from '../../api.js'
 import {
@@ -288,10 +276,10 @@ export default {
     props: {
         stores: { type: Array, default: () => [] }
     },
-    emits: ['update:loading', 'update:loadingMessage', 'update:stepActive'],
+    emits: ['update:loading', 'update:loadingMessage'],
     data() {
         return {
-            subModeActive: false,
+            hasLoaded: false,
             selectedStoreKey: 'all',
             selectedPeriodMode: 'monthly',
             selectedYear: String(new Date().getFullYear()),
@@ -304,7 +292,7 @@ export default {
             plLoading: false,
             plResult: null,
             trendMonthly: [],
-            benchmarks: [],
+            benchmarks: {},
             years: buildYearOptions(),
             months: buildMonthOptions()
         }
@@ -346,8 +334,7 @@ export default {
             if (!this.plResult) return []
             return BENCHMARK_DEFS.map(def => {
                 const actual = def.getActual(this.plResult)
-                const bm = this.benchmarks.find(b => b.item_name === def.key)
-                const target = bm ? Number(bm.target_value) : null
+                const target = this.benchmarks[def.key] != null ? Number(this.benchmarks[def.key]) : null
                 const isGood = (actual != null && target != null) ? def.isGood(actual, target) : null
                 return { label: def.label, actual, target, isGood }
             })
@@ -387,23 +374,15 @@ export default {
     methods: {
         fmt(v) { return v == null ? '—' : formatJPY(v) },
         fmtPct(v) { return formatPct(v) },
-        goBackToSelection() {
-            this.subModeActive = false
-            this.plResult = null
-            this.trendMonthly = []
-            this.$emit('update:stepActive', false)
-        },
         async loadPL() {
             if (!this.canLoad) return
-            this.subModeActive = true
             this.plLoading = true
             this.plResult = null
             this.trendMonthly = []
-            this.$emit('update:stepActive', true)
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', 'PLを集計中...')
             try {
-                this.benchmarks = await getBenchmarks(null)
+                this.benchmarks = await getActiveBenchmarks(this.periodKey)
 
                 if (this.selectedPeriodMode === 'monthly') {
                     const [pl, monthly] = await Promise.all([
@@ -424,9 +403,9 @@ export default {
                     this.plResult = pl
                     this.trendMonthly = monthly
                 }
+                this.hasLoaded = true
             } catch (e) {
                 alert(e.message || 'PL集計に失敗しました。')
-                this.goBackToSelection()
             } finally {
                 this.plLoading = false
                 this.$emit('update:loading', false)
@@ -436,7 +415,7 @@ export default {
         // 月次PL（1ヶ月分）
         async loadMonthlyPL(storeKey, periodKey) {
             const isAll = storeKey === 'all'
-            const companySettings = isAll ? await getCompanySettings() : null
+            const companySettings = isAll ? await getActiveCompanySettings(periodKey) : null
             return this.loadMonthlyPLCore(storeKey, periodKey, companySettings)
         },
 
@@ -451,7 +430,7 @@ export default {
                 targetStores.map(async (sk) => {
                     const [record, settings, costReport] = await Promise.all([
                         getMonthlyRecord(sk, periodKey),
-                        getStoreSettings(sk),
+                        getActiveStoreSettings(sk, periodKey),
                         getCostReportForPE(sk, periodKey)
                     ])
                     if (!record) return null
@@ -478,9 +457,9 @@ export default {
             }, {})
             summed.execRemuneration = Number(companySettings?.exec_remuneration) || 0
             summed.debtRepayment = Number(companySettings?.debt_repayment) || 0
-            summed.sgaTotal = summed.rent + summed.laborCost + summed.paymentFee + summed.utilities + summed.sundries + summed.execRemuneration
+            summed.sgaTotal = summed.rent + summed.laborCost + summed.paymentFee + summed.utilities + summed.sundries
             summed.operatingProfit = summed.grossProfit - summed.sgaTotal
-            summed.netCashFlow = summed.operatingProfit - summed.debtRepayment
+            summed.netCashFlow = summed.operatingProfit - summed.execRemuneration - summed.debtRepayment
             summed.laborRate = summed.grossProfit > 0 ? summed.laborCost / summed.grossProfit : null
             return summed
         },
@@ -488,7 +467,7 @@ export default {
         // 3ヶ月平均PL（periodKeyを含む直近3ヶ月の平均）
         async loadRolling3PL(storeKey, periodKey) {
             const isAll = storeKey === 'all'
-            const companySettings = isAll ? await getCompanySettings() : null
+            const companySettings = isAll ? await getActiveCompanySettings(periodKey) : null
             const periodKeys = getNPrevPeriodKeys(periodKey, 3)
             const plResults = await Promise.all(
                 periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
@@ -499,7 +478,7 @@ export default {
         // 月次・3ヶ月平均用トレンドデータ（直近12ヶ月）
         async loadTrendForPeriod(storeKey, periodKey) {
             const isAll = storeKey === 'all'
-            const companySettings = isAll ? await getCompanySettings() : null
+            const companySettings = isAll ? await getActiveCompanySettings(periodKey) : null
             const periodKeys = getNPrevPeriodKeys(periodKey, 12)
             const pls = await Promise.all(
                 periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
@@ -513,7 +492,8 @@ export default {
         // 年次PL（指定年の全月合計 + チャート用月次データ）
         async loadAnnualPL(storeKey, year) {
             const isAll = storeKey === 'all'
-            const companySettings = isAll ? await getCompanySettings() : null
+            const annualStartPk = Number(year) * 100 + 1
+            const companySettings = isAll ? await getActiveCompanySettings(annualStartPk) : null
             const periodKeys = getYearPeriodKeys(year)
 
             const monthlyPLs = await Promise.all(

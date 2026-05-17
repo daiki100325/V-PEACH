@@ -50,17 +50,17 @@ V-PEACH/
 
 ## データベース設計
 
-### pe_store_settings（店舗別固定費）
+### pe_store_settings（店舗別固定費・定率）
 ```sql
 CREATE TABLE pe_store_settings (
-  store_id bigint PRIMARY KEY REFERENCES stores(id),  -- stores.idがbigintのためuuidから変更
+  store_id bigint PRIMARY KEY REFERENCES stores(id),
   fixed_rent numeric DEFAULT 0,
   fixed_utilities numeric DEFAULT 0,
   fixed_sundries numeric DEFAULT 0,
-  fixed_payment_fee numeric DEFAULT 0,
-  physical_profit_margin numeric DEFAULT 0.1
+  payment_fee_rate numeric DEFAULT 0.025  -- 決済手数料率（totalSalesAfterTax連動）
 );
 ```
+> `fixed_payment_fee`（固定額）・`physical_profit_margin` は廃止済み。
 
 ### pe_company_settings（全社共通費・シングルトン）
 ```sql
@@ -70,23 +70,21 @@ CREATE TABLE pe_company_settings (
   debt_repayment numeric DEFAULT 0
 );
 ```
-> 役員報酬・借入返済は全社集計時のみ1回差し引く。店舗別PLには含めない。
+> 役員報酬は販管費内・全社集計時のみ計上。借入返済は営業利益から差し引き純現金収支を算出。
 
 ### pe_monthly_records（月次実績）
 ```sql
 CREATE TABLE pe_monthly_records (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   store_id bigint REFERENCES stores(id),
-  period_key integer NOT NULL,   -- YYYYMM
-  total_sales numeric DEFAULT 0,
+  period_key integer NOT NULL,        -- YYYYMM
+  service_sales numeric DEFAULT 0,    -- 提供売上（税込）
+  merchandise_sales numeric DEFAULT 0, -- 物販売上（税込）
   labor_cost numeric DEFAULT 0,
-  payment_fee numeric,           -- NULLなら pe_store_settings.fixed_payment_fee を使用
-  utilities numeric,
-  sundries numeric,
-  rent numeric,
   UNIQUE(store_id, period_key)
 );
 ```
+> 旧 `total_sales` は `service_sales` にリネーム。`rent` / `payment_fee` / `utilities` / `sundries` は廃止（設定値・計算値に移行）。
 
 ### pe_benchmarks（目標値）
 ```sql
@@ -98,42 +96,23 @@ CREATE TABLE pe_benchmarks (
   is_percentage boolean DEFAULT true
 );
 ```
-
-### pe_merchandise_price_masters（物販販売値改定履歴）
-```sql
-CREATE TABLE pe_merchandise_price_masters (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  effective_from integer NOT NULL UNIQUE,  -- YYYYMM
-  price_per_unit numeric NOT NULL,
-  note text
-);
-```
-> V-MINTの `cost_price_masters` と同パターン。次の改定まで価格維持。
-
-### pe_merchandise_sales_view（物販販売数量・参照用）
-```sql
-CREATE VIEW pe_merchandise_sales_view AS
-SELECT cr.store_id, cr.period_key,
-  COALESCE(SUM(fbs.merch_count), 0) + COALESCE(SUM(fbs.merch_count_secondary), 0) AS total_merch_qty
-FROM cost_reports cr
-LEFT JOIN flavor_brand_sales fbs ON fbs.report_id = cr.id
-GROUP BY cr.store_id, cr.period_key;
-```
+> `item_name` の値: `labor_rate` / `gross_profit_margin` / `operating_profit_margin` / `cost_ratio`
 
 ## 財務ロジック（src/utils/finance.js）
 
 | 指標 | 計算式 |
 |------|--------|
-| 物販売上 | 物販販売数量 × pe_merchandise_price_masters.price_per_unit |
-| 提供売上 | 総売上 − 物販売上 |
-| 物販売益 | 物販売上 × physical_profit_margin |
-| フレーバー変動費 | 提供消費g × cost_price_masters.price_flavor_per_g |
-| 炭変動費 | 炭消費kg × cost_price_masters.price_charcoal_per_kg |
-| ジュース変動費 | drink_orders.amount の合計 |
-| 粗利 | 総売上 − 変動費合計 |
-| 労働分配率 | 人件費 / 粗利 |
-| 営業利益 | 粗利 − 固定費合計 |
-| 最終会社手残り | 営業利益 + 物販売益 − 役員報酬 − 借入返済（全社のみ） |
+| 税込み総売上 | `service_sales + merchandise_sales` |
+| 消費税 | `totalSales × (1/11)` |
+| 税引き後総売上 | `totalSales × (10/11)` |
+| 物販フレーバー原価 | `merchandise_sales × 0.89` |
+| 原価合計 | `flavorCost + charcoalCost + drinkCost + merchandiseFlavorCost` |
+| 粗利 | `totalSalesAfterTax − costTotal` |
+| 決済手数料 | `totalSalesAfterTax × payment_fee_rate` |
+| 販管費合計 | `rent + laborCost + paymentFee + utilities + sundries + execRemuneration`（全社のみ役員報酬含む）|
+| 営業利益 | `grossProfit − sgaTotal` |
+| 純現金収支 | `operatingProfit − debtRepayment`（全社のみ）|
+| 労働分配率 | `laborCost / grossProfit`（grossProfit > 0 のみ）|
 
 ## デプロイフロー
 
@@ -148,6 +127,7 @@ git subtree push --prefix=V-PEACH V-PEACH main
 - Supabase プロジェクトは V-MINT 2.0 と共用（moejgsremxdksmzrowpw）
 - `pe_` プレフィックスで既存テーブルと分離
 - `.env.local` は gitignore 済み。Cloudflare環境変数で本番設定
+- ER 図・V-MINT との参照関係: [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
 
 ## Related
 - [[V-PEACH/DECISIONS]]

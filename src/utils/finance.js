@@ -49,29 +49,29 @@ export function calcPL(record, settings, variableCosts, companySettings = null) 
   const flavorCost = n(variableCosts?.flavorCost)
   const charcoalCost = n(variableCosts?.charcoalCost)
   const drinkCost = n(variableCosts?.drinkCost)
-  const merchandiseFlavorCost = merchandiseSales * 0.89
+  const merchandiseFlavorCost = merchandiseSales * (10 / 11) * 0.89
   const costTotal = flavorCost + charcoalCost + drinkCost + merchandiseFlavorCost
 
   // 粗利
   const grossProfit = totalSalesAfterTax - costTotal
 
-  // 販管費（家賃・光熱費・雑費は設定値。決済手数料は売上連動。役員報酬は全社時のみ）
+  // 販管費（家賃・光熱費・雑費は設定値。決済手数料は売上連動）
   const rent = n(settings?.fixed_rent)
   const laborCost = n(record?.labor_cost)
   const paymentFeeRate = n(settings?.payment_fee_rate) || 0.025
   const paymentFee = totalSalesAfterTax * paymentFeeRate
   const utilities = n(settings?.fixed_utilities)
   const sundries = n(settings?.fixed_sundries)
-  const execRemuneration = companySettings ? n(companySettings.exec_remuneration) : 0
-  const sgaTotal = rent + laborCost + paymentFee + utilities + sundries + execRemuneration
+  const sgaTotal = rent + laborCost + paymentFee + utilities + sundries
 
   // 利益
   const laborRate = grossProfit > 0 ? laborCost / grossProfit : null
   const operatingProfit = grossProfit - sgaTotal
 
-  // 全社調整（全社集計時のみ）
+  // 全社調整（全社集計時のみ）。役員報酬は店舗単独PLに還元できないため営業利益後に計上
+  const execRemuneration = companySettings ? n(companySettings.exec_remuneration) : 0
   const debtRepayment = companySettings ? n(companySettings.debt_repayment) : 0
-  const netCashFlow = operatingProfit - debtRepayment
+  const netCashFlow = operatingProfit - execRemuneration - debtRepayment
 
   return {
     serviceSales,

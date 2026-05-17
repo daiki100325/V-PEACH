@@ -1,22 +1,12 @@
 <template>
     <main class="container mx-auto px-4 py-6 max-w-lg md:max-w-3xl flex-grow">
 
-        <!-- Step 0: 拠点・対象月選択 -->
+        <!-- Step 0: 対象月選択 -->
         <div v-if="step === 0" class="flex flex-col items-center pt-6 pb-20">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5 w-full max-w-md">
                 <div class="text-center">
                     <h2 class="text-xl font-bold text-slate-800">月次データを入力</h2>
-                </div>
-
-                <!-- 拠点選択 -->
-                <div class="space-y-3">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">対象店舗</label>
-                    <select v-model="selectedStoreKey"
-                        class="appearance-none w-full bg-slate-50 border border-slate-200 text-base font-bold rounded-xl p-4 text-center focus:ring-2 focus:ring-brand-500"
-                        :class="selectedStoreKey ? 'text-slate-800' : 'text-slate-400'">
-                        <option value="" disabled>店舗を選択</option>
-                        <option v-for="store in stores" :key="store.key" :value="store.key">{{ store.name }}</option>
-                    </select>
+                    <p class="text-sm text-slate-400 mt-1">全{{ stores.length }}店舗分を一括入力します</p>
                 </div>
 
                 <!-- 対象月 -->
@@ -48,13 +38,21 @@
             </div>
         </div>
 
-        <!-- Step 1: 売上・人件費入力 -->
-        <div v-if="step === 1" class="space-y-4 pb-32">
+        <!-- Step 1〜N: 店舗別入力 -->
+        <div v-if="step >= 1 && step <= stores.length && currentStore" class="space-y-4 pb-32">
+
+            <!-- ヘッダー -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">入力中</p>
-                <p class="text-base font-bold text-slate-800">
-                    {{ selectedStoreName }} — {{ periodLabel }}
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">入力中</p>
+                    <p class="text-xs font-bold text-slate-400">{{ step }} / {{ stores.length }}</p>
+                </div>
+                <p class="text-base font-bold text-slate-800">{{ currentStore.storeName }} — {{ periodLabel }}</p>
+                <p v-if="currentStore.costReport"
+                    class="text-xs text-teal-600 mt-1.5">
+                    集計期間: {{ formatDate(currentStore.costReport.start_date) }} 〜 {{ formatDate(currentStore.costReport.end_date) }}（{{ dayCount(currentStore.costReport) }}日間）
                 </p>
+                <p v-else class="text-xs text-slate-400 mt-1.5">集計期間: V-MINT 未入力</p>
             </div>
 
             <!-- 提供売上（税込） -->
@@ -62,11 +60,11 @@
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">提供売上（税込） <span class="text-red-500">*</span></label>
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.service_sales"
-                        :placeholder="prevRecord ? String(prevRecord.service_sales) : '例: 1500000'"
+                    <input type="number" min="0" v-model.number="currentStore.formData.service_sales"
+                        :placeholder="currentStore.prevRecord ? String(currentStore.prevRecord.service_sales) : '例: 1500000'"
                         class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
                 </div>
-                <p v-if="prevRecord" class="text-xs text-slate-400">前月実績: ¥{{ Number(prevRecord.service_sales || 0).toLocaleString() }}</p>
+                <p v-if="currentStore.prevRecord" class="text-xs text-slate-400">前月実績: ¥{{ Number(currentStore.prevRecord.service_sales || 0).toLocaleString() }}</p>
             </div>
 
             <!-- 物販売上（税込） -->
@@ -74,7 +72,7 @@
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">物販売上（税込）</label>
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.merchandise_sales"
+                    <input type="number" min="0" v-model.number="currentStore.formData.merchandise_sales"
                         placeholder="例: 50000（なければ空欄）"
                         class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
                 </div>
@@ -86,41 +84,41 @@
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">人件費 <span class="text-red-500">*</span></label>
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <input type="number" min="0" v-model.number="formData.labor_cost"
+                    <input type="number" min="0" v-model.number="currentStore.formData.labor_cost"
                         placeholder="例: 300000"
                         class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
                 </div>
             </div>
         </div>
 
-        <!-- Step 2: 確認 -->
-        <div v-if="step === 2" class="space-y-4 pb-32">
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <h3 class="text-base font-bold text-slate-700">入力内容の確認</h3>
-                <p class="text-sm text-slate-500">{{ selectedStoreName }} — {{ periodLabel }}</p>
+        <!-- Step N+1: 確認 -->
+        <div v-if="step === stores.length + 1" class="space-y-4 pb-32">
+            <div v-for="sd in storeData" :key="sd.storeKey"
+                class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
+                <h3 class="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">{{ sd.storeName }}</h3>
                 <div class="divide-y divide-slate-50">
                     <div class="flex justify-between py-2 text-sm">
                         <span class="text-slate-500">提供売上（税込）</span>
-                        <span class="font-bold text-slate-800">¥{{ Number(formData.service_sales || 0).toLocaleString() }}</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(sd.formData.service_sales || 0).toLocaleString() }}</span>
                     </div>
                     <div class="flex justify-between py-2 text-sm">
                         <span class="text-slate-500">物販売上（税込）</span>
-                        <span class="font-bold text-slate-800">¥{{ Number(formData.merchandise_sales || 0).toLocaleString() }}</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(sd.formData.merchandise_sales || 0).toLocaleString() }}</span>
                     </div>
                     <div class="flex justify-between py-2 text-sm">
                         <span class="text-slate-500">人件費</span>
-                        <span class="font-bold text-slate-800">¥{{ Number(formData.labor_cost || 0).toLocaleString() }}</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(sd.formData.labor_cost || 0).toLocaleString() }}</span>
                     </div>
                 </div>
-                <p class="text-xs text-slate-400 pt-1">家賃・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
             </div>
+            <p class="text-xs text-slate-400 px-1">家賃・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
         </div>
 
     </main>
 </template>
 
 <script>
-import { getMonthlyRecord, upsertMonthlyRecord } from '../../api.js'
+import { getMonthlyRecord, upsertMonthlyRecord, getCostReportDates } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getPrevPeriodKey } from '../../utils/periods.js'
 
 export default {
@@ -132,22 +130,16 @@ export default {
     data() {
         return {
             step: 0,
-            selectedStoreKey: '',
             selectedYear: '',
             selectedMonth: '',
-            formData: {
-                service_sales: null,
-                merchandise_sales: null,
-                labor_cost: null
-            },
-            prevRecord: null,
+            storeData: [],
             years: buildYearOptions(),
             months: buildMonthOptions()
         }
     },
     computed: {
         canStart() {
-            return !!(this.selectedYear && this.selectedMonth && this.selectedStoreKey)
+            return !!(this.selectedYear && this.selectedMonth)
         },
         periodKey() {
             return composePeriodKey(this.selectedYear, this.selectedMonth)
@@ -155,20 +147,24 @@ export default {
         periodLabel() {
             return formatPeriodLabel(this.periodKey)
         },
-        selectedStoreName() {
-            const s = this.stores.find(x => x.key === this.selectedStoreKey)
-            return s ? s.name : ''
+        currentStore() {
+            if (this.step >= 1 && this.step <= this.stores.length) {
+                return this.storeData[this.step - 1] ?? null
+            }
+            return null
         },
         canNext() {
-            if (this.step === 1) {
-                return this.formData.service_sales != null && this.formData.service_sales >= 0 &&
-                       this.formData.labor_cost != null && this.formData.labor_cost >= 0
+            if (this.step >= 1 && this.step <= this.stores.length) {
+                const fd = this.storeData[this.step - 1]?.formData
+                if (!fd) return false
+                return fd.service_sales != null && fd.service_sales >= 0 &&
+                       fd.labor_cost != null && fd.labor_cost >= 0
             }
-            if (this.step === 2) return true
+            if (this.step === this.stores.length + 1) return true
             return false
         },
         isLastStep() {
-            return this.step === 2
+            return this.step === this.stores.length + 1
         }
     },
     watch: {
@@ -186,25 +182,43 @@ export default {
         }
     },
     methods: {
+        formatDate(dateStr) {
+            if (!dateStr) return '—'
+            return dateStr.replace(/-/g, '/')
+        },
+        dayCount(costReport) {
+            if (!costReport?.start_date || !costReport?.end_date) return '?'
+            const start = new Date(costReport.start_date)
+            const end = new Date(costReport.end_date)
+            return Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
+        },
         async startEntry() {
             if (!this.canStart) return
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', 'データを読み込み中...')
             try {
-                const [existing, prev] = await Promise.all([
-                    getMonthlyRecord(this.selectedStoreKey, this.periodKey),
-                    getMonthlyRecord(this.selectedStoreKey, getPrevPeriodKey(this.periodKey))
-                ])
-                this.prevRecord = prev
-                if (existing) {
-                    this.formData = {
-                        service_sales: existing.service_sales,
-                        merchandise_sales: existing.merchandise_sales,
-                        labor_cost: existing.labor_cost
-                    }
-                } else {
-                    this.formData = { service_sales: null, merchandise_sales: null, labor_cost: null }
-                }
+                const prevPk = getPrevPeriodKey(this.periodKey)
+                const results = await Promise.all(
+                    this.stores.map(async (s) => {
+                        const [existing, prev, costDates] = await Promise.all([
+                            getMonthlyRecord(s.key, this.periodKey),
+                            getMonthlyRecord(s.key, prevPk),
+                            getCostReportDates(s.key, this.periodKey)
+                        ])
+                        return {
+                            storeKey: s.key,
+                            storeName: s.name,
+                            formData: existing ? {
+                                service_sales: existing.service_sales,
+                                merchandise_sales: existing.merchandise_sales,
+                                labor_cost: existing.labor_cost
+                            } : { service_sales: null, merchandise_sales: null, labor_cost: null },
+                            prevRecord: prev,
+                            costReport: costDates
+                        }
+                    })
+                )
+                this.storeData = results
                 this.step = 1
             } catch (e) {
                 alert(e.message || 'データの読み込みに失敗しました。')
@@ -216,19 +230,24 @@ export default {
             if (this.step > 0) this.step--
         },
         nextStep() {
-            if (this.step < 2) this.step++
+            if (this.step < this.stores.length + 1) this.step++
         },
         async submit() {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '保存中...')
             try {
-                await upsertMonthlyRecord(this.selectedStoreKey, this.periodKey, {
-                    service_sales: this.formData.service_sales,
-                    merchandise_sales: this.formData.merchandise_sales ?? 0,
-                    labor_cost: this.formData.labor_cost
-                })
+                await Promise.all(
+                    this.storeData.map(sd =>
+                        upsertMonthlyRecord(sd.storeKey, this.periodKey, {
+                            service_sales: sd.formData.service_sales,
+                            merchandise_sales: sd.formData.merchandise_sales ?? 0,
+                            labor_cost: sd.formData.labor_cost
+                        })
+                    )
+                )
                 alert('保存しました。')
                 this.step = 0
+                this.storeData = []
                 this.$emit('submitted')
             } catch (e) {
                 alert(e.message || '保存に失敗しました。')

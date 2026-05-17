@@ -7,6 +7,7 @@ parent: [[V-PEACH/notes/_index]]
 
 > 作成: 2026-05-16
 > 更新: 2026-05-17
+> ステータス: **✅ 全タスク完了（2026-05-17）**
 > 背景: 現行の `total_sales` 一本建て → 提供売上 / 物販売上 分離、消費税調整ラインの追加、原価・販管費の大カテゴリー化
 
 ---
@@ -192,14 +193,14 @@ DROP VIEW IF EXISTS pe_merchandise_sales_view;
 
 **対象ファイル**: `DB_MIGRATION.sql`
 
-- [ ] `pe_monthly_records`: `total_sales` → `service_sales` リネーム
-- [ ] `pe_monthly_records`: `merchandise_sales numeric DEFAULT 0` カラム追加
-- [ ] `pe_monthly_records`: `rent` / `payment_fee` / `utilities` / `sundries` カラムを **DROP**
-- [ ] `pe_store_settings`: `physical_profit_margin` 削除
-- [ ] `pe_store_settings`: `fixed_payment_fee` 削除
-- [ ] `pe_store_settings`: `payment_fee_rate numeric DEFAULT 0.025` カラム追加
-- [ ] `pe_merchandise_price_masters` テーブル DROP TABLE
-- [ ] `pe_merchandise_sales_view` ビュー DROP VIEW
+- [x] `pe_monthly_records`: `total_sales` → `service_sales` リネーム
+- [x] `pe_monthly_records`: `merchandise_sales numeric DEFAULT 0` カラム追加
+- [x] `pe_monthly_records`: `rent` / `payment_fee` / `utilities` / `sundries` カラムを **DROP**
+- [x] `pe_store_settings`: `physical_profit_margin` 削除
+- [x] `pe_store_settings`: `fixed_payment_fee` 削除
+- [x] `pe_store_settings`: `payment_fee_rate numeric DEFAULT 0.025` カラム追加
+- [x] `pe_merchandise_price_masters` テーブル DROP TABLE
+- [x] `pe_merchandise_sales_view` ビュー DROP VIEW
 
 実行順序: Supabase SQL Editor でマイグレーション文を順に実行。
 
