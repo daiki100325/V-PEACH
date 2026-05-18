@@ -286,10 +286,11 @@ import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabe
 import PLTrendChart from '../PLTrendChart.vue'
 
 const BENCHMARK_DEFS = [
-    { key: 'labor_rate', label: '労働分配率', getActual: (pl) => pl.laborRate, isGood: (a, t) => a <= t },
-    { key: 'gross_profit_margin', label: '粗利率', getActual: (pl) => pl.totalSalesAfterTax > 0 ? pl.grossProfit / pl.totalSalesAfterTax : null, isGood: (a, t) => a >= t },
+    { key: 'f_ratio', label: 'F比', getActual: (pl) => pl.fRatio, isGood: (a, t) => a <= t },
+    { key: 'l_ratio', label: 'L比', getActual: (pl) => pl.lRatio, isGood: (a, t) => a <= t },
+    { key: 'r_ratio', label: 'R比', getActual: (pl) => pl.rRatio, isGood: (a, t) => a <= t },
     { key: 'operating_profit_margin', label: '営業利益率', getActual: (pl) => pl.totalSalesAfterTax > 0 ? pl.operatingProfit / pl.totalSalesAfterTax : null, isGood: (a, t) => a >= t },
-    { key: 'cost_ratio', label: '原価率', getActual: (pl) => pl.totalSalesAfterTax > 0 ? pl.costTotal / pl.totalSalesAfterTax : null, isGood: (a, t) => a <= t },
+    { key: 'labor_rate', label: '労働分配率', getActual: (pl) => pl.laborRate, isGood: (a, t) => a <= t },
 ]
 
 export default {

@@ -116,7 +116,11 @@
                             <label class="block text-xs font-medium text-slate-500">{{ field.label }}</label>
                             <div class="relative">
                                 <span v-if="field.prefix" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">{{ field.prefix }}</span>
-                                <input type="number" min="0" :step="field.step || 1"
+                                <CurrencyInput v-if="field.isJPY"
+                                    v-model="ssNewForm[selectedSS.storeKey][field.key]"
+                                    class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none"
+                                    :class="field.prefix ? 'pl-7 pr-3' : 'px-3'" />
+                                <input v-else type="number" min="0" :step="field.step || 1"
                                     v-model.number="ssNewForm[selectedSS.storeKey][field.key]"
                                     class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none"
                                     :class="field.prefix ? 'pl-7 pr-3' : 'px-3'" />
@@ -222,7 +226,7 @@
                         <label class="block text-xs font-medium text-slate-500">役員報酬（月額）</label>
                         <div class="relative">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">¥</span>
-                            <input type="number" min="0" v-model.number="csNewForm.exec_remuneration"
+                            <CurrencyInput v-model="csNewForm.exec_remuneration"
                                 class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl pl-7 pr-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
                         </div>
                     </div>
@@ -230,7 +234,7 @@
                         <label class="block text-xs font-medium text-slate-500">借入返済（月額）</label>
                         <div class="relative">
                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">¥</span>
-                            <input type="number" min="0" v-model.number="csNewForm.debt_repayment"
+                            <CurrencyInput v-model="csNewForm.debt_repayment"
                                 class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl pl-7 pr-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
                         </div>
                     </div>
@@ -376,6 +380,7 @@ import {
     getBenchmarksRevisions, addBenchmarksRevision, deleteBenchmarksRevision
 } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey } from '../../utils/periods.js'
+import CurrencyInput from '../CurrencyInput.vue'
 
 function fmLabel(from) {
     return `${String(from).slice(0, 4)}年${Number(String(from).slice(4))}月〜`
@@ -383,6 +388,7 @@ function fmLabel(from) {
 
 export default {
     name: 'SettingsApp',
+    components: { CurrencyInput },
     props: {
         stores: { type: Array, default: () => [] }
     },
@@ -407,16 +413,17 @@ export default {
             bmRevisions: [],
             bmLoading: false,
             bmSaving: false,
-            bmNewForm: { year: '', month: '', note: '', labor_rate: null, gross_profit_margin: null, operating_profit_margin: null, cost_ratio: null }
+            bmNewForm: { year: '', month: '', note: '', f_ratio: null, l_ratio: null, r_ratio: null, operating_profit_margin: null, labor_rate: null }
         }
     },
     computed: {
         bmItems() {
             return [
-                { key: 'labor_rate', label: '労働分配率 目標（上限）', shortLabel: '労働分配率', hint: '実績がこの値以下でOK', placeholder: '例: 40' },
-                { key: 'gross_profit_margin', label: '粗利率 目標（下限）', shortLabel: '粗利率', hint: '実績がこの値以上でOK', placeholder: '例: 40' },
+                { key: 'f_ratio', label: 'F比 目標（上限）', shortLabel: 'F比', hint: '実績がこの値以下でOK', placeholder: '例: 30' },
+                { key: 'l_ratio', label: 'L比 目標（上限）', shortLabel: 'L比', hint: '実績がこの値以下でOK', placeholder: '例: 30' },
+                { key: 'r_ratio', label: 'R比 目標（上限）', shortLabel: 'R比', hint: '実績がこの値以下でOK', placeholder: '例: 10' },
                 { key: 'operating_profit_margin', label: '営業利益率 目標（下限）', shortLabel: '営業利益率', hint: '実績がこの値以上でOK', placeholder: '例: 10' },
-                { key: 'cost_ratio', label: '原価率 目標（上限）', shortLabel: '原価率', hint: '実績がこの値以下でOK', placeholder: '例: 35' },
+                { key: 'labor_rate', label: '労働分配率 目標（上限）', shortLabel: '労働分配率', hint: '実績がこの値以下でOK', placeholder: '例: 40' },
             ]
         },
         storeSettingsFields() {
@@ -623,10 +630,11 @@ export default {
         prefillBmNewForm() {
             if (!this.bmRevisions[0]) return
             const r = this.bmRevisions[0]
-            this.bmNewForm.labor_rate = r.labor_rate != null ? Number((r.labor_rate * 100).toFixed(2)) : null
-            this.bmNewForm.gross_profit_margin = r.gross_profit_margin != null ? Number((r.gross_profit_margin * 100).toFixed(2)) : null
+            this.bmNewForm.f_ratio = r.f_ratio != null ? Number((r.f_ratio * 100).toFixed(2)) : null
+            this.bmNewForm.l_ratio = r.l_ratio != null ? Number((r.l_ratio * 100).toFixed(2)) : null
+            this.bmNewForm.r_ratio = r.r_ratio != null ? Number((r.r_ratio * 100).toFixed(2)) : null
             this.bmNewForm.operating_profit_margin = r.operating_profit_margin != null ? Number((r.operating_profit_margin * 100).toFixed(2)) : null
-            this.bmNewForm.cost_ratio = r.cost_ratio != null ? Number((r.cost_ratio * 100).toFixed(2)) : null
+            this.bmNewForm.labor_rate = r.labor_rate != null ? Number((r.labor_rate * 100).toFixed(2)) : null
         },
         async addBmRev() {
             const ef = composePeriodKey(this.bmNewForm.year, this.bmNewForm.month)
@@ -635,14 +643,15 @@ export default {
             this.$emit('update:loadingMessage', '保存中...')
             try {
                 await addBenchmarksRevision(ef, {
-                    labor_rate: this.bmNewForm.labor_rate != null ? Number(this.bmNewForm.labor_rate) / 100 : null,
-                    gross_profit_margin: this.bmNewForm.gross_profit_margin != null ? Number(this.bmNewForm.gross_profit_margin) / 100 : null,
+                    f_ratio: this.bmNewForm.f_ratio != null ? Number(this.bmNewForm.f_ratio) / 100 : null,
+                    l_ratio: this.bmNewForm.l_ratio != null ? Number(this.bmNewForm.l_ratio) / 100 : null,
+                    r_ratio: this.bmNewForm.r_ratio != null ? Number(this.bmNewForm.r_ratio) / 100 : null,
                     operating_profit_margin: this.bmNewForm.operating_profit_margin != null ? Number(this.bmNewForm.operating_profit_margin) / 100 : null,
-                    cost_ratio: this.bmNewForm.cost_ratio != null ? Number(this.bmNewForm.cost_ratio) / 100 : null,
+                    labor_rate: this.bmNewForm.labor_rate != null ? Number(this.bmNewForm.labor_rate) / 100 : null,
                     note: this.bmNewForm.note || null
                 })
                 this.bmRevisions = await getBenchmarksRevisions()
-                this.bmNewForm = { year: '', month: '', note: '', labor_rate: null, gross_profit_margin: null, operating_profit_margin: null, cost_ratio: null }
+                this.bmNewForm = { year: '', month: '', note: '', f_ratio: null, l_ratio: null, r_ratio: null, operating_profit_margin: null, labor_rate: null }
                 alert('改訂を追加しました。')
             } catch (e) {
                 alert(e.message || '追加に失敗しました。')

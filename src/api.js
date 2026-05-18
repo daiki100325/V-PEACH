@@ -236,7 +236,7 @@ export async function deleteCompanySettingsRevision(id) {
 
 // ─── pe_benchmarks_revisions ─────────────────────────────────────────────────
 
-/** 指定期間に有効なベンチマーク目標値を返す（{ labor_rate, ... } の単一オブジェクト） */
+/** 指定期間に有効なベンチマーク目標値を返す（{ f_ratio, ... } の単一オブジェクト） */
 export async function getActiveBenchmarks(periodKey) {
   requireSupabase()
   const pk = Number(periodKey)
@@ -248,7 +248,9 @@ export async function getActiveBenchmarks(periodKey) {
     .limit(1)
     .maybeSingle()
   if (error) throw error
-  return data ?? {}
+  if (data) return data
+  // フォールバック: pe_benchmarks シングルトンを参照
+  return getBenchmarks()
 }
 
 /** ベンチマーク目標値の全改定履歴を新しい順で返す */
@@ -283,43 +285,23 @@ export async function deleteBenchmarksRevision(id) {
 
 // ─── pe_benchmarks ──────────────────────────────────────────────────────────
 
-/** storeKey=null で全社共通ベンチマークを取得 */
-export async function getBenchmarks(storeKey) {
+/** デフォルトベンチマーク目標値を返す（シングルトン id=1） */
+export async function getBenchmarks() {
   requireSupabase()
-  let query = supabase.from('pe_benchmarks').select('*')
-  if (storeKey) {
-    const storeId = await getStoreIdByKey(storeKey)
-    query = query.eq('store_id', storeId)
-  } else {
-    query = query.is('store_id', null)
-  }
-  const { data, error } = await query
+  const { data, error } = await supabase
+    .from('pe_benchmarks')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle()
   if (error) throw error
-  return data || []
+  return data ?? {}
 }
 
-export async function upsertBenchmark(storeKey, itemName, targetValue, isPercentage) {
+export async function upsertBenchmarks(fields) {
   requireSupabase()
-  const storeId = storeKey ? await getStoreIdByKey(storeKey) : null
   const { error } = await supabase
     .from('pe_benchmarks')
-    .upsert(
-      { store_id: storeId, item_name: itemName, target_value: targetValue, is_percentage: isPercentage },
-      { onConflict: 'store_id,item_name' }
-    )
-  if (error) throw error
-}
-
-export async function deleteBenchmark(storeKey, itemName) {
-  requireSupabase()
-  const storeId = storeKey ? await getStoreIdByKey(storeKey) : null
-  let query = supabase.from('pe_benchmarks').delete().eq('item_name', itemName)
-  if (storeId) {
-    query = query.eq('store_id', storeId)
-  } else {
-    query = query.is('store_id', null)
-  }
-  const { error } = await query
+    .upsert({ id: 1, ...fields }, { onConflict: 'id' })
   if (error) throw error
 }
 
@@ -369,6 +351,63 @@ export async function getCostReportDates(storeKey, periodKey) {
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+// ─── pe_daily_sales_cache（売上CSVインポート用） ──────────────────────────
+
+/**
+ * 指定店舗・期間の日次キャッシュレコードを取得
+ * @returns [{ sale_date, discount_amount, gross_sales, customer_count }, ...]
+ */
+export async function getDailySalesInRange(storeKey, startDate, endDate) {
+  requireSupabase()
+  const storeId = await getStoreIdByKey(storeKey)
+  const { data, error } = await supabase
+    .from('pe_daily_sales_cache')
+    .select('sale_date,discount_amount,gross_sales,customer_count')
+    .eq('store_id', storeId)
+    .gte('sale_date', startDate)
+    .lte('sale_date', endDate)
+    .order('sale_date', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
+/**
+ * 日次レコードを upsert
+ * @param storeKey 店舗キー
+ * @param rows [{ sale_date, discount_amount, gross_sales, customer_count }, ...]
+ */
+export async function upsertDailySalesCache(storeKey, rows) {
+  requireSupabase()
+  if (!rows || rows.length === 0) return
+  const storeId = await getStoreIdByKey(storeKey)
+  const payload = rows.map(r => ({
+    store_id: storeId,
+    sale_date: r.sale_date,
+    discount_amount: r.discount_amount,
+    gross_sales: r.gross_sales ?? null,
+    customer_count: r.customer_count ?? null,
+    imported_at: new Date().toISOString()
+  }))
+  const { error } = await supabase
+    .from('pe_daily_sales_cache')
+    .upsert(payload, { onConflict: 'store_id,sale_date' })
+  if (error) throw error
+}
+
+/**
+ * 指定店舗の「beforeDate より古い」日次レコードを削除（インポート末尾の自動クリーンアップ用）
+ */
+export async function deleteOldDailySalesCache(storeKey, beforeDate) {
+  requireSupabase()
+  const storeId = await getStoreIdByKey(storeKey)
+  const { error } = await supabase
+    .from('pe_daily_sales_cache')
+    .delete()
+    .eq('store_id', storeId)
+    .lt('sale_date', beforeDate)
+  if (error) throw error
 }
 
 /** 指定periodKeyに有効なV-MINTの単価マスター（フレーバー・炭単価）を返す */

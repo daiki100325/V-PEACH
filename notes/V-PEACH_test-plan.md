@@ -5,16 +5,16 @@ parent: [[V-PEACH/notes/_index]]
 
 # V-PEACH — テスト計画
 
-> 作成日: 2026-05-17  
-> 対象: Phase 0〜5 完了後の一通り機能（設定 → 月次入力 → PL分析）  
+> 作成日: 2026-05-17（Phase 7 テストケース追加: 2026-05-18）
+> 対象: Phase 0〜7 完了後の一通り機能（設定 → CSV インポート / 月次入力 → PL分析）  
 > 前提: Supabase の `pe_*` テーブルはマイグレーション済みだが **レコードが空** の状態から開始
 
 ## 1. 目的とスコープ
 
 | 項目 | 内容 |
 |------|------|
-| **目的** | 本番相当環境で「設定 → 入力 → PL表示」が一連で動くことを確認し、Phase 5 改修後の計算ロジックを検証する |
-| **対象** | PIN認証、ポータル、設定モード、月次入力モード、PLモード（月次 / 3ヶ月平均 / 年次、全社・店舗別） |
+| **目的** | 本番相当環境で「設定 → 入力（CSV / 手入力） → PL表示」が一連で動くことを確認し、Phase 5〜7 改修後の計算ロジックを検証する |
+| **対象** | PIN認証、ポータル、設定モード、月次入力モード（CSV インポート / 手入力）、PLモード（月次 / 3ヶ月平均 / 年次、全社・店舗別） |
 | **対象外** | 自動単体テスト（未整備）、パフォーマンス負荷試験、RLS ポリシー詳細監査、Cloudflare 本番デプロイ手順そのもの |
 
 ## 2. テスト環境
@@ -125,14 +125,15 @@ Source: [[V-PEACH/notes/V-PEACH_finance-spec]] §4
 | `exec_remuneration` | 550,000 |
 | `debt_repayment` | 1,000,000 |
 
-#### ベンチマーク（Health Check 用）
+#### ベンチマーク（Health Check 用・5指標）
 
-| `item_name` | 目標（UI 入力 %） | DB 保存値 | 良い方向 |
-|-------------|------------------:|----------:|---------|
-| `labor_rate` | 50 | 0.50 | 実績 ≤ 目標 |
-| `gross_profit_margin` | 75 | 0.75 | 実績 ≥ 目標 |
+| キー | 目標（UI 入力 %） | DB 保存値 | 良い方向 |
+|------|------------------:|----------:|---------|
+| `f_ratio` | 25 | 0.25 | 実績 ≤ 目標 |
+| `l_ratio` | 35 | 0.35 | 実績 ≤ 目標 |
+| `r_ratio` | 15 | 0.15 | 実績 ≤ 目標 |
 | `operating_profit_margin` | 25 | 0.25 | 実績 ≥ 目標 |
-| `cost_ratio` | 30 | 0.30 | 実績 ≤ 目標 |
+| `labor_rate` | 50 | 0.50 | 実績 ≤ 目標 |
 
 ### 3.2 月次実績（Phase D）
 
@@ -196,15 +197,15 @@ ON CONFLICT (id) DO UPDATE SET
   exec_remuneration = EXCLUDED.exec_remuneration,
   debt_repayment = EXCLUDED.debt_repayment;
 
--- ── Phase C: ベンチマーク（全社共通 store_id = NULL）──────────
-INSERT INTO pe_benchmarks (store_id, item_name, target_value, is_percentage)
-VALUES
-  (NULL, 'labor_rate',              0.50, true),
-  (NULL, 'gross_profit_margin',     0.75, true),
-  (NULL, 'operating_profit_margin', 0.25, true),
-  (NULL, 'cost_ratio',              0.30, true)
-ON CONFLICT (store_id, item_name) DO UPDATE SET
-  target_value = EXCLUDED.target_value;
+-- ── Phase C: ベンチマーク（フラット・シングルトン形式）──────────
+INSERT INTO pe_benchmarks (id, f_ratio, l_ratio, r_ratio, operating_profit_margin, labor_rate)
+VALUES (1, 0.25, 0.35, 0.15, 0.25, 0.50)
+ON CONFLICT (id) DO UPDATE SET
+  f_ratio = EXCLUDED.f_ratio,
+  l_ratio = EXCLUDED.l_ratio,
+  r_ratio = EXCLUDED.r_ratio,
+  operating_profit_margin = EXCLUDED.operating_profit_margin,
+  labor_rate = EXCLUDED.labor_rate;
 
 -- ── Phase D: 月次実績 ────────────────────────────────────────
 INSERT INTO pe_monthly_records (store_id, period_key, service_sales, merchandise_sales, labor_cost)
@@ -324,21 +325,38 @@ SQL 投入後、**設定モード・月次入力モードの CRUD 自体**を別
 | SET-05 | 改定削除 | 現在適用中が 2 件以上のとき削除ボタンを押す | 最新行が削除され、直前行が現在適用中になる | |
 | SET-06 | 削除不可 | 現在適用中が 1 件のとき | 削除ボタンが非表示 | |
 | SET-07 | 全社共通費 | 役員報酬・借入返済の現在適用中を読込 | 550,000 / 1,000,000 が表示 | |
-| SET-08 | ベンチマーク | 現在適用中を読込 | 4 指標の % 値が表示 | |
+| SET-08 | ベンチマーク | 現在適用中を読込 | 5 指標（F比・L比・R比・営業利益率・労働分配率）の % 値が表示 | |
 | SET-09 | ベンチマーク | 新規改定追加後、PLモードで別の期間を表示 | 期間に応じた目標値が Health Highlight に反映 | |
 
-### 5.2 月次入力モード
+### 5.2 月次入力モード（手入力）
 
 | ID | 区分 | 手順 | 期待結果 | 結果 |
 |----|------|------|----------|------|
-| INP-01 | フロー | 入力モードを開く | 期間選択（YYYY年MM月）が表示される | |
+| INP-00 | Step 0 プレビュー | 年・月を両方選択 | 「開始する」ボタン下に全店舗の集計期間カードが自動表示される（cost_reports あり月） | |
+| INP-00b | Step 0 プレビュー未入力 | cost_reports なし月を選択 | 各店舗に「未入力」と表示される | |
+| INP-01 | フロー | 入力モードを開く → 手入力タブを選択 | 期間選択（YYYY年MM月）が表示される | |
 | INP-02 | バリデーション | 提供売上・人件費未入力で次へ | 進めない（`canNext` false） | |
 | INP-03 | 物販任意 | 物販空欄で保存 | `merchandise_sales = 0` として保存 | |
 | INP-04 | 新規保存 | 202604 を選択し 3 店舗入力 → 保存 | DB に 3 行追加（3店舗分） | |
 | INP-05 | 更新 | 同月を再入力して変更 | upsert で上書き | |
-| INP-06 | V-MINT期間 | 入力 Step で V-MINT 集計期間 | `start_date`〜`end_date` が表示される（cost_reports あり月） | |
+| INP-06 | V-MINT期間（各店舗ヘッダー） | 入力 Step の店舗ヘッダー | `start_date`〜`end_date` が表示される（cost_reports あり月） | |
 | INP-07 | 全店舗一括 | 3 店舗分を連続入力して保存 | 1 回の操作で 3 店舗 upsert される | |
 | INP-08 | 中断 | 入力途中でポータル戻り | 確認ダイアログが出る | |
+
+### 5.2b 月次入力モード（CSV インポート）
+
+> 前提：`pe_daily_sales_cache` に 2025年12月分のキャッシュが投入済みであること（§3 SEED参照）
+
+| ID | 区分 | 手順 | 期待結果 | 結果 |
+|----|------|------|----------|------|
+| CSV-01 | モード切替 | Step 0 でデフォルトタブを確認 | 「CSV インポート」タブが選択済み | |
+| CSV-02 | ファイルアップロード | 3店舗 × Airメイト/Airレジ CSV を各スロットにアップロード | 6スロットが埋まり「次へ」が活性化する | |
+| CSV-03 | 店舗自動検出 | 正しい店舗名を含むファイル名の CSV をアップロード | 各スロットの店舗キーが自動検出される | |
+| CSV-04 | プレビュー確認 | CSV アップロード → 次へ | 店舗別に提供売上（割引後）・物販売上・割引総額・前月キャッシュ参照日数が表示される | |
+| CSV-05 | 人件費入力 | プレビュー画面で各店舗の人件費を入力 | 入力必須バリデーションが効く | |
+| CSV-06 | 保存 | 確認 → 保存 | `pe_monthly_records` に 3 行 upsert。`pe_daily_sales_cache` に当月分追加。古いキャッシュ削除 | |
+| CSV-07 | 前月キャッシュ欠落 | キャッシュなし状態でインポート実行 | 警告ダイアログが表示される（前月最終盤のデータが取得できない旨） | |
+| CSV-08 | CSV パースエラー | 不正な CSV（ヘッダー欠落等）をアップロード | 該当店舗スロットにエラー表示、先に進めない | |
 
 ### 5.3 PLモード — 月次
 
@@ -366,7 +384,7 @@ SQL 投入後、**設定モード・月次入力モードの CRUD 自体**を別
 |----|------|------|----------|------|
 | PLT-01 | チャート | 月次 PL 表示後 | 折れ線チャートが表示（データ点 ≥ 1） | |
 | PLT-02 | チャート | 期間モード切替 | 月次 / 3ヶ月平均でプロットが変わる | |
-| PLH-01 | Health | ベンチマーク設定後、202601 馬場本店 | 4 指標に実績%と OK/NG 色 | |
+| PLH-01 | Health | ベンチマーク設定後、202601 馬場本店 | 5 指標（F比・L比・R比・営業利益率・労働分配率）に実績%と OK/NG 色 | |
 | PLH-02 | Health | ベンチマーク未設定 | 「設定でベンチマーク目標値を設定できます」表示 | |
 
 ### 5.6 エッジ・異常系
@@ -389,7 +407,8 @@ SQL 投入後、**設定モード・月次入力モードの CRUD 自体**を別
 □ 投入確認クエリで 9 行の月次データを確認
 □ COM-01〜04 認証・ナビ
 □ SET-01〜05 設定モード（UI で読込一致確認）
-□ INP-01〜07 月次入力（UI CRUD）
+□ INP-01〜08 月次入力・手入力（UI CRUD）
+□ CSV-01〜08 月次入力・CSV インポート
 □ PLM-01〜06 月次 PL（§4 と突合）
 □ PLR-01〜02 / PLA-01〜02 集計モード
 □ PLT-01〜02 / PLH-01〜02 チャート・Health

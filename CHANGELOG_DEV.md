@@ -1,5 +1,63 @@
 # CHANGELOG_DEV
 
+## 2026-05-18
+- What: notes/ を現行仕様に同期（Phase 7 反映・CSV インポートモード追記・5指標修正）
+- Why: requirements / architecture / release-plan / next-actions / sales-import-plan / test-plan / finance-spec が Phase 7-4 完了前の記述で止まっていたため
+- Files: `notes/V-PEACH_requirements.md`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_release-plan.md`, `notes/V-PEACH_next-actions.md`, `notes/V-PEACH_sales-import-plan.md`, `notes/V-PEACH_test-plan.md`, `notes/V-PEACH_finance-spec.md`
+
+## 2026-05-18
+- What: 売上CSV取り込みのファイル名による店舗キー検証アラートを撤廃。任意のファイル名でアップロード可能に
+- Why: Airメイト/Airレジ からダウンロードしたCSVをリネームせずそのまま使えるようにする運用要望
+- Files: `src/components/apps/InputApp.vue`
+
+## 2026-05-18
+- What: 売上CSV取り込み Phase 7-3〜7-4 実装。InputApp Step 0 に「CSV インポート / 手入力」タブ切替を追加（デフォルト=CSV）。CSV インポートフローを実装：6ファイル一括アップロード → 前月キャッシュ + 当月CSV から事業月度範囲の割引総額を算出 → プレビュー（割引前/後・前月キャッシュ参照日数・既存値の上書き警告・人件費入力）→ 保存（`pe_daily_sales_cache` upsert + `pe_monthly_records` upsert + 古いキャッシュ自動削除）。Shift-JIS は `TextDecoder` でブラウザ完結、CSVパーサは自前実装で papaparse 不要。ファイル名から店舗キー・期間を自動検出。前月キャッシュ欠落時は確認ダイアログで警告
+- Why: Phase 7-2 で DB 基盤が整ったため、毎月「6ファイルアップロードだけで `service_sales` / `merchandise_sales` が事業月度ベースで自動計算 + upsert」されるUI/ロジックを完成させる
+- Files: `src/utils/csvImporter.js`（新規）, `src/components/FileSlot.vue`（新規）, `src/components/apps/InputApp.vue`（大幅改修）, `src/api.js`（`getDailySalesInRange` / `upsertDailySalesCache` / `deleteOldDailySalesCache` 追加）
+- Related: [[V-PEACH/notes/V-PEACH_sales-import-plan]]
+
+## 2026-05-18
+- What: 売上CSV取り込み Phase 7-1/7-2 着手。`pe_daily_sales_cache` テーブル作成マイグレーション + 2025年12月分の SEED SQL（3店舗 × 25日 = 75行）を作成。CSV から PowerShell で SEED 自動生成。仕様書のスキーマ齟齬（`pe_stores` → `stores`、uuid → bigint、割引額の符号正規化）を修正
+- Why: Phase 7-3（フロント実装）に進む前に、DB スキーマと初回データ投入を確定。実 CSV を読んで Shift-JIS / カラム構造 / 割引額が負値である点などを確認
+- Files: `supabase/DB_MIGRATION_daily_sales_cache_20260518.sql`（新規）, `supabase/SEED_daily_sales_cache_202512.sql`（新規）, `notes/V-PEACH_sales-import-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_sales-import-plan]]
+
+## 2026-05-18
+- What: 売上CSV取り込み検討資料を改訂。事業月度が前月最終盤を含む特性を踏まえ、Airレジ日別売上を `pe_daily_sales_cache` テーブルにキャッシュし当月CSVだけで運用する方針に変更。インポート時に自動削除（当月度 start_date より古いレコード）、初回（2025年12月分）は SQL 直接投入で対応
+- Why: 単純運用だと毎月「前月+当月」の2ヶ月分 CSV が必要で手順が倍化するため、前月分を DB に保持して再利用する設計に転換
+- Files: `notes/V-PEACH_sales-import-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
+
+## 2026-05-18
+- What: 月次入力 Step 0（対象月選択画面）に V-MINT 集計期間プレビューを追加。「開始する」ボタン下に全店舗の集計期間（start_date〜end_date・日数）を独立カードで表示。対象月確定時（periodKey watch）に自動フェッチ
+- Why: 月次入力を始める前に V-MINT の棚卸し集計期間が確認できるようにする。別カードで視覚的に分離（メインカードとは異なる情報ブロック）
+- Files: `src/components/apps/InputApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## 2026-05-18
+- What: 売上データ自動取り込み（Airメイト/Airレジ CSV）の検討資料を notes に新規追加
+- Why: 月次入力の手作業をなくし、事業月度ベースで CSV インポートだけで売上記録が完了する仕組みを設計するため、要件・計算ロジック・UI フロー・Open Questions を整理
+- Files: `notes/V-PEACH_sales-import-plan.md`（新規）, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]], [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
+
+## 2026-05-18
+- What: 全金額入力ボックスにブラー時カンマ桁区切り表示を追加（`CurrencyInput.vue` 共通コンポーネント化）
+- Why: 100万単位の数字で桁間違いが起こりやすいため、フォーカスを外した瞬間にカンマ区切り表示する
+- Files: `src/components/CurrencyInput.vue`（新規）, `src/components/apps/InputApp.vue`, `src/components/apps/SettingsApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## 2026-05-18
+- What: `pe_benchmarks` を EAV形式からフラット・シングルトン形式に再設計し、`pe_company_settings` と同パターンに統一
+- Why: `pe_benchmarks_revisions` と列構成を揃え保守性向上。`store_id` / `item_name` / `target_value` の EAV 方式を廃止し、フォールバック層として明確に位置づける
+- Files: `src/api.js`, `supabase/DB_MIGRATION_benchmarks_restructure_20260518.sql`, `supabase/SEED_benchmarks_defaults_20260518.sql`
+- Related: [[V-PEACH/notes/V-PEACH_architecture]]
+
+## 2026-05-18
+- What: ベンチマーク設定の追跡指標を F比・L比・R比・営業利益率・労働分配率の5指標に変更（粗利率・原価率を除外）
+- Why: FLR比はすでに PL 画面で可視化済みのため、ベンチマーク目標管理もそれに揃える
+- Files: `src/components/apps/SettingsApp.vue`, `src/components/apps/PLApp.vue`, `supabase/DB_MIGRATION_benchmarks_flr_20260518.sql`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
 ## 2026-05-17
 - What: 経営PLにFLR比サマリーセクション追加・月次推移チャートをカテゴリー別全指標トグル対応に改修
 - Why: FLR比（F比=原価率、L比=人件費/売上、R比=家賃/売上）の可視化要望。トレンドチャートは全PL項目＋FLR比を表示可能にし、カテゴリー別エクスパンドで指標ON/OFF制御。二重Y軸（左:金額、右:%）採用

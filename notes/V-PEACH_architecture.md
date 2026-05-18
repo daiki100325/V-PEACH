@@ -31,9 +31,12 @@ V-PEACH/
 │   ├── style.css
 │   ├── utils/
 │   │   ├── finance.js           # PL計算・変動費計算・3ヶ月平均ロジック
-│   │   └── periods.js           # 期間キー操作ユーティリティ
+│   │   ├── periods.js           # 期間キー操作ユーティリティ
+│   │   └── csvImporter.js       # Airメイト/Airレジ CSV 解析・Shift-JIS デコード・店舗キー自動検出
 │   └── components/
 │       ├── PortalMenu.vue       # 3モードカード選択画面
+│       ├── CurrencyInput.vue    # 金額入力（フォーカス時：数値のみ、ブラー時：カンマ区切り表示）
+│       ├── FileSlot.vue         # CSV ファイルアップロードスロット（店舗×CSVタイプ）
 │       ├── common/
 │       │   ├── AppHeader.vue
 │       │   ├── AppFooter.vue
@@ -43,14 +46,16 @@ V-PEACH/
 │       ├── PLTrendChart.vue # 月次推移チャート（カテゴリー別トグル・二重Y軸）
 │       └── apps/
 │           ├── PLApp.vue        # (1) PLモード（シングルページ・FLR比サマリー含む）
-│           ├── InputApp.vue     # (2) 月次入力モード（全店舗一括フロー）
+│           ├── InputApp.vue     # (2) 月次入力モード（CSV/手入力タブ・全店舗一括フロー・Step 0 プレビュー付き）
 │           └── SettingsApp.vue  # (3) 設定モード（バージョン管理・改定履歴）
 ├── supabase/
-│   ├── DB_MIGRATION.sql                     # Phase 1: pe_* 4テーブル作成
-│   ├── DB_MIGRATION_revision_20260517.sql   # Phase 5: 売上分離・カラム整理
-│   ├── DB_MIGRATION_versioned_settings.sql  # Phase 5+: 設定バージョン管理テーブル追加
-│   ├── DB_MIGRATION_enable_rls_20260517.sql # Phase 5+: 全テーブルRLS有効化
-│   └── SEED_store_settings_defaults.sql     # フォールバック用デフォルト値投入
+│   ├── DB_MIGRATION.sql                            # Phase 1: pe_* 4テーブル作成
+│   ├── DB_MIGRATION_revision_20260517.sql          # Phase 5: 売上分離・カラム整理
+│   ├── DB_MIGRATION_versioned_settings.sql         # Phase 5+: 設定バージョン管理テーブル追加
+│   ├── DB_MIGRATION_enable_rls_20260517.sql        # Phase 5+: 全テーブルRLS有効化
+│   ├── DB_MIGRATION_daily_sales_cache_20260518.sql # Phase 7-2: pe_daily_sales_cache 作成
+│   ├── SEED_store_settings_defaults.sql            # フォールバック用デフォルト値投入
+│   └── SEED_daily_sales_cache_202512.sql           # Phase 7-2: 2025年12月分初回キャッシュ
 └── .env.local                   # 環境変数（gitignore済み）
 ```
 
@@ -92,17 +97,35 @@ CREATE TABLE pe_monthly_records (
 ```
 > 旧 `total_sales` は `service_sales` にリネーム。`rent` / `payment_fee` / `utilities` / `sundries` は廃止（設定値・計算値に移行）。
 
-### pe_benchmarks（目標値）
+### pe_daily_sales_cache（日次売上キャッシュ・Phase 7-2追加）
 ```sql
-CREATE TABLE pe_benchmarks (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  store_id bigint REFERENCES stores(id),  -- NULLは全社共通
-  item_name text NOT NULL,
-  target_value numeric,
-  is_percentage boolean DEFAULT true
+CREATE TABLE pe_daily_sales_cache (
+  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  store_id        bigint NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  sale_date       date NOT NULL,
+  discount_amount numeric NOT NULL DEFAULT 0,  -- 正の数で保持（CSV負値をABSで変換）
+  gross_sales     numeric,
+  customer_count  integer,
+  raw_payload     jsonb,
+  imported_at     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (store_id, sale_date)
 );
 ```
-> `item_name` の値: `labor_rate` / `gross_profit_margin` / `operating_profit_margin` / `cost_ratio`
+> Airレジ日別CSVを店舗×日付単位で永続化。事業月度が暦月をまたぐため前月最終盤のデータを保持し、当月インポート時に参照する。インポート末尾で `sale_date < current_period_start_date` の古いレコードを店舗ごとに自動削除（常時90行前後に収まる設計）。
+
+### pe_benchmarks（目標値・フォールバック）
+```sql
+CREATE TABLE pe_benchmarks (
+  id                      integer PRIMARY KEY DEFAULT 1,
+  f_ratio                 numeric,
+  l_ratio                 numeric,
+  r_ratio                 numeric,
+  operating_profit_margin numeric,
+  labor_rate              numeric,
+  CONSTRAINT pe_benchmarks_single_row CHECK (id = 1)
+);
+```
+> 2026-05-18 に EAV形式（store_id / item_name / target_value）からフラット・シングルトン形式に再設計。`pe_company_settings` と同パターン。主系は `pe_benchmarks_revisions`、このテーブルはフォールバック用。
 
 ### 設定バージョン管理テーブル（Phase 5+追加）
 
@@ -129,12 +152,13 @@ CREATE TABLE pe_company_settings_revisions (
 CREATE TABLE pe_benchmarks_revisions (
   id             bigserial PRIMARY KEY,
   effective_from int NOT NULL UNIQUE,
-  labor_rate numeric, gross_profit_margin numeric,
-  operating_profit_margin numeric, cost_ratio numeric,
+  f_ratio numeric, l_ratio numeric, r_ratio numeric,
+  operating_profit_margin numeric, labor_rate numeric,
   note text, created_at timestamptz DEFAULT now()
 );
+-- 旧カラム: gross_profit_margin / cost_ratio は 2026-05-18 に除外済み
 ```
-> `pe_benchmarks_revisions` は4指標を1行に集約（`pe_benchmarks` の item_name 1行ごと方式とは異なる）。
+> `pe_benchmarks_revisions` は5指標（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）を1行にフラット管理。2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。
 
 ## 財務ロジック（src/utils/finance.js）
 

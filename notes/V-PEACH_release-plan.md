@@ -59,8 +59,41 @@ parent: [[V-PEACH/notes/_index]]
 - **設定画面 UI 改修**：店舗別固定費をピルセレクター方式に変更。「現在適用中」+「改定履歴」の2段表示。現在適用中の削除（2件以上のみ）
 - **全テーブルRLS有効化**：anon 全許可ポリシーで既存動作を維持しつつ警告を解消
 
+### ✅ Phase 6：FLR比表示・月次推移チャート全指標化（2026-05-17 完了）
+- PL画面に FLR比サマリーセクション（F比・L比・R比）を常時表示（Health Check 直上）
+- 月次推移チャートを全PL項目＋FLR比のカテゴリー別トグル対応に全面改修
+- Y軸二重軸（左：金額万円、右：%）。初期表示は「税込総売上・F比・L比・R比・会社手残り」
+
+### ✅ ベンチマーク指標改修（2026-05-18 完了）
+- `pe_benchmarks` を EAV形式からフラット・シングルトン形式（`id=1`）に再設計
+- 追跡指標を F比・L比・R比・営業利益率・労働分配率の5指標に変更（粗利率・原価率を除外）
+- `pe_benchmarks_revisions` に `f_ratio` / `l_ratio` / `r_ratio` カラムを追加
+
+### ✅ 月次入力 Step 0 V-MINT 集計期間プレビュー（2026-05-18 完了）
+- 対象月（年・月）確定時に「開始する」ボタン下へ全店舗の集計期間を独立カードで自動表示
+- `periodKey` watch で `getCostReportDates` を並列フェッチ。未入力店舗は「未入力」表示
+
+### ✅ Phase 7-1：サンプル CSV 収集・パーサ仕様確定（2026-05-18 完了）
+- 3店舗 × 2種類（Airメイト / Airレジ）の実 CSV を入手
+- Shift-JIS デコード・カラム構成を確認し自前パーサ（papaparse 不採用）で仕様確定
+
+### ✅ Phase 7-2：`pe_daily_sales_cache` テーブル作成 + 2025年12月分 SEED（2026-05-18 完了）
+- `DB_MIGRATION_daily_sales_cache_20260518.sql`・`SEED_daily_sales_cache_202512.sql` を Supabase に投入
+
+### ✅ Phase 7-3 / 7-4：フロント実装・Supabase 連携（2026-05-18 完了）
+- `InputApp.vue` に CSV/手入力タブ切替を追加（デフォルト = CSV）
+- `csvImporter.js`（Airメイト・Airレジ CSV パーサ、ファイル名からの店舗キー自動検出）
+- `FileSlot.vue`（6ファイルアップロード UI）
+- プレビュー画面（割引前/後・割引総額・前月キャッシュ参照日数）+ 人件費入力
+- `pe_daily_sales_cache` upsert + `upsertMonthlyRecord` + 古いキャッシュ削除のフローが通る
+
+### 🔄 Phase 7-5：エラー処理・UX 仕上げ（dev 確認待ち）
+- 前月キャッシュ欠落の確認ダイアログ・パースエラー表示等、§4.3 主要ケース対応済み
+- dev 環境での動作確認・UX 最終調整が残タスク
+
 ## 現在のステータス
-全フェーズ完了。テスト実施待ち（手順: [[V-PEACH/notes/V-PEACH_test-plan]]）。
+Phase 7-4 まで実装完了。Phase 7-5（エラー処理・UX）は dev 確認中。
+テスト実施待ち（手順: [[V-PEACH/notes/V-PEACH_test-plan]]）。
 
 ## Related
 - [[V-PEACH/DECISIONS]]
