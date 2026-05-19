@@ -1,5 +1,15 @@
 # CHANGELOG_DEV
 
+## 2026-05-19
+- What: 経営PL（月次）のフィルターパネル下段に各店舗の集計期間バッジを追加。年月確定時に自動取得・表示
+- Why: PLを開く前に各店舗のV-MINT集計期間が確認できるようにする（月次入力画面と同じ情報を経営PLでも）
+- Files: `src/components/apps/PLApp.vue`
+
+## 2026-05-19
+- What: 経営PL画面の表示順序変更 — FLR比を最上部（データなしバナーの直後）に移動
+- Why: FLRは最重要KPIのため、スクロールせず即視認できる位置に置く運用要望
+- Files: `src/components/apps/PLApp.vue`
+
 ## 2026-05-18
 - What: notes/ を現行仕様に同期（Phase 7 反映・CSV インポートモード追記・5指標修正）
 - Why: requirements / architecture / release-plan / next-actions / sales-import-plan / test-plan / finance-spec が Phase 7-4 完了前の記述で止まっていたため

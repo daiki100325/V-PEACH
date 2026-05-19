@@ -58,6 +58,22 @@
                     表示する
                 </button>
             </div>
+
+            <!-- 各店舗の集計期間（月次のみ） -->
+            <div v-if="selectedPeriodMode === 'monthly' && selectedYear && selectedMonth"
+                class="border-t border-slate-100 pt-3 mt-3">
+                <div v-if="loadingPreview" class="text-xs text-slate-400">集計期間を取得中...</div>
+                <div v-else class="flex flex-wrap gap-2">
+                    <div v-for="sd in costPeriodPreview" :key="sd.storeKey"
+                        class="flex items-center gap-1.5 text-xs bg-slate-50 rounded-lg px-2.5 py-1.5">
+                        <span class="font-semibold text-slate-600">{{ sd.storeName }}</span>
+                        <span v-if="sd.costReport" class="text-teal-600">
+                            {{ formatDate(sd.costReport.start_date) }}〜{{ formatDate(sd.costReport.end_date) }}（{{ dayCount(sd.costReport) }}日）
+                        </span>
+                        <span v-else class="text-slate-400">未入力</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- PL表示エリア -->
@@ -79,6 +95,28 @@
                 <!-- データなしバナー -->
                 <div v-if="!plHasData" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 text-xs">
                     <span>この期間の月次データがありません（— は未入力）</span>
+                </div>
+
+                <!-- FLR比 -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="px-4 py-3 bg-pink-50 border-b border-pink-100">
+                        <span class="text-xs font-bold text-pink-700 uppercase tracking-wider">FLR比</span>
+                        <span class="text-xs text-slate-400 ml-2">（対税引後売上）</span>
+                    </div>
+                    <div class="grid grid-cols-3 divide-x divide-slate-100">
+                        <div class="px-4 py-4 text-center">
+                            <div class="text-xs text-slate-500 mb-1">F比（原価率）</div>
+                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.fRatio) }}</div>
+                        </div>
+                        <div class="px-4 py-4 text-center">
+                            <div class="text-xs text-slate-500 mb-1">L比（人件費率）</div>
+                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.lRatio) }}</div>
+                        </div>
+                        <div class="px-4 py-4 text-center">
+                            <div class="text-xs text-slate-500 mb-1">R比（家賃比率）</div>
+                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.rRatio) }}</div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 売上セクション -->
@@ -206,28 +244,6 @@
                     </div>
                 </div>
 
-                <!-- FLR比 -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="px-4 py-3 bg-pink-50 border-b border-pink-100">
-                        <span class="text-xs font-bold text-pink-700 uppercase tracking-wider">FLR比</span>
-                        <span class="text-xs text-slate-400 ml-2">（対税引後売上）</span>
-                    </div>
-                    <div class="grid grid-cols-3 divide-x divide-slate-100">
-                        <div class="px-4 py-4 text-center">
-                            <div class="text-xs text-slate-500 mb-1">F比（原価率）</div>
-                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.fRatio) }}</div>
-                        </div>
-                        <div class="px-4 py-4 text-center">
-                            <div class="text-xs text-slate-500 mb-1">L比（人件費率）</div>
-                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.lRatio) }}</div>
-                        </div>
-                        <div class="px-4 py-4 text-center">
-                            <div class="text-xs text-slate-500 mb-1">R比（家賃比率）</div>
-                            <div class="text-xl font-black text-slate-800">{{ fmtPct(displayPL.rRatio) }}</div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Health Check -->
                 <div v-if="healthHighlights.some(h => h.actual != null)" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
@@ -276,7 +292,7 @@
 import {
     getMonthlyRecord, getStoreSettings, getCompanySettings,
     getActiveStoreSettings, getActiveCompanySettings, getActiveBenchmarks,
-    getCostReportForPE, getCostPriceForPeriod
+    getCostReportForPE, getCostPriceForPeriod, getCostReportDates
 } from '../../api.js'
 import {
     calcPL, calcVariableCostFromCostReport,
@@ -316,6 +332,8 @@ export default {
             plResult: null,
             trendMonthly: [],
             benchmarks: {},
+            costPeriodPreview: [],
+            loadingPreview: false,
             years: buildYearOptions(),
             months: buildMonthOptions()
         }
@@ -366,9 +384,42 @@ export default {
             return this.trendMonthly.map(m => m.label)
         }
     },
+    watch: {
+        periodKey(newVal) {
+            if (this.selectedPeriodMode === 'monthly') this.fetchCostPeriodPreview(newVal)
+        },
+        selectedPeriodMode(newMode) {
+            if (newMode !== 'monthly') { this.costPeriodPreview = []; return }
+            this.fetchCostPeriodPreview(this.periodKey)
+        }
+    },
     methods: {
         fmt(v) { return v == null ? '—' : formatJPY(v) },
         fmtPct(v) { return formatPct(v) },
+        formatDate(dateStr) {
+            if (!dateStr) return '—'
+            return dateStr.replace(/-/g, '/')
+        },
+        dayCount(costReport) {
+            if (!costReport?.start_date || !costReport?.end_date) return '?'
+            const start = new Date(costReport.start_date)
+            const end = new Date(costReport.end_date)
+            return Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
+        },
+        async fetchCostPeriodPreview(periodKey) {
+            if (!periodKey || String(periodKey).length < 6) { this.costPeriodPreview = []; return }
+            this.loadingPreview = true
+            try {
+                this.costPeriodPreview = await Promise.all(
+                    this.stores.map(async (s) => ({
+                        storeKey: s.key,
+                        storeName: s.name,
+                        costReport: await getCostReportDates(s.key, periodKey)
+                    }))
+                )
+            } catch { this.costPeriodPreview = [] }
+            finally { this.loadingPreview = false }
+        },
         async loadPL() {
             if (!this.canLoad) return
             this.plLoading = true
