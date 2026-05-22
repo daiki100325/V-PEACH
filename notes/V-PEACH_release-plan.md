@@ -83,7 +83,7 @@ parent: [[V-PEACH/notes/_index]]
 ### ✅ Phase 7-3 / 7-4：フロント実装・Supabase 連携（2026-05-18 完了）
 - `InputApp.vue` に CSV/手入力タブ切替を追加（デフォルト = CSV）
 - `csvImporter.js`（Airメイト・Airレジ CSV パーサ、ファイル名からの店舗キー自動検出）
-- `FileSlot.vue`（6ファイルアップロード UI）
+- `StoreCsvUpload.vue`（店舗ごと1ボックス・複数選択 UI / ヘッダー内容で Airメイト・Airレジ を自動判定 — 2026-05-22 改修）
 - プレビュー画面（割引前/後・割引総額・前月キャッシュ参照日数）+ 人件費入力
 - `pe_daily_sales_cache` upsert + `upsertMonthlyRecord` + 古いキャッシュ削除のフローが通る
 

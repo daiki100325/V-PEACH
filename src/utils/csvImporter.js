@@ -55,6 +55,19 @@ function parseMoney(raw) {
   return Number.isFinite(n) ? n : 0
 }
 
+// ─── ヘッダー内容から CSV 種別を判定 ──────────────────────────────────────
+// Airメイト: ヘッダーに「カテゴリー」「売上合計」を含む
+// Airレジ:   ヘッダーに「集計期間」「割引額」を含む
+// どちらでもなければ null
+export function detectCsvKindFromHeader(text) {
+  const rows = parseCsv(text)
+  if (rows.length === 0) return null
+  const header = rows[0].map(h => (h || '').trim())
+  if (header.includes('カテゴリー') && header.includes('売上合計')) return 'airmate'
+  if (header.includes('集計期間') && header.includes('割引額')) return 'airregi'
+  return null
+}
+
 // ─── Airメイト CSV パース ─────────────────────────────────────────────────
 // ヘッダー: 順位,カテゴリー,出数ABC分析,出数構成比,出数合計,売上ABC分析,売上構成比,売上合計,粗利ABC分析,粗利構成比,粗利合計
 // シーシャ → service_sales（割引前）、物販 → merchandise_sales

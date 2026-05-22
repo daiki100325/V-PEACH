@@ -198,6 +198,10 @@
                             <span class="text-slate-500">借入返済（月額）</span>
                             <span class="font-bold text-slate-800">¥{{ Number(csRevisions[0].debt_repayment || 0).toLocaleString() }}</span>
                         </div>
+                        <div class="flex justify-between px-4 py-2.5 text-sm">
+                            <span class="text-slate-500">社長代替時給（参考）</span>
+                            <span class="font-bold text-slate-800">¥{{ Number(csRevisions[0].ryo_hourly_rate ?? 1300).toLocaleString() }}/h</span>
+                        </div>
                         <div v-if="csRevisions[0].note" class="px-4 py-2 text-xs text-slate-400 italic">{{ csRevisions[0].note }}</div>
                     </div>
                 </div>
@@ -238,6 +242,17 @@
                                 class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl pl-7 pr-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
                         </div>
                     </div>
+                    <div class="space-y-0.5">
+                        <label class="block text-xs font-medium text-slate-500">社長代替時給（機会費用計算用）</label>
+                        <p class="text-xs text-slate-400">りょーさんがシフトを埋めた枠をバイト換算するときの参考時給。やや高めに設定推奨。</p>
+                        <div class="relative flex items-center">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">¥</span>
+                            <input type="number" min="0" step="100" v-model.number="csNewForm.ryo_hourly_rate"
+                                placeholder="1300"
+                                class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl pl-7 pr-10 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
+                            <span class="absolute right-3 text-slate-400 text-sm">/h</span>
+                        </div>
+                    </div>
                     <input type="text" v-model="csNewForm.note" placeholder="改定メモ（任意）"
                         class="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
                     <p v-if="csNewFormError" class="text-xs text-red-500">{{ csNewFormError }}</p>
@@ -263,6 +278,7 @@
                         <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
                             <div class="flex justify-between"><span class="text-slate-400">役員報酬</span><span class="font-medium text-slate-600">¥{{ Number(rev.exec_remuneration || 0).toLocaleString() }}</span></div>
                             <div class="flex justify-between"><span class="text-slate-400">借入返済</span><span class="font-medium text-slate-600">¥{{ Number(rev.debt_repayment || 0).toLocaleString() }}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">社長代替時給</span><span class="font-medium text-slate-600">¥{{ Number(rev.ryo_hourly_rate ?? 1300).toLocaleString() }}/h</span></div>
                         </div>
                         <div v-if="rev.note" class="mt-1 text-xs text-slate-400 italic">{{ rev.note }}</div>
                     </div>
@@ -408,7 +424,7 @@ export default {
             csRevisions: [],
             csLoading: false,
             csSaving: false,
-            csNewForm: { year: '', month: '', note: '', exec_remuneration: null, debt_repayment: null },
+            csNewForm: { year: '', month: '', note: '', exec_remuneration: null, debt_repayment: null, ryo_hourly_rate: 1300 },
             // ベンチマーク
             bmRevisions: [],
             bmLoading: false,
@@ -431,7 +447,8 @@ export default {
                 { key: 'fixed_rent', label: '家賃（月額）', shortLabel: '家賃', prefix: '¥', isJPY: true },
                 { key: 'fixed_utilities', label: '光熱費（月額）', shortLabel: '光熱費', prefix: '¥', isJPY: true },
                 { key: 'fixed_sundries', label: '雑費（月額）', shortLabel: '雑費', prefix: '¥', isJPY: true },
-                { key: 'payment_fee_rate', label: '決済手数料率（%）', shortLabel: '手数料率', prefix: '', step: 0.01, isRate: true }
+                { key: 'payment_fee_rate', label: '決済手数料率（%）', shortLabel: '手数料率', prefix: '', step: 0.01, isRate: true },
+                { key: 'fixed_salary_total', label: '所属固定給月報酬（合計）', shortLabel: '固定給', prefix: '¥', isJPY: true, hint: '馬場本店:おの / 中野店:ばな+ぴー / 馬場2号店:つー の月報酬合計' }
             ]
         },
         csNewFormError() {
@@ -486,7 +503,8 @@ export default {
                 fixed_sundries: source?.fixed_sundries ?? null,
                 payment_fee_rate: source?.payment_fee_rate != null
                     ? Number((Number(source.payment_fee_rate) * 100).toFixed(2))
-                    : null
+                    : null,
+                fixed_salary_total: source?.fixed_salary_total ?? null
             }
         },
 
@@ -531,6 +549,7 @@ export default {
                     fixed_utilities: form.fixed_utilities ?? 0,
                     fixed_sundries: form.fixed_sundries ?? 0,
                     payment_fee_rate: Number(form.payment_fee_rate ?? 0) / 100,
+                    fixed_salary_total: form.fixed_salary_total ?? 0,
                     note: form.note || null
                 })
                 ss.revisions = await getStoreSettingsRevisions(storeKey)
@@ -577,6 +596,7 @@ export default {
             const r = this.csRevisions[0]
             this.csNewForm.exec_remuneration = r.exec_remuneration
             this.csNewForm.debt_repayment = r.debt_repayment
+            this.csNewForm.ryo_hourly_rate = r.ryo_hourly_rate ?? 1300
         },
         async addCsRev() {
             const ef = composePeriodKey(this.csNewForm.year, this.csNewForm.month)
@@ -587,10 +607,11 @@ export default {
                 await addCompanySettingsRevision(ef, {
                     exec_remuneration: this.csNewForm.exec_remuneration ?? 0,
                     debt_repayment: this.csNewForm.debt_repayment ?? 0,
+                    ryo_hourly_rate: this.csNewForm.ryo_hourly_rate ?? 1300,
                     note: this.csNewForm.note || null
                 })
                 this.csRevisions = await getCompanySettingsRevisions()
-                this.csNewForm = { year: '', month: '', note: '', exec_remuneration: null, debt_repayment: null }
+                this.csNewForm = { year: '', month: '', note: '', exec_remuneration: null, debt_repayment: null, ryo_hourly_rate: 1300 }
                 alert('改訂を追加しました。')
             } catch (e) {
                 alert(e.message || '追加に失敗しました。')

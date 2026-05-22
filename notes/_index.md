@@ -35,6 +35,7 @@ tags: [project/v-peach, type/hub]
 - [[V-PEACH/notes/old/V-PEACH_revision-plan]] ✅ 完了
 - [[V-PEACH/notes/V-PEACH_release-plan]]
 - [[V-PEACH/notes/V-PEACH_next-actions]] — 次のアクション（ベンチマーク見直し・UI変更検討）
+- [[V-PEACH/notes/V-PEACH_labor-cost-plan]] — 人件費計算ロジック実装計画（重みつき枠按分方式・PL/月次入力/設定）
 - [[V-PEACH/notes/V-PEACH_sales-import-plan]] — 売上データ自動取り込み（Airメイト/Airレジ CSV）検討資料
 
 ## Weekly Review

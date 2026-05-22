@@ -82,6 +82,51 @@ export async function getMonthlyRecordsForYear(storeKey, year) {
   return data || []
 }
 
+// ─── pe_monthly_company_records ──────────────────────────────────────────────
+
+/** 指定月の全社人件費レコードを取得（新方式入力済みかどうかの判定にも使用） */
+export async function getMonthlyCompanyRecord(periodKey) {
+  requireSupabase()
+  const pk = Number(periodKey)
+  const { data, error } = await supabase
+    .from('pe_monthly_company_records')
+    .select('*')
+    .eq('period_key', pk)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/** 全社人件費レコードを upsert */
+export async function upsertMonthlyCompanyRecord(periodKey, fields) {
+  requireSupabase()
+  const pk = Number(periodKey)
+  const row = {
+    period_key: pk,
+    updated_at: new Date().toISOString(),
+    ...fields
+  }
+  const { error } = await supabase
+    .from('pe_monthly_company_records')
+    .upsert(row, { onConflict: 'period_key' })
+  if (error) throw error
+}
+
+/** 指定年の全社人件費レコードを一括取得 */
+export async function getMonthlyCompanyRecordsForYear(year) {
+  requireSupabase()
+  const fromPk = year * 100 + 1
+  const toPk = year * 100 + 12
+  const { data, error } = await supabase
+    .from('pe_monthly_company_records')
+    .select('*')
+    .gte('period_key', fromPk)
+    .lte('period_key', toPk)
+    .order('period_key', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
 // ─── pe_company_settings ────────────────────────────────────────────────────
 
 export async function getCompanySettings() {

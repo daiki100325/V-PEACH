@@ -68,13 +68,13 @@
             </div>
         </div>
 
-        <!-- ───── Manual モード: Step 1〜N 店舗別入力 ───── -->
+        <!-- ───── Manual モード: Step 1〜N 店舗別売上入力 ───── -->
         <div v-if="inputMode === 'manual' && step >= 1 && step <= stores.length && currentStore" class="space-y-4 pb-32">
 
             <!-- ヘッダー -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <div class="flex items-center justify-between mb-1">
-                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">入力中</p>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">売上入力</p>
                     <p class="text-xs font-bold text-slate-400">{{ step }} / {{ stores.length }}</p>
                 </div>
                 <p class="text-base font-bold text-slate-800">{{ currentStore.storeName }} — {{ periodLabel }}</p>
@@ -108,21 +108,95 @@
                 </div>
                 <p class="text-xs text-slate-400">物販がない月は空欄のままで構いません（0として扱います）</p>
             </div>
+        </div>
 
-            <!-- 人件費 -->
+        <!-- ───── 人件費 画面A: バイトが埋めた枠数 ───── -->
+        <div v-if="step === laborStepA && (inputMode === 'manual' || inputMode === 'csv')" class="space-y-4 pb-32">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">人件費入力 A</p>
+                <p class="text-base font-bold text-slate-800">バイトが埋めた枠数 — {{ periodLabel }}</p>
+                <p class="text-xs text-slate-500 mt-1.5">店舗ごとにシフト枠数を入力してください。重みつき枠数（h）をリアルタイム計算します。</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="grid grid-cols-3 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">
+                    <div class="px-4 py-2.5">店舗</div>
+                    <div class="px-3 py-2.5 text-center">6h 枠数</div>
+                    <div class="px-3 py-2.5 text-center">7.5h 枠数</div>
+                </div>
+                <div v-for="s in stores" :key="s.key" class="grid grid-cols-3 border-b border-slate-50 last:border-0 items-center">
+                    <div class="px-4 py-3 text-sm font-bold text-slate-700">{{ s.name }}</div>
+                    <div class="px-3 py-2">
+                        <input type="number" min="0" step="1"
+                            v-model.number="laborSlots[s.key].pt6h"
+                            class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2 text-slate-800 text-center focus:ring-2 focus:ring-brand-500 outline-none" />
+                    </div>
+                    <div class="px-3 py-2">
+                        <input type="number" min="0" step="1"
+                            v-model.number="laborSlots[s.key].pt7_5h"
+                            class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2 text-slate-800 text-center focus:ring-2 focus:ring-brand-500 outline-none" />
+                    </div>
+                    <div class="col-span-3 px-4 pb-2.5 text-xs text-teal-600">
+                        重みつき枠数 = {{ calcWeightedH(laborSlots[s.key].pt6h, laborSlots[s.key].pt7_5h).toFixed(1) }} h
+                    </div>
+                </div>
+                <div class="px-4 py-3 bg-teal-50 border-t border-teal-100 text-xs text-teal-700 font-bold">
+                    全店合計: {{ stores.reduce((sum, s) => sum + calcWeightedH(laborSlots[s.key].pt6h, laborSlots[s.key].pt7_5h), 0).toFixed(1) }} h
+                </div>
+            </div>
+        </div>
+
+        <!-- ───── 人件費 画面B: りょーさんが埋めた枠数 ───── -->
+        <div v-if="step === laborStepB && (inputMode === 'manual' || inputMode === 'csv')" class="space-y-4 pb-32">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">人件費入力 B</p>
+                <p class="text-base font-bold text-slate-800">りょーさんが埋めた枠数 — {{ periodLabel }}</p>
+                <p class="text-xs text-slate-500 mt-1.5">PL の人件費には計上されません。バイトに置き換えた場合の機会費用として参考表示します。</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="grid grid-cols-3 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">
+                    <div class="px-4 py-2.5">店舗</div>
+                    <div class="px-3 py-2.5 text-center">6h 枠数</div>
+                    <div class="px-3 py-2.5 text-center">7.5h 枠数</div>
+                </div>
+                <div v-for="s in stores" :key="s.key" class="grid grid-cols-3 border-b border-slate-50 last:border-0 items-center">
+                    <div class="px-4 py-3 text-sm font-bold text-slate-700">{{ s.name }}</div>
+                    <div class="px-3 py-2">
+                        <input type="number" min="0" step="1"
+                            v-model.number="laborSlots[s.key].ryo6h"
+                            class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2 text-slate-800 text-center focus:ring-2 focus:ring-brand-500 outline-none" />
+                    </div>
+                    <div class="px-3 py-2">
+                        <input type="number" min="0" step="1"
+                            v-model.number="laborSlots[s.key].ryo7_5h"
+                            class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2 text-slate-800 text-center focus:ring-2 focus:ring-brand-500 outline-none" />
+                    </div>
+                    <div class="col-span-3 px-4 pb-2.5 text-xs text-amber-600">
+                        代替コスト参考: {{ calcWeightedH(laborSlots[s.key].ryo6h, laborSlots[s.key].ryo7_5h).toFixed(1) }} h
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ───── 人件費 画面C: 給与・交通費総額 ───── -->
+        <div v-if="step === laborStepC && (inputMode === 'manual' || inputMode === 'csv')" class="space-y-4 pb-32">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">人件費入力 C</p>
+                <p class="text-base font-bold text-slate-800">バイト給与＋交通費の全社総額 — {{ periodLabel }}</p>
+                <p class="text-xs text-slate-500 mt-1.5">給与明細・交通費精算の合計を入力してください。店舗ごとに重みつき枠数で按分されます。</p>
+            </div>
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">人件費 <span class="text-red-500">*</span></label>
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">全店バイト給与＋交通費合計 <span class="text-red-500">*</span></label>
                 <div class="relative">
                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                    <CurrencyInput v-model="currentStore.formData.labor_cost"
-                        placeholder="例: 300,000"
+                    <CurrencyInput v-model="totalVariablePayroll"
+                        placeholder="例: 800,000"
                         class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
                 </div>
             </div>
         </div>
 
-        <!-- ───── Manual モード: Step N+1 確認 ───── -->
-        <div v-if="inputMode === 'manual' && step === stores.length + 1" class="space-y-4 pb-32">
+        <!-- ───── Manual モード: 確認画面 ───── -->
+        <div v-if="inputMode === 'manual' && step === confirmStep" class="space-y-4 pb-32">
             <div v-for="sd in storeData" :key="sd.storeKey"
                 class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
                 <h3 class="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">{{ sd.storeName }}</h3>
@@ -136,12 +210,22 @@
                         <span class="font-bold text-slate-800">¥{{ Number(sd.formData.merchandise_sales || 0).toLocaleString() }}</span>
                     </div>
                     <div class="flex justify-between py-2 text-sm">
-                        <span class="text-slate-500">人件費</span>
-                        <span class="font-bold text-slate-800">¥{{ Number(sd.formData.labor_cost || 0).toLocaleString() }}</span>
+                        <span class="text-slate-500">バイト枠（6h / 7.5h）</span>
+                        <span class="font-bold text-slate-800">{{ laborSlots[sd.storeKey]?.pt6h ?? 0 }} / {{ laborSlots[sd.storeKey]?.pt7_5h ?? 0 }} 枠</span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">りょーさん枠（6h / 7.5h）</span>
+                        <span class="font-bold text-slate-800">{{ laborSlots[sd.storeKey]?.ryo6h ?? 0 }} / {{ laborSlots[sd.storeKey]?.ryo7_5h ?? 0 }} 枠</span>
                     </div>
                 </div>
             </div>
-            <p class="text-xs text-slate-400 px-1">家賃・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">全店バイト給与＋交通費合計</span>
+                    <span class="font-bold text-slate-800">¥{{ Number(totalVariablePayroll || 0).toLocaleString() }}</span>
+                </div>
+            </div>
+            <p class="text-xs text-slate-400 px-1">家賃・固定給・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
         </div>
 
         <!-- ───── CSV モード: Step 1 ファイルアップロード ───── -->
@@ -153,7 +237,7 @@
                 </div>
                 <p class="text-base font-bold text-slate-800">{{ periodLabel }}</p>
                 <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                    各店舗について<strong>商品別売上CSV（Airメイト）</strong>と<strong>日別売上CSV（Airレジ）</strong>の2ファイルをアップロードしてください。
+                    各店舗のボックスに<strong>商品別売上CSV（Airメイト）</strong>と<strong>日別売上CSV（Airレジ）</strong>を<strong>まとめて選択</strong>してください（順不同・1ファイルずつでも可）。
                     Airレジ CSV は当月暦月全体を指定（前月分はDBキャッシュから自動取得）。
                 </p>
             </div>
@@ -168,19 +252,14 @@
                     <span v-else class="text-xs text-red-500 font-bold">V-MINT 未入力</span>
                 </div>
 
-                <!-- Airメイト -->
-                <FileSlot label="商品別売上CSV（Airメイト・事業月度ピッタリ）"
-                    :file="csvFiles[store.key]?.airmate?.file"
-                    :error="csvFiles[store.key]?.airmate?.error"
-                    :info="airmateInfoLine(store.key)"
-                    @change="(f) => handleFileUpload(store.key, 'airmate', f)" />
-
-                <!-- Airレジ -->
-                <FileSlot label="日別売上CSV（Airレジ・当月暦月）"
-                    :file="csvFiles[store.key]?.airregi?.file"
-                    :error="csvFiles[store.key]?.airregi?.error"
-                    :info="airregiInfoLine(store.key)"
-                    @change="(f) => handleFileUpload(store.key, 'airregi', f)" />
+                <StoreCsvUpload
+                    :airmate="csvFiles[store.key]?.airmate || {}"
+                    :airregi="csvFiles[store.key]?.airregi || {}"
+                    :airmate-info="airmateInfoLine(store.key)"
+                    :airregi-info="airregiInfoLine(store.key)"
+                    :warnings="csvFiles[store.key]?.warnings || []"
+                    @files="(files) => handleFilesUpload(store.key, files)"
+                    @clear="(kind) => handleClearSlot(store.key, kind)" />
             </div>
 
             <p class="text-xs text-slate-400 px-1">
@@ -254,19 +333,20 @@
 <script>
 import {
     getMonthlyRecord, upsertMonthlyRecord, getCostReportDates,
-    getDailySalesInRange, upsertDailySalesCache, deleteOldDailySalesCache
+    getDailySalesInRange, upsertDailySalesCache, deleteOldDailySalesCache,
+    getMonthlyCompanyRecord, upsertMonthlyCompanyRecord
 } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getPrevPeriodKey } from '../../utils/periods.js'
 import {
     readShiftJisFile, parseAirmateCsv, parseAirregiCsv,
-    detectDateRangeFromFilename, calcDiscountTotalInPeriod
+    detectDateRangeFromFilename, calcDiscountTotalInPeriod, detectCsvKindFromHeader
 } from '../../utils/csvImporter.js'
 import CurrencyInput from '../CurrencyInput.vue'
-import FileSlot from '../FileSlot.vue'
+import StoreCsvUpload from '../StoreCsvUpload.vue'
 
 export default {
     name: 'InputApp',
-    components: { CurrencyInput, FileSlot },
+    components: { CurrencyInput, StoreCsvUpload },
     inject: { requestConfirm: { default: null } },
     props: {
         stores: { type: Array, default: () => [] }
@@ -284,7 +364,10 @@ export default {
             costPeriodPreview: [],
             loadingPreview: false,
             years: buildYearOptions(),
-            months: buildMonthOptions()
+            months: buildMonthOptions(),
+            // 人件費入力（画面A/B/C 共通）
+            laborSlots: {},    // { storeKey: { pt6h, pt7_5h, ryo6h, ryo7_5h } }
+            totalVariablePayroll: null
         }
     },
     computed: {
@@ -303,33 +386,55 @@ export default {
             }
             return null
         },
+        laborStepA() {
+            // Manual: step N+1, CSV: step 3
+            if (this.inputMode === 'manual') return this.stores.length + 1
+            return 3
+        },
+        laborStepB() {
+            return this.laborStepA + 1
+        },
+        laborStepC() {
+            return this.laborStepB + 1
+        },
+        confirmStep() {
+            if (this.inputMode === 'manual') return this.stores.length + 4
+            return 6
+        },
         canNext() {
             if (this.inputMode === 'manual') {
                 if (this.step >= 1 && this.step <= this.stores.length) {
                     const fd = this.storeData[this.step - 1]?.formData
                     if (!fd) return false
-                    return fd.service_sales != null && fd.service_sales >= 0 &&
-                           fd.labor_cost != null && fd.labor_cost >= 0
+                    return fd.service_sales != null && fd.service_sales >= 0
                 }
-                if (this.step === this.stores.length + 1) return true
+                // 画面A: バイト枠数（0以上の整数なのでいつでも次へ可）
+                if (this.step === this.laborStepA) return true
+                // 画面B: 同上
+                if (this.step === this.laborStepB) return true
+                // 画面C: 総額が入力済みであること（0円でも可）
+                if (this.step === this.laborStepC) return this.totalVariablePayroll != null && this.totalVariablePayroll >= 0
+                // 確認画面
+                if (this.step === this.confirmStep) return true
                 return false
             }
             // CSV モード
             if (this.step === 1) {
-                // 全店舗の両ファイルがアップ済み＋パース成功
                 return this.stores.every(s => {
                     const c = this.csvFiles[s.key]
                     return c?.airmate?.parsed && c?.airregi?.parsed && c?.costReport
                 })
             }
-            if (this.step === 2) {
-                return this.csvPreview.every(p => p.labor_cost != null && p.labor_cost >= 0)
-            }
+            if (this.step === 2) return true  // プレビュー（旧人件費欄削除済み）
+            if (this.step === 3) return true  // 画面A
+            if (this.step === 4) return true  // 画面B
+            if (this.step === 5) return this.totalVariablePayroll != null && this.totalVariablePayroll >= 0
+            if (this.step === 6) return true  // 確認
             return false
         },
         isLastStep() {
-            if (this.inputMode === 'manual') return this.step === this.stores.length + 1
-            return this.step === 2
+            if (this.inputMode === 'manual') return this.step === this.confirmStep
+            return this.step === 6
         }
     },
     watch: {
@@ -395,27 +500,43 @@ export default {
             this.$emit('update:loadingMessage', 'データを読み込み中...')
             try {
                 const prevPk = getPrevPeriodKey(this.periodKey)
-                const results = await Promise.all(
-                    this.stores.map(async (s) => {
-                        const [existing, prev, costDates] = await Promise.all([
-                            getMonthlyRecord(s.key, this.periodKey),
-                            getMonthlyRecord(s.key, prevPk),
-                            getCostReportDates(s.key, this.periodKey)
-                        ])
-                        return {
-                            storeKey: s.key,
-                            storeName: s.name,
-                            formData: existing ? {
-                                service_sales: existing.service_sales,
-                                merchandise_sales: existing.merchandise_sales,
-                                labor_cost: existing.labor_cost
-                            } : { service_sales: null, merchandise_sales: null, labor_cost: null },
-                            prevRecord: prev,
-                            costReport: costDates
-                        }
-                    })
-                )
+                const [companyRec, results] = await Promise.all([
+                    getMonthlyCompanyRecord(this.periodKey),
+                    Promise.all(
+                        this.stores.map(async (s) => {
+                            const [existing, prev, costDates] = await Promise.all([
+                                getMonthlyRecord(s.key, this.periodKey),
+                                getMonthlyRecord(s.key, prevPk),
+                                getCostReportDates(s.key, this.periodKey)
+                            ])
+                            return {
+                                storeKey: s.key,
+                                storeName: s.name,
+                                formData: existing ? {
+                                    service_sales: existing.service_sales,
+                                    merchandise_sales: existing.merchandise_sales
+                                } : { service_sales: null, merchandise_sales: null },
+                                prevRecord: prev,
+                                costReport: costDates,
+                                existingRecord: existing
+                            }
+                        })
+                    )
+                ])
                 this.storeData = results
+                // laborSlots を既存データで初期化
+                const slots = {}
+                for (const sd of results) {
+                    const r = sd.existingRecord
+                    slots[sd.storeKey] = {
+                        pt6h: r?.part_time_slots_6h ?? 0,
+                        pt7_5h: r?.part_time_slots_7_5h ?? 0,
+                        ryo6h: r?.ryo_slots_6h ?? 0,
+                        ryo7_5h: r?.ryo_slots_7_5h ?? 0
+                    }
+                }
+                this.laborSlots = slots
+                this.totalVariablePayroll = companyRec?.total_variable_payroll ?? null
                 this.step = 1
             } catch (e) {
                 alert(e.message || 'データの読み込みに失敗しました。')
@@ -428,16 +549,36 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '集計期間を取得中...')
             try {
+                const [companyRec, ...storeResults] = await Promise.all([
+                    getMonthlyCompanyRecord(this.periodKey),
+                    ...this.stores.map(async (s) => {
+                        const [costReport, existing] = await Promise.all([
+                            getCostReportDates(s.key, this.periodKey),
+                            getMonthlyRecord(s.key, this.periodKey)
+                        ])
+                        return { storeKey: s.key, costReport, existing }
+                    })
+                ])
                 const init = {}
-                await Promise.all(this.stores.map(async (s) => {
-                    const costReport = await getCostReportDates(s.key, this.periodKey)
-                    init[s.key] = {
+                const slots = {}
+                for (const sr of storeResults) {
+                    init[sr.storeKey] = {
                         airmate: { file: null, error: null, parsed: null },
                         airregi: { file: null, error: null, parsed: null },
-                        costReport
+                        warnings: [],
+                        costReport: sr.costReport
                     }
-                }))
+                    const r = sr.existing
+                    slots[sr.storeKey] = {
+                        pt6h: r?.part_time_slots_6h ?? 0,
+                        pt7_5h: r?.part_time_slots_7_5h ?? 0,
+                        ryo6h: r?.ryo_slots_6h ?? 0,
+                        ryo7_5h: r?.ryo_slots_7_5h ?? 0
+                    }
+                }
                 this.csvFiles = init
+                this.laborSlots = slots
+                this.totalVariablePayroll = companyRec?.total_variable_payroll ?? null
                 this.csvPreview = []
                 this.step = 1
             } catch (e) {
@@ -446,27 +587,54 @@ export default {
                 this.$emit('update:loading', false)
             }
         },
-        async handleFileUpload(storeKey, kind, file) {
-            if (!file) {
-                this.csvFiles[storeKey][kind] = { file: null, error: null, parsed: null }
-                this.$emit('update:canNext', this.canNext)
-                return
-            }
-            try {
-                const text = await readShiftJisFile(file)
-                const dateRange = detectDateRangeFromFilename(file.name)
-                let parsed
-                if (kind === 'airmate') {
-                    const m = parseAirmateCsv(text)
-                    parsed = { ...m, ...dateRange }
-                } else {
-                    const rows = parseAirregiCsv(text)
-                    parsed = { rows, ...dateRange }
+        handleClearSlot(storeKey, kind) {
+            if (!this.csvFiles[storeKey]) return
+            this.csvFiles[storeKey][kind] = { file: null, parsed: null, error: null }
+            // 削除操作時は古い警告も消す（紛らわしさ回避）
+            this.csvFiles[storeKey].warnings = []
+            this.$emit('update:canNext', this.canNext)
+        },
+        async handleFilesUpload(storeKey, files) {
+            if (!files || files.length === 0) return
+            // 新しい選択ごとに警告はリセット（追加マージ方針なので既存スロットは温存）
+            const warnings = []
+            const seen = { airmate: null, airregi: null }
+            for (const file of files) {
+                let text
+                try {
+                    text = await readShiftJisFile(file)
+                } catch (e) {
+                    warnings.push(`${file.name}: 読み込み失敗（${e.message || 'エラー'}）`)
+                    continue
                 }
-                this.csvFiles[storeKey][kind] = { file, error: null, parsed }
-            } catch (e) {
-                this.csvFiles[storeKey][kind] = { file, parsed: null, error: e.message || 'パースエラー' }
+                const kind = detectCsvKindFromHeader(text)
+                if (!kind) {
+                    warnings.push(`${file.name}: 種別不明（Airメイト / Airレジ いずれのヘッダーにも一致しません）`)
+                    continue
+                }
+                const kindLabel = kind === 'airmate' ? '商品別売上' : '日別売上'
+                // 今回の選択内に同種が複数あれば後勝ち警告
+                if (seen[kind]) {
+                    warnings.push(`${kindLabel}CSV が複数選択されました。最後の「${file.name}」を採用します`)
+                }
+                seen[kind] = file.name
+                // パース
+                try {
+                    const dateRange = detectDateRangeFromFilename(file.name)
+                    let parsed
+                    if (kind === 'airmate') {
+                        const m = parseAirmateCsv(text)
+                        parsed = { ...m, ...dateRange }
+                    } else {
+                        const rows = parseAirregiCsv(text)
+                        parsed = { rows, ...dateRange }
+                    }
+                    this.csvFiles[storeKey][kind] = { file, error: null, parsed }
+                } catch (e) {
+                    this.csvFiles[storeKey][kind] = { file, parsed: null, error: e.message || 'パースエラー' }
+                }
             }
+            this.csvFiles[storeKey].warnings = warnings
             this.$emit('update:canNext', this.canNext)
         },
         airmateInfoLine(storeKey) {
@@ -513,8 +681,7 @@ export default {
                         days_from_db: calc.days_from_db,
                         days_from_csv: calc.days_from_csv,
                         cacheMissing,
-                        existing,
-                        labor_cost: existing?.labor_cost ?? null
+                        existing
                     })
                 }
                 // 前月キャッシュ欠落の警告
@@ -541,20 +708,14 @@ export default {
             if (this.step > 0) this.step--
         },
         async nextStep() {
-            // CSV モード step 1 → 2: プレビュー生成を挟む
+            // CSV step 1 → 2: プレビュー生成
             if (this.inputMode === 'csv' && this.step === 1) {
                 const ok = await this.buildCsvPreview()
                 if (!ok) return
                 this.step = 2
                 return
             }
-            if (this.inputMode === 'manual' && this.step < this.stores.length + 1) {
-                this.step++
-                return
-            }
-            if (this.inputMode === 'csv' && this.step < 2) {
-                this.step++
-            }
+            this.step++
         },
         async submit() {
             if (this.inputMode === 'manual') {
@@ -567,15 +728,22 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '保存中...')
             try {
-                await Promise.all(
-                    this.storeData.map(sd =>
-                        upsertMonthlyRecord(sd.storeKey, this.periodKey, {
+                await Promise.all([
+                    ...this.storeData.map(sd => {
+                        const sl = this.laborSlots[sd.storeKey] || {}
+                        return upsertMonthlyRecord(sd.storeKey, this.periodKey, {
                             service_sales: sd.formData.service_sales,
                             merchandise_sales: sd.formData.merchandise_sales ?? 0,
-                            labor_cost: sd.formData.labor_cost
+                            part_time_slots_6h: sl.pt6h ?? 0,
+                            part_time_slots_7_5h: sl.pt7_5h ?? 0,
+                            ryo_slots_6h: sl.ryo6h ?? 0,
+                            ryo_slots_7_5h: sl.ryo7_5h ?? 0
                         })
-                    )
-                )
+                    }),
+                    upsertMonthlyCompanyRecord(this.periodKey, {
+                        total_variable_payroll: this.totalVariablePayroll ?? 0
+                    })
+                ])
                 alert('保存しました。')
                 this.resetAll()
                 this.$emit('submitted')
@@ -589,20 +757,28 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '保存中...')
             try {
-                // STEP A: 日次キャッシュを upsert（当月CSV分）
+                // 日次キャッシュ upsert
                 await Promise.all(this.stores.map(async (s) => {
                     const rows = this.csvFiles[s.key].airregi.parsed.rows
                     await upsertDailySalesCache(s.key, rows)
                 }))
-                // STEP B-D: 月次レコードを upsert
-                await Promise.all(this.csvPreview.map(p =>
-                    upsertMonthlyRecord(p.storeKey, this.periodKey, {
+                // 月次レコード upsert（枠数を含む）
+                await Promise.all(this.csvPreview.map(p => {
+                    const sl = this.laborSlots[p.storeKey] || {}
+                    return upsertMonthlyRecord(p.storeKey, this.periodKey, {
                         service_sales: p.service_sales,
                         merchandise_sales: p.merchandise_sales,
-                        labor_cost: p.labor_cost
+                        part_time_slots_6h: sl.pt6h ?? 0,
+                        part_time_slots_7_5h: sl.pt7_5h ?? 0,
+                        ryo_slots_6h: sl.ryo6h ?? 0,
+                        ryo_slots_7_5h: sl.ryo7_5h ?? 0
                     })
-                ))
-                // STEP E: 古いキャッシュを削除（当月度 start_date より古いもの）
+                }))
+                // 全社人件費レコード upsert
+                await upsertMonthlyCompanyRecord(this.periodKey, {
+                    total_variable_payroll: this.totalVariablePayroll ?? 0
+                })
+                // 古いキャッシュを削除
                 await Promise.all(this.csvPreview.map(p =>
                     deleteOldDailySalesCache(p.storeKey, p.start_date)
                 ))
@@ -620,6 +796,11 @@ export default {
             this.storeData = []
             this.csvFiles = {}
             this.csvPreview = []
+            this.laborSlots = {}
+            this.totalVariablePayroll = null
+        },
+        calcWeightedH(slots6h, slots7_5h) {
+            return 6.0 * Number(slots6h || 0) + 7.5 * Number(slots7_5h || 0)
         }
     }
 }

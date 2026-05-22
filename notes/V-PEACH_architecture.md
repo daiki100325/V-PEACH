@@ -36,7 +36,7 @@ V-PEACH/
 │   └── components/
 │       ├── PortalMenu.vue       # 3モードカード選択画面
 │       ├── CurrencyInput.vue    # 金額入力（フォーカス時：数値のみ、ブラー時：カンマ区切り表示）
-│       ├── FileSlot.vue         # CSV ファイルアップロードスロット（店舗×CSVタイプ）
+│       ├── StoreCsvUpload.vue   # 店舗単位 CSV アップロード（複数選択・ヘッダー内容で種別自動判定）
 │       ├── common/
 │       │   ├── AppHeader.vue
 │       │   ├── AppFooter.vue

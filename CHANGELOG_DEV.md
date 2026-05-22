@@ -1,5 +1,39 @@
 # CHANGELOG_DEV
 
+## 2026-05-22
+- What: 月次入力CSVモードの Step1 アップロードUIを6ボックス→3ボックス（店舗ごと1ボックス）に統合。`<input type="file" multiple>` で当該店舗の商品別売上CSV（Airメイト）と日別売上CSV（Airレジ）を同時選択できるようにし、ヘッダー内容（「カテゴリー」「売上合計」 vs 「集計期間」「割引額」）から自動で種別判定→該当スロットへ振り分け。再選択は追加マージ方式（既存スロットは未指定なら温存・指定があれば後勝ちで上書き）、同種重複や種別不明CSVは黄バッジ警告で表示。商品別/日別の各行に「削除」ボタンを追加し、誤アップロード時に当該スロットのみクリア可能に（警告メッセージも同時クリア）
+- Why: 毎月のCSVアップロード工数を半減させるため。3店舗 × 2種類 = 6回のファイル選択が、3店舗 × 1回 = 3回で済む。ファイル名規約（`airmate_xxx` / `売上集計_xxx`）に依存せずヘッダーで判別するため、命名揺れにも強い。誤アップロードのリカバリ（片方だけやり直す等）も1クリックで可能
+- Files: `src/utils/csvImporter.js`, `src/components/StoreCsvUpload.vue`（新規）, `src/components/apps/InputApp.vue`, `src/components/FileSlot.vue`（削除）
+- Related: [[V-PEACH/notes/V-PEACH_architecture]]
+
+## 2026-05-21
+- What: PLApp の N+1 リクエストを大幅削減。`prefetchPeriods(periodKeys)` を新設し、`pe_monthly_company_records` と全店 `pe_monthly_records` を**期間範囲ぶん1バッチ**でまとめて取得。`loadMonthlyPLCore` は事前取得済みデータを受け取る形に変更し、内部での `getMonthlyCompanyRecord` / `Promise.all(getMonthlyRecord × 3店舗)` / `getActiveCompanySettings` の重複呼び出しを排除。`loadPL` 上位で `getActiveBenchmarks` と `getActiveCompanySettings` も並列1回取得に統合。さらに当該月の全店レコードが揃って null の場合は `getCostPriceForPeriod` / `getActiveStoreSettings` / `getCostReportForPE` も呼ばないよう早期 return を導入。`loadMonthlyPL` / `loadRolling3PL` / `loadTrendForPeriod` / `loadAnnualPL` は `loadPL` 本体に統合
+- Why: 前タスク（人件費新方式の PL 統合）で `loadMonthlyPLCore` 内に各種 prefetch を追加した結果、トレンド12ヶ月計算で 195+ 並列リクエストが Supabase に投げられ、ブラウザの同時接続上限と Supabase の rate limit が干渉して `pe_benchmarks_revisions` を含む一部リクエストが `ERR_TIMED_OUT` になり PL 表示が分単位で停止していた
+- Files: `src/components/apps/PLApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_labor-cost-plan]]
+
+## 2026-05-21
+- What: 人件費計算ロジック新方式（重みつき枠按分方式）の PL 側統合を完成。`PLApp.loadMonthlyPLCore` で `pe_monthly_company_records` の当月行と全店 `pe_monthly_records` を取得し `laborParams = { totalVariablePayroll, totalWeightedSlots, ryoHourlyRate }` を構築。`calcPL` に渡し、PL ⑬人件費の下に「固定給／変動費按分」サブ行と「※ りょーさん代替コスト（参考・PL非計上）」を表示。3ヶ月平均・年次集計では `laborFixed/laborVariable/ryoOpportunityCost` を「全行 null なら結果も null」とする集計関数 `aggregateKey` を導入し、旧式月のみの場合に内訳が ¥0 で表示される齟齬を防止
+- Why: 月次入力モードの3画面（バイト枠数・りょーさん枠数・給与＋交通費総額）と設定の `fixed_salary_total`/`ryo_hourly_rate` は実装済みだったが、PL 側は常に `record.labor_cost` のレガシーフォールバックで動作しており、InputApp で入力した枠数が PL に反映されていなかった
+- Files: `src/utils/finance.js`, `src/components/apps/PLApp.vue`, `TROUBLESHOOTING.md`
+- Related: [[V-PEACH/notes/V-PEACH_labor-cost-plan]]
+
+## 2026-05-21
+- What: 月次入力モードで「開始する」を押しても画面遷移しないバグの原因（`DB_MIGRATION_labor_cost_20260520.sql` 未適用で `pe_monthly_company_records` テーブルが存在しないこと）を `TROUBLESHOOTING.md` に記録
+- Why: 月次入力フローの冒頭で `getMonthlyCompanyRecord` が落ち `step=1` に遷移できない事象。再発防止のため migration セット忘れに対する運用ルールも追記
+- Files: `TROUBLESHOOTING.md`
+
+## 2026-05-20
+- What: 人件費計算ロジック実装計画ドキュメント新規作成（中野店店長壁打ち最終方針＝重みつき枠按分方式の実装手順・データモデル・UI 仕様を整理）
+- Why: 月次PL／月次入力／設定3モードを横断する変更のため、着手前に DB マイグレーション・API・UI・PL 表示・移行戦略を一気通貫で固める必要があった
+- Files: `notes/V-PEACH_labor-cost-plan.md`, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_labor-cost-plan]], [[V-PEACH/notes/V-PEACH_next-actions]]
+
+## 2026-05-19
+- What: next-actions に人件費計算ロジック設計タスクを追加（簡易計算方式の検討・社長代替シフトの機会損失/将来コスト可視化）
+- Why: 個別積み上げ計算は工数過大。かつ社長シフトの費用 0 計上が実態を歪めているため、設計を先行整理
+- Files: `notes/V-PEACH_next-actions.md`
+
 ## 2026-05-19
 - What: 経営PL（月次）のフィルターパネル下段に各店舗の集計期間バッジを追加。年月確定時に自動取得・表示
 - Why: PLを開く前に各店舗のV-MINT集計期間が確認できるようにする（月次入力画面と同じ情報を経営PLでも）

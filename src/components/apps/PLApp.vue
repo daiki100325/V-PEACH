@@ -194,6 +194,20 @@
                             <span class="text-sm text-slate-500 pl-3">— 人件費</span>
                             <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.laborCost) }}</span>
                         </div>
+                        <!-- 新方式（枠数按分）時のみ内訳を表示 -->
+                        <div v-if="displayPL.laborFixed != null" class="flex justify-between px-4 py-1.5">
+                            <span class="text-xs text-slate-400 pl-6">├ 固定給</span>
+                            <span class="text-xs text-slate-500">{{ fmt(displayPL.laborFixed) }}</span>
+                        </div>
+                        <div v-if="displayPL.laborVariable != null" class="flex justify-between px-4 py-1.5">
+                            <span class="text-xs text-slate-400 pl-6">└ 変動費按分</span>
+                            <span class="text-xs text-slate-500">{{ fmt(displayPL.laborVariable) }}</span>
+                        </div>
+                        <div v-if="displayPL.ryoOpportunityCost != null && displayPL.ryoOpportunityCost > 0"
+                            class="flex justify-between px-4 py-1.5 bg-amber-50/40">
+                            <span class="text-xs text-amber-600 pl-6">※ りょーさん代替コスト（参考・PL非計上）</span>
+                            <span class="text-xs font-bold text-amber-700">{{ fmt(displayPL.ryoOpportunityCost) }}</span>
+                        </div>
                         <div v-if="displayPL.laborRate != null" class="flex justify-between px-4 py-2 bg-rose-50/50">
                             <span class="text-xs text-rose-600 pl-3">労働分配率</span>
                             <span class="text-xs font-bold text-rose-600">{{ fmtPct(displayPL.laborRate) }}</span>
@@ -292,7 +306,8 @@
 import {
     getMonthlyRecord, getStoreSettings, getCompanySettings,
     getActiveStoreSettings, getActiveCompanySettings, getActiveBenchmarks,
-    getCostReportForPE, getCostPriceForPeriod, getCostReportDates
+    getCostReportForPE, getCostPriceForPeriod, getCostReportDates,
+    getMonthlyCompanyRecord
 } from '../../api.js'
 import {
     calcPL, calcVariableCostFromCostReport,
@@ -366,7 +381,8 @@ export default {
                 'serviceSales', 'merchandiseSales', 'totalSales', 'consumptionTax', 'totalSalesAfterTax',
                 'flavorCost', 'charcoalCost', 'drinkCost', 'merchandiseFlavorCost', 'costTotal',
                 'grossProfit', 'laborRate', 'fRatio', 'lRatio', 'rRatio',
-                'rent', 'laborCost', 'paymentFee', 'utilities', 'sundries', 'execRemuneration', 'sgaTotal',
+                'rent', 'laborCost', 'laborFixed', 'laborVariable', 'ryoOpportunityCost',
+                'paymentFee', 'utilities', 'sundries', 'execRemuneration', 'sgaTotal',
                 'operatingProfit', 'debtRepayment', 'netCashFlow'
             ]
             return Object.fromEntries(keys.map(k => [k, null]))
@@ -428,26 +444,46 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', 'PLを集計中...')
             try {
-                this.benchmarks = await getActiveBenchmarks(this.periodKey)
+                // 上位で1回だけ取得して全月計算で共有（companySettings は ryoHourlyRate と
+                // 全社調整値の両方で使うため、isAll に関わらず取得）
+                const [benchmarks, companySettings] = await Promise.all([
+                    getActiveBenchmarks(this.periodKey),
+                    getActiveCompanySettings(this.periodKey)
+                ])
+                this.benchmarks = benchmarks
 
                 if (this.selectedPeriodMode === 'monthly') {
-                    const [pl, monthly] = await Promise.all([
-                        this.loadMonthlyPL(this.selectedStoreKey, this.periodKey),
-                        this.loadTrendForPeriod(this.selectedStoreKey, this.periodKey)
-                    ])
+                    // 単月+トレンド12ヶ月をまとめて prefetch（重複API呼び出しを排除）
+                    const periodKeys = getNPrevPeriodKeys(this.periodKey, 12)
+                    const prefetched = await this.prefetchPeriods(periodKeys)
+                    const pl = await this.loadMonthlyPLCore(
+                        this.selectedStoreKey, this.periodKey, companySettings,
+                        prefetched.byPeriod[this.periodKey]
+                    )
+                    const monthly = await this.buildTrend(this.selectedStoreKey, periodKeys, companySettings, prefetched)
                     this.plResult = pl
                     this.trendMonthly = monthly
                 } else if (this.selectedPeriodMode === 'rolling3') {
-                    const [pl, monthly] = await Promise.all([
-                        this.loadRolling3PL(this.selectedStoreKey, this.periodKey),
-                        this.loadTrendForPeriod(this.selectedStoreKey, this.periodKey)
-                    ])
-                    this.plResult = pl
-                    this.trendMonthly = monthly
+                    const periodKeys = getNPrevPeriodKeys(this.periodKey, 12)
+                    const prefetched = await this.prefetchPeriods(periodKeys)
+                    // 3ヶ月平均は periodKeys の末尾3ヶ月（=対象月含む直近3ヶ月）
+                    const last3 = periodKeys.slice(-3)
+                    const plResults = await Promise.all(
+                        last3.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                    )
+                    this.plResult = calcRolling3MonthAvg(plResults)
+                    this.trendMonthly = await this.buildTrend(this.selectedStoreKey, periodKeys, companySettings, prefetched)
                 } else if (this.selectedPeriodMode === 'annual') {
-                    const { pl, monthly } = await this.loadAnnualPL(this.selectedStoreKey, this.selectedYear)
-                    this.plResult = pl
-                    this.trendMonthly = monthly
+                    const periodKeys = getYearPeriodKeys(this.selectedYear)
+                    const prefetched = await this.prefetchPeriods(periodKeys)
+                    const monthlyPLs = await Promise.all(
+                        periodKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                    )
+                    this.plResult = calcAnnualSum(monthlyPLs)
+                    this.trendMonthly = periodKeys.map((pk, i) => ({
+                        label: `${pk % 100}月`,
+                        pl: monthlyPLs[i]
+                    }))
                 }
                 this.hasLoaded = true
             } catch (e) {
@@ -458,34 +494,80 @@ export default {
             }
         },
 
-        // 月次PL（1ヶ月分）
-        async loadMonthlyPL(storeKey, periodKey) {
-            const isAll = storeKey === 'all'
-            const companySettings = isAll ? await getActiveCompanySettings(periodKey) : null
-            return this.loadMonthlyPLCore(storeKey, periodKey, companySettings)
+        // 期間配列ぶんの pe_monthly_company_records と全店 pe_monthly_records をまとめて取得
+        // 戻り値: { byPeriod: { [periodKey]: { companyRec, allStoreRecords } } }
+        async prefetchPeriods(periodKeys) {
+            const [companyRecsAll, ...storeRecsByStore] = await Promise.all([
+                Promise.all(periodKeys.map(pk => getMonthlyCompanyRecord(pk))),
+                ...this.stores.map(s => Promise.all(periodKeys.map(pk => getMonthlyRecord(s.key, pk))))
+            ])
+            const byPeriod = {}
+            periodKeys.forEach((pk, i) => {
+                byPeriod[pk] = {
+                    companyRec: companyRecsAll[i],
+                    allStoreRecords: storeRecsByStore.map(arr => arr[i])
+                }
+            })
+            return { byPeriod }
         },
 
-        // 内部: companySettingsを引数で受け取るコア処理（複数月ロード時の重複取得を防ぐ）
-        async loadMonthlyPLCore(storeKey, periodKey, companySettings) {
+        async buildTrend(storeKey, periodKeys, companySettings, prefetched) {
+            const pls = await Promise.all(
+                periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings, prefetched.byPeriod[pk]))
+            )
+            return periodKeys.map((pk, i) => ({
+                label: `${String(pk).slice(2, 4)}/${String(pk % 100).padStart(2, '0')}`,
+                pl: pls[i]
+            }))
+        },
+
+        // 内部コア処理：prefetched が必須（呼び出し元で prefetchPeriods 済み前提）
+        // companySettings は上位の loadPL で1回だけ取得したものを使う
+        async loadMonthlyPLCore(storeKey, periodKey, companySettings, prefetched) {
             const isAll = storeKey === 'all'
             const targetStores = isAll ? this.stores.map(s => s.key) : [storeKey]
+            const { companyRec, allStoreRecords } = prefetched
+
+            // 新方式人件費パラメータ：pe_monthly_company_records の当月行があれば構築、なければ
+            // laborParams=null として record.labor_cost にフォールバック（過去月互換）
+            let laborParams = null
+            if (companyRec) {
+                const totalWeightedSlots = allStoreRecords.reduce((sum, r) => {
+                    if (!r) return sum
+                    return sum
+                        + 6.0 * Number(r.part_time_slots_6h || 0)
+                        + 7.5 * Number(r.part_time_slots_7_5h || 0)
+                }, 0)
+                laborParams = {
+                    totalVariablePayroll: Number(companyRec.total_variable_payroll) || 0,
+                    totalWeightedSlots,
+                    ryoHourlyRate: Number(companySettings?.ryo_hourly_rate) || 1300
+                }
+            }
+
+            // 早期 return：対象店舗のレコードがなければ計算しない（CostReport/Settings 取得もスキップ）
+            const targetRecords = targetStores.map(sk => {
+                const idx = this.stores.findIndex(s => s.key === sk)
+                return idx >= 0 ? allStoreRecords[idx] : null
+            })
+            if (targetRecords.every(r => !r)) return null
 
             const costPrices = await getCostPriceForPeriod(periodKey)
 
             const storeResults = await Promise.all(
-                targetStores.map(async (sk) => {
-                    const [record, settings, costReport] = await Promise.all([
-                        getMonthlyRecord(sk, periodKey),
+                targetStores.map(async (sk, i) => {
+                    const record = targetRecords[i]
+                    if (!record) return null
+                    const [settings, costReport] = await Promise.all([
                         getActiveStoreSettings(sk, periodKey),
                         getCostReportForPE(sk, periodKey)
                     ])
-                    if (!record) return null
                     const variableCosts = calcVariableCostFromCostReport(
                         costReport,
                         costPrices.price_flavor_per_g,
                         costPrices.price_charcoal_per_kg
                     )
-                    return calcPL(record, settings, variableCosts, null)
+                    return calcPL(record, settings, variableCosts, null, laborParams)
                 })
             )
 
@@ -501,6 +583,12 @@ export default {
                 }
                 return acc
             }, {})
+            // 新方式かどうかで内訳ライン (laborFixed/laborVariable/ryoOpportunityCost) の表示可否を切り替えるため null を維持
+            if (!laborParams) {
+                summed.laborFixed = null
+                summed.laborVariable = null
+                summed.ryoOpportunityCost = null
+            }
             summed.execRemuneration = Number(companySettings?.exec_remuneration) || 0
             summed.debtRepayment = Number(companySettings?.debt_repayment) || 0
             summed.sgaTotal = summed.rent + summed.laborCost + summed.paymentFee + summed.utilities + summed.sundries
@@ -511,50 +599,6 @@ export default {
             summed.lRatio = summed.totalSalesAfterTax > 0 ? summed.laborCost / summed.totalSalesAfterTax : null
             summed.rRatio = summed.totalSalesAfterTax > 0 ? summed.rent / summed.totalSalesAfterTax : null
             return summed
-        },
-
-        // 3ヶ月平均PL（periodKeyを含む直近3ヶ月の平均）
-        async loadRolling3PL(storeKey, periodKey) {
-            const isAll = storeKey === 'all'
-            const companySettings = isAll ? await getActiveCompanySettings(periodKey) : null
-            const periodKeys = getNPrevPeriodKeys(periodKey, 3)
-            const plResults = await Promise.all(
-                periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
-            )
-            return calcRolling3MonthAvg(plResults)
-        },
-
-        // 月次・3ヶ月平均用トレンドデータ（直近12ヶ月）
-        async loadTrendForPeriod(storeKey, periodKey) {
-            const isAll = storeKey === 'all'
-            const companySettings = isAll ? await getActiveCompanySettings(periodKey) : null
-            const periodKeys = getNPrevPeriodKeys(periodKey, 12)
-            const pls = await Promise.all(
-                periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
-            )
-            return periodKeys.map((pk, i) => ({
-                label: `${String(pk).slice(2, 4)}/${String(pk % 100).padStart(2, '0')}`,
-                pl: pls[i]
-            }))
-        },
-
-        // 年次PL（指定年の全月合計 + チャート用月次データ）
-        async loadAnnualPL(storeKey, year) {
-            const isAll = storeKey === 'all'
-            const annualStartPk = Number(year) * 100 + 1
-            const companySettings = isAll ? await getActiveCompanySettings(annualStartPk) : null
-            const periodKeys = getYearPeriodKeys(year)
-
-            const monthlyPLs = await Promise.all(
-                periodKeys.map(pk => this.loadMonthlyPLCore(storeKey, pk, companySettings))
-            )
-
-            const pl = calcAnnualSum(monthlyPLs)
-            const monthly = periodKeys.map((pk, i) => ({
-                label: `${pk % 100}月`,
-                pl: monthlyPLs[i]
-            }))
-            return { pl, monthly }
         }
     }
 }
