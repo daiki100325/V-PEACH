@@ -43,16 +43,28 @@ npm run dev
 ### 2.3 DB 前提確認（Supabase SQL Editor）
 
 ```sql
--- pe_* テーブル存在確認
+-- pe_* テーブル存在確認（pe_monthly_company_records / pe_daily_sales_cache を含む）
 SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public' AND table_name LIKE 'pe_%'
 ORDER BY table_name;
 
--- Phase 5 改修後スキーマ確認（pe_monthly_records）
+-- 人件費新方式カラム確認（pe_monthly_records）
 SELECT column_name FROM information_schema.columns
 WHERE table_name = 'pe_monthly_records'
 ORDER BY ordinal_position;
--- 期待: service_sales, merchandise_sales, labor_cost（rent/payment_fee 等は無い）
+-- 期待: service_sales, merchandise_sales, labor_cost, part_time_slots_6h, part_time_slots_7_5h, ryo_slots_6h, ryo_slots_7_5h
+
+-- 固定給・社長時給カラム確認（pe_store_settings）
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'pe_store_settings'
+ORDER BY ordinal_position;
+-- 期待: fixed_salary_total を含む
+
+-- pe_company_settings の ryo_hourly_rate カラム確認
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'pe_company_settings'
+ORDER BY ordinal_position;
+-- 期待: ryo_hourly_rate を含む
 
 -- 店舗マスタ（V-MINT 共用）
 SELECT id, store_key, name FROM stores
@@ -335,13 +347,18 @@ SQL 投入後、**設定モード・月次入力モードの CRUD 自体**を別
 | INP-00 | Step 0 プレビュー | 年・月を両方選択 | 「開始する」ボタン下に全店舗の集計期間カードが自動表示される（cost_reports あり月） | |
 | INP-00b | Step 0 プレビュー未入力 | cost_reports なし月を選択 | 各店舗に「未入力」と表示される | |
 | INP-01 | フロー | 入力モードを開く → 手入力タブを選択 | 期間選択（YYYY年MM月）が表示される | |
-| INP-02 | バリデーション | 提供売上・人件費未入力で次へ | 進めない（`canNext` false） | |
+| INP-02 | バリデーション | 提供売上未入力で次へ | 進めない（`canNext` false） | |
 | INP-03 | 物販任意 | 物販空欄で保存 | `merchandise_sales = 0` として保存 | |
 | INP-04 | 新規保存 | 202604 を選択し 3 店舗入力 → 保存 | DB に 3 行追加（3店舗分） | |
 | INP-05 | 更新 | 同月を再入力して変更 | upsert で上書き | |
 | INP-06 | V-MINT期間（各店舗ヘッダー） | 入力 Step の店舗ヘッダー | `start_date`〜`end_date` が表示される（cost_reports あり月） | |
 | INP-07 | 全店舗一括 | 3 店舗分を連続入力して保存 | 1 回の操作で 3 店舗 upsert される | |
 | INP-08 | 中断 | 入力途中でポータル戻り | 確認ダイアログが出る | |
+| INP-09 | 人件費画面A | 各店舗の 6h / 7.5h 枠数を入力 | リアルタイムで重みつき枠数が計算表示される | |
+| INP-10 | 人件費画面B | りょーさん枠数入力（任意） | 注釈「PL非計上・参考値として表示」が見える | |
+| INP-11 | 人件費画面C | 全店バイト給与＋交通費総額を入力 | `pe_monthly_company_records` に upsert される | |
+| INP-12 | 人件費按分確認 | 新方式入力後に PL 表示 | ⑬ 人件費に「固定給 / 変動費按分」サブ行 + りょーさん代替コスト参考が表示される | |
+| INP-13 | レガシーフォールバック | `pe_monthly_company_records` に行のない旧月の PL | 人件費に内訳なし（レガシー `labor_cost` 値が表示） | |
 
 ### 5.2b 月次入力モード（CSV インポート）
 
@@ -350,8 +367,10 @@ SQL 投入後、**設定モード・月次入力モードの CRUD 自体**を別
 | ID | 区分 | 手順 | 期待結果 | 結果 |
 |----|------|------|----------|------|
 | CSV-01 | モード切替 | Step 0 でデフォルトタブを確認 | 「CSV インポート」タブが選択済み | |
-| CSV-02 | ファイルアップロード | 3店舗 × Airメイト/Airレジ CSV を各スロットにアップロード | 6スロットが埋まり「次へ」が活性化する | |
-| CSV-03 | 店舗自動検出 | 正しい店舗名を含むファイル名の CSV をアップロード | 各スロットの店舗キーが自動検出される | |
+| CSV-02 | ファイルアップロード | 3店舗 × ボックスで Airメイト+Airレジ を複数選択 | 各ボックス内で自動判定され Airメイト/Airレジ の2スロットが埋まり「次へ」が活性化する | |
+| CSV-02b | 削除ボタン | 誤アップロードしたスロットの「削除」ボタンを押す | 当該スロットのみクリアされ、もう片方は残る | |
+| CSV-02c | 種別不明ファイル | ヘッダーが Airメイト/Airレジ のどちらにも一致しない CSV をアップロード | 黄バッジ警告が表示され「次へ」が活性化しない | |
+| CSV-03 | ヘッダー自動判定 | ファイル名に規約なし・ヘッダーが Airメイト形式の CSV をアップロード | 「Airメイト」スロットに自動振り分けされる | |
 | CSV-04 | プレビュー確認 | CSV アップロード → 次へ | 店舗別に提供売上（割引後）・物販売上・割引総額・前月キャッシュ参照日数が表示される | |
 | CSV-05 | 人件費入力 | プレビュー画面で各店舗の人件費を入力 | 入力必須バリデーションが効く | |
 | CSV-06 | 保存 | 確認 → 保存 | `pe_monthly_records` に 3 行 upsert。`pe_daily_sales_cache` に当月分追加。古いキャッシュ削除 | |

@@ -276,7 +276,7 @@
                 </div>
                 <p class="text-base font-bold text-slate-800">{{ periodLabel }} — 計算結果確認</p>
                 <p class="text-xs text-slate-500 mt-1.5">
-                    内容に問題なければ、各店舗の人件費を入力して保存してください。
+                    内容に問題なければ「次へ」で人件費入力に進んでください。
                 </p>
             </div>
 
@@ -313,18 +313,46 @@
                 <p v-if="sd.existing" class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
                     既存レコードあり: 提供 ¥{{ Number(sd.existing.service_sales || 0).toLocaleString() }} / 物販 ¥{{ Number(sd.existing.merchandise_sales || 0).toLocaleString() }} → 上書きされます
                 </p>
-                <!-- 人件費入力 -->
-                <div class="pt-1 space-y-2">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">人件費 <span class="text-red-500">*</span></label>
-                    <div class="relative">
-                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</span>
-                        <CurrencyInput v-model="sd.labor_cost"
-                            :placeholder="sd.existing ? Number(sd.existing.labor_cost || 0).toLocaleString('ja-JP') : '例: 300,000'"
-                            class="w-full bg-slate-50 border border-slate-200 text-lg font-bold rounded-xl pl-8 pr-4 py-4 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+            </div>
+            <p class="text-xs text-slate-400 px-1">家賃・固定給・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
+        </div>
+
+        <!-- ───── CSV モード: 確認画面（step 6） ───── -->
+        <div v-if="inputMode === 'csv' && step === confirmStep" class="space-y-4 pb-32">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">最終確認</p>
+                <p class="text-base font-bold text-slate-800">{{ periodLabel }} — 保存内容の確認</p>
+                <p class="text-xs text-slate-500 mt-1.5">この内容で保存します。</p>
+            </div>
+            <div v-for="sd in csvPreview" :key="sd.storeKey"
+                class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
+                <h3 class="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">{{ sd.storeName }}</h3>
+                <div class="divide-y divide-slate-50">
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">提供売上（割引後）</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(sd.service_sales || 0).toLocaleString() }}</span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">物販売上</span>
+                        <span class="font-bold text-slate-800">¥{{ Number(sd.merchandise_sales || 0).toLocaleString() }}</span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">バイト枠（6h / 7.5h）</span>
+                        <span class="font-bold text-slate-800">{{ laborSlots[sd.storeKey]?.pt6h ?? 0 }} / {{ laborSlots[sd.storeKey]?.pt7_5h ?? 0 }} 枠</span>
+                    </div>
+                    <div class="flex justify-between py-2 text-sm">
+                        <span class="text-slate-500">りょーさん枠（6h / 7.5h）</span>
+                        <span class="font-bold text-slate-800">{{ laborSlots[sd.storeKey]?.ryo6h ?? 0 }} / {{ laborSlots[sd.storeKey]?.ryo7_5h ?? 0 }} 枠</span>
                     </div>
                 </div>
             </div>
-            <p class="text-xs text-slate-400 px-1">家賃・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">全店バイト給与＋交通費合計</span>
+                    <span class="font-bold text-slate-800">¥{{ Number(totalVariablePayroll || 0).toLocaleString() }}</span>
+                </div>
+            </div>
+            <p class="text-xs text-slate-400 px-1">家賃・固定給・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
         </div>
 
     </main>

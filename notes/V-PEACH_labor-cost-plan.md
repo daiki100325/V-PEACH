@@ -1,21 +1,21 @@
 ---
 tags: [project/v-peach, type/plan]
 parent: [[V-PEACH/notes/_index]]
-updated: 2026-05-21
+updated: 2026-05-23
 ---
 
 # V-PEACH — 人件費計算ロジック実装計画
 
-> **実装ステータス（2026-05-21 時点）**：§9 のステップ 1〜8 完了。残タスクは固定給初期値 SEED（オーナー確認待ち）・検証・関連 notes 同期。
+> **実装ステータス（2026-05-23 時点）**：§9 のステップ 1〜8・10 完了。残タスクは固定給初期値 SEED（オーナー確認待ち）・テストデータ検証。
 > - ✓ DB migration `DB_MIGRATION_labor_cost_20260520.sql` 適用済み
 > - ✓ API：`getMonthlyCompanyRecord` / `upsertMonthlyCompanyRecord` / `getMonthlyCompanyRecordsForYear`
 > - ✓ finance.js：`calcWeightedSlots` / `calcStoreLaborCost` / `calcRyoOpportunityCost`、`calcPL` に `laborParams` 引数追加、`calcRolling3MonthAvg` / `calcAnnualSum` で `laborFixed`/`laborVariable`/`ryoOpportunityCost` の null 集約対応
 > - ✓ SettingsApp：店舗別固定費に `fixed_salary_total`、全社共通費に `ryo_hourly_rate` 入力欄
-> - ✓ InputApp：手入力／CSV 両モードで枠数入力3画面（A=バイト6h/7.5h・B=りょーさん6h/7.5h・C=全店給与+交通費合計）、旧 `labor_cost` 直接入力欄を撤去
+> - ✓ InputApp：手入力／CSV 両モードで枠数入力3画面（A=バイト6h/7.5h・B=りょーさん6h/7.5h・C=全店給与+交通費合計）、旧 `labor_cost` 直接入力欄を撤去（2026-05-23 に CSV モード Step 2 プレビュー画面の残置分を最終撤去・CSV モード confirm step テンプレート欠落も併せて修正）
 > - ✓ PLApp：⑬人件費に「固定給／変動費按分」サブ行 + 「※ りょーさん代替コスト（参考・PL非計上）」表示。`pe_monthly_company_records` の当月行有無で新方式／レガシーフォールバックを切り替え
+> - ✓ ドキュメント同期完了（`architecture` / `supabase-er-diagram` / `finance-spec` / `requirements` / `release-plan` / `test-plan` / `next-actions` / `_index`）
 > - ⏳ 固定給初期値 SEED（`SEED_fixed_salaries_20260520.sql` 未作成、オーナー確認待ち）
 > - ⏳ §9-9 検証（仕様 §2.4 計算例の再現）
-> - ⏳ `architecture` / `supabase-er-diagram` / `finance-spec` への同期
 
 > 中野店店長壁打ち（[[V-PEACH/notes/V-PEACH_next-actions#6. 人件費計算ロジック設計（社長代替シフト含む）]]）で合意した「重みつき枠数による按分方式」の実装計画。
 > 変更対象：**月次PL／月次入力／設定** の3モードすべて。

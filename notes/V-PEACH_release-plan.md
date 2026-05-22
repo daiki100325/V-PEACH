@@ -82,18 +82,33 @@ parent: [[V-PEACH/notes/_index]]
 
 ### ✅ Phase 7-3 / 7-4：フロント実装・Supabase 連携（2026-05-18 完了）
 - `InputApp.vue` に CSV/手入力タブ切替を追加（デフォルト = CSV）
-- `csvImporter.js`（Airメイト・Airレジ CSV パーサ、ファイル名からの店舗キー自動検出）
-- `StoreCsvUpload.vue`（店舗ごと1ボックス・複数選択 UI / ヘッダー内容で Airメイト・Airレジ を自動判定 — 2026-05-22 改修）
-- プレビュー画面（割引前/後・割引総額・前月キャッシュ参照日数）+ 人件費入力
+- `csvImporter.js`（Airメイト・Airレジ CSV パーサ・ヘッダー内容で種別自動判定）
+- プレビュー画面（割引前/後・割引総額・前月キャッシュ参照日数）
 - `pe_daily_sales_cache` upsert + `upsertMonthlyRecord` + 古いキャッシュ削除のフローが通る
 
+### ✅ CSV アップロード UI 統合（2026-05-22 完了）
+- `StoreCsvUpload.vue` 改修：6ファイルスロット → 店舗ごと 1 ボックス（`<input multiple>` で同時選択）。ヘッダー内容から Airメイト / Airレジ を自動判定して振り分け。再選択は追加マージ方式。誤アップロードは「削除」ボタンでスロット単体クリア。黄バッジ警告（重複・種別不明）。
+- `FileSlot.vue` 削除（`StoreCsvUpload.vue` に統合）
+
+### ✅ 人件費新方式（重みつき枠按分方式）実装（2026-05-21 完了）
+- `DB_MIGRATION_labor_cost_20260520.sql` 適用済み（`pe_monthly_records` 枠数4列・`pe_monthly_company_records` 新設・`fixed_salary_total` / `ryo_hourly_rate` 追加）
+- `finance.js`：`calcWeightedSlots` / `calcStoreLaborCost` / `calcRyoOpportunityCost` を追加。`calcPL` に `laborParams` 引数を追加し新方式／レガシーフォールバックを切り替え
+- `SettingsApp.vue`：店舗別固定費に「所属固定給月報酬」・全社共通費に「社長代替時給」入力欄を追加
+- `InputApp.vue`：手入力／CSV 両モードで人件費3画面（A：バイト枠数・B：りょーさん枠数・C：給与+交通費総額）を追加。旧 `labor_cost` 直接入力を撤去
+- `PLApp.vue`：⑬人件費に「固定給／変動費按分」サブ行 + 「りょーさん代替コスト（参考）」表示。新方式未入力月はレガシー表示でフォールバック
+
+### ✅ PLApp N+1 削減（2026-05-21 完了）
+- `prefetchPeriods(periodKeys)` を新設し `pe_monthly_company_records` と全店 `pe_monthly_records` をバッチ取得
+- `loadMonthlyPL` / `loadRolling3PL` / `loadTrendForPeriod` / `loadAnnualPL` を `loadPL` に統合
+
 ### 🔄 Phase 7-5：エラー処理・UX 仕上げ（dev 確認待ち）
-- 前月キャッシュ欠落の確認ダイアログ・パースエラー表示等、§4.3 主要ケース対応済み
+- 前月キャッシュ欠落の確認ダイアログ・パースエラー表示等、主要ケース対応済み
 - dev 環境での動作確認・UX 最終調整が残タスク
 
 ## 現在のステータス
-Phase 7-4 まで実装完了。Phase 7-5（エラー処理・UX）は dev 確認中。
+Phase 7-4 + 人件費新方式 + N+1削減 + CSV UI統合まで完了。Phase 7-5（エラー処理・UX）は dev 確認中。
 テスト実施待ち（手順: [[V-PEACH/notes/V-PEACH_test-plan]]）。
+固定給初期値 SEED はオーナー確認後に別途投入。
 
 ## Related
 - [[V-PEACH/DECISIONS]]

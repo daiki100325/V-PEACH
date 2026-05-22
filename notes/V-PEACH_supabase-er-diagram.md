@@ -21,13 +21,15 @@ parent:
 
 | テーブル名 | 区分 | 追加タイミング | 説明 |
 |---|---|---|---|
-| `pe_store_settings` | マスタ | Phase 1 | 店舗別固定費・決済手数料率（改定履歴なし・フォールバック用） |
-| `pe_company_settings` | マスタ | Phase 1 | 全社共通費（シングルトン `id=1`・フォールバック用） |
-| `pe_monthly_records` | トランザクション | Phase 1 | 月次実績（提供/物販売上・人件費） |
-| `pe_benchmarks` | マスタ | Phase 1 | Health Check 目標値（旧方式・フォールバック用） |
+| `pe_store_settings` | マスタ | Phase 1 | 店舗別固定費・決済手数料率・固定給月報酬（改定履歴なし・フォールバック用） |
+| `pe_company_settings` | マスタ | Phase 1 | 全社共通費・社長代替時給（シングルトン `id=1`・フォールバック用） |
+| `pe_monthly_records` | トランザクション | Phase 1 | 月次実績（提供/物販売上・レガシー人件費・バイト/社長枠数） |
+| `pe_monthly_company_records` | トランザクション | 人件費新方式（2026-05-20） | 全社月次変動人件費総額（`total_variable_payroll`）。`period_key` PK |
+| `pe_daily_sales_cache` | キャッシュ | Phase 7-2 | Airレジ日別売上（店舗×日付。事業月度計算で前月最終盤を保持） |
+| `pe_benchmarks` | マスタ | Phase 1 | Health Check 目標値（フラット・シングルトン `id=1`・フォールバック用） |
 | `pe_store_settings_revisions` | マスタ | Phase 5+ | 店舗別固定費の改定履歴（`effective_from` ベース） |
 | `pe_company_settings_revisions` | マスタ | Phase 5+ | 全社共通費の改定履歴（`effective_from` ベース） |
-| `pe_benchmarks_revisions` | マスタ | Phase 5+ | ベンチマーク目標値の改定履歴（4指標を1行で管理） |
+| `pe_benchmarks_revisions` | マスタ | Phase 5+ | ベンチマーク目標値の改定履歴（5指標を1行で管理） |
 
 ### 廃止済み（Phase 5 で削除）
 
@@ -132,20 +134,23 @@ flowchart TD
 
 ### pe_monthly_records（月次実績）
 - `period_key` は `YYYYMM` 整数（例: `202605`）。
-- 手入力は **3 項目のみ**: `service_sales`（必須）, `merchandise_sales`（任意・空欄=0）, `labor_cost`（必須）。
+- 人件費新方式では枠数4列（`part_time_slots_6h/7_5h`・`ryo_slots_6h/7_5h`）が主体。`labor_cost` は過去月フォールバック用。
 - Phase 5 で `total_sales` → `service_sales` リネーム、`merchandise_sales` 追加。`rent` / `payment_fee` / `utilities` / `sundries` は削除（設定値・計算値へ移行）。
 - upsert キー: `(store_id, period_key)`。
 
-### pe_benchmarks（目標値・旧方式）
-- `store_id IS NULL` は全社共通ベンチマーク（Health Check 用）。
-- `item_name` の想定値: `labor_rate` / `gross_profit_margin` / `operating_profit_margin` / `cost_ratio`。
-- `target_value` は小数（例: 0.75 = 75%）。設定 UI から `/100` して保存。
-- 現在は `pe_benchmarks_revisions` が主系。`pe_benchmarks` はフォールバック用。
+### pe_monthly_company_records（全社月次変動人件費・2026-05-20追加）
+- `period_key` PK（YYYYMM）。この行の存在が「新方式で計算可能か」の判定キー。
+- `total_variable_payroll`：当月の全店バイト給与＋交通費の総額。店舗ごとの重みつき枠数比率で按分して各店舗の変動人件費を算出。
+
+### pe_benchmarks（目標値・フォールバック）
+- フラット・シングルトン形式（`id=1` 固定）。5指標（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）。
+- 現在は `pe_benchmarks_revisions` が主系。`pe_benchmarks` は `effective_from` 以前の旧月用フォールバック。
 
 ### pe_store_settings_revisions / pe_company_settings_revisions / pe_benchmarks_revisions（改定履歴・主系）
 - Phase 5+ で追加。設定値を `effective_from`（YYYYMM 整数）付きで複数バージョン管理する。
 - PL 計算時は `getActiveStoreSettings` / `getActiveCompanySettings` / `getActiveBenchmarks` が `effective_from <= periodKey` の最新行を取得し、行がなければ旧テーブルにフォールバック。
-- `pe_benchmarks_revisions` は4指標（`labor_rate` / `gross_profit_margin` / `operating_profit_margin` / `cost_ratio`）を1行にフラット管理。`pe_benchmarks` の item_name 1行ごと方式とは異なる。
+- `pe_benchmarks_revisions` は **5指標**（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）を1行にフラット管理。2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。
+- `pe_store_settings_revisions` は 2026-05-20 に `fixed_salary_total` 列を追加。`pe_company_settings_revisions` は同日 `ryo_hourly_rate` 列を追加。
 - 設定 UI では「現在適用中」（最新行）と「改定履歴」（過去行一覧）を別段表示。現在適用中は2件以上ある場合のみ削除可能。
 
 ### V-MINT 参照の結合（アプリ層）
@@ -188,6 +193,12 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `getCostReportForPE` | `cost_reports`, `flavor_brand_sales`, `drink_orders` | PL 変動費（読み取り） |
 | `getCostReportDates` | `cost_reports` | V-MINT 集計期間（start_date/end_date）取得 |
 | `getCostPriceForPeriod` | `cost_price_masters` | 単価解決（読み取り） |
+| `getMonthlyCompanyRecord(periodKey)` | `pe_monthly_company_records` | 全社月次変動人件費（新方式判定・取得） |
+| `upsertMonthlyCompanyRecord(periodKey, payload)` | `pe_monthly_company_records` | 同上 upsert |
+| `getMonthlyCompanyRecordsForYear(year)` | `pe_monthly_company_records` | 年次一括取得（N+1削減用） |
+| `getDailySalesInRange(storeId, startDate, endDate)` | `pe_daily_sales_cache` | 日次売上キャッシュ範囲取得（事業月度計算用） |
+| `upsertDailySalesCache(rows)` | `pe_daily_sales_cache` | 日次売上キャッシュ upsert |
+| `deleteOldDailySalesCache(storeId, beforeDate)` | `pe_daily_sales_cache` | 古いキャッシュ削除（start_date より前） |
 
 ## store_key 対応（UI ↔ DB）
 
@@ -205,7 +216,13 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `supabase/DB_MIGRATION_revision_20260517.sql` | Phase 5: 売上分離・月次経費カラム削除・`payment_fee_rate` 追加・物販マスタ/View 削除 |
 | `supabase/DB_MIGRATION_versioned_settings.sql` | Phase 5+: `pe_store_settings_revisions` / `pe_company_settings_revisions` / `pe_benchmarks_revisions` 追加。既存設定を `effective_from=202501` で移行 |
 | `supabase/DB_MIGRATION_enable_rls_20260517.sql` | Phase 5+: 全 `pe_*` テーブルで RLS を有効化（anon 全許可ポリシー） |
+| `supabase/DB_MIGRATION_benchmarks_flr_20260518.sql` | Phase 7: `pe_benchmarks_revisions` に `f_ratio` / `l_ratio` / `r_ratio` を追加 |
+| `supabase/DB_MIGRATION_benchmarks_restructure_20260518.sql` | Phase 7: `pe_benchmarks` をフラット・シングルトン形式に再設計 |
+| `supabase/DB_MIGRATION_daily_sales_cache_20260518.sql` | Phase 7-2: `pe_daily_sales_cache` 作成 |
+| `supabase/DB_MIGRATION_labor_cost_20260520.sql` | 人件費新方式: `pe_monthly_records` に枠数4列追加・`pe_monthly_company_records` 新設・`pe_store_settings` に `fixed_salary_total` 追加・`pe_company_settings` に `ryo_hourly_rate` 追加 |
 | `supabase/SEED_store_settings_defaults.sql` | フォールバック用デフォルト値投入（`pe_store_settings_revisions` 未適用期間の 0 落ち防止） |
+| `supabase/SEED_benchmarks_defaults_20260518.sql` | ベンチマーク 5 指標の初期値投入（`pe_benchmarks` シングルトン） |
+| `supabase/SEED_daily_sales_cache_202512.sql` | Phase 7-2: 2025年12月分 Airレジ日次キャッシュ初回投入（3店舗 × 25日 = 75行） |
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_architecture]]

@@ -30,13 +30,13 @@ V-PEACH/
 │   ├── main.js
 │   ├── style.css
 │   ├── utils/
-│   │   ├── finance.js           # PL計算・変動費計算・3ヶ月平均ロジック
+│   │   ├── finance.js           # PL計算・変動費計算・3ヶ月平均ロジック・人件費新方式関数（calcWeightedSlots/calcStoreLaborCost/calcRyoOpportunityCost）
 │   │   ├── periods.js           # 期間キー操作ユーティリティ
-│   │   └── csvImporter.js       # Airメイト/Airレジ CSV 解析・Shift-JIS デコード・店舗キー自動検出
+│   │   └── csvImporter.js       # Airメイト/Airレジ CSV 解析・Shift-JIS デコード・ヘッダー内容で種別自動判定
 │   └── components/
 │       ├── PortalMenu.vue       # 3モードカード選択画面
 │       ├── CurrencyInput.vue    # 金額入力（フォーカス時：数値のみ、ブラー時：カンマ区切り表示）
-│       ├── StoreCsvUpload.vue   # 店舗単位 CSV アップロード（複数選択・ヘッダー内容で種別自動判定）
+│       ├── StoreCsvUpload.vue   # 店舗単位 CSV アップロード（複数選択・ヘッダー内容で Airメイト/Airレジ 自動判定・削除ボタン）
 │       ├── common/
 │       │   ├── AppHeader.vue
 │       │   ├── AppFooter.vue
@@ -45,16 +45,20 @@ V-PEACH/
 │       │   └── ConfirmDialog.vue
 │       ├── PLTrendChart.vue # 月次推移チャート（カテゴリー別トグル・二重Y軸）
 │       └── apps/
-│           ├── PLApp.vue        # (1) PLモード（シングルページ・FLR比サマリー含む）
-│           ├── InputApp.vue     # (2) 月次入力モード（CSV/手入力タブ・全店舗一括フロー・Step 0 プレビュー付き）
-│           └── SettingsApp.vue  # (3) 設定モード（バージョン管理・改定履歴）
+│           ├── PLApp.vue        # (1) PLモード（シングルページ・FLR比サマリー・人件費内訳表示・prefetchPeriods N+1削減）
+│           ├── InputApp.vue     # (2) 月次入力モード（CSV/手入力タブ・人件費3画面A/B/C・Step 0 プレビュー付き）
+│           └── SettingsApp.vue  # (3) 設定モード（バージョン管理・改定履歴・固定給月報酬/社長時給設定）
 ├── supabase/
 │   ├── DB_MIGRATION.sql                            # Phase 1: pe_* 4テーブル作成
 │   ├── DB_MIGRATION_revision_20260517.sql          # Phase 5: 売上分離・カラム整理
 │   ├── DB_MIGRATION_versioned_settings.sql         # Phase 5+: 設定バージョン管理テーブル追加
 │   ├── DB_MIGRATION_enable_rls_20260517.sql        # Phase 5+: 全テーブルRLS有効化
+│   ├── DB_MIGRATION_benchmarks_flr_20260518.sql    # Phase 7: pe_benchmarks_revisions に FLR 3列追加
+│   ├── DB_MIGRATION_benchmarks_restructure_20260518.sql # Phase 7: pe_benchmarks フラット化
 │   ├── DB_MIGRATION_daily_sales_cache_20260518.sql # Phase 7-2: pe_daily_sales_cache 作成
+│   ├── DB_MIGRATION_labor_cost_20260520.sql        # 人件費新方式: pe_monthly_records 4列追加・pe_monthly_company_records 新設・固定給/社長時給列追加
 │   ├── SEED_store_settings_defaults.sql            # フォールバック用デフォルト値投入
+│   ├── SEED_benchmarks_defaults_20260518.sql       # ベンチマーク初期値（5指標）
 │   └── SEED_daily_sales_cache_202512.sql           # Phase 7-2: 2025年12月分初回キャッシュ
 └── .env.local                   # 環境変数（gitignore済み）
 ```
@@ -68,7 +72,8 @@ CREATE TABLE pe_store_settings (
   fixed_rent numeric DEFAULT 0,
   fixed_utilities numeric DEFAULT 0,
   fixed_sundries numeric DEFAULT 0,
-  payment_fee_rate numeric DEFAULT 0.025  -- 決済手数料率（totalSalesAfterTax連動）
+  payment_fee_rate numeric DEFAULT 0.025,  -- 決済手数料率（totalSalesAfterTax連動）
+  fixed_salary_total numeric DEFAULT 0     -- 店舗所属固定給メンバーの月報酬合計（人件費新方式・2026-05-20追加）
 );
 ```
 > `fixed_payment_fee`（固定額）・`physical_profit_margin` は廃止済み。
@@ -78,7 +83,8 @@ CREATE TABLE pe_store_settings (
 CREATE TABLE pe_company_settings (
   id integer PRIMARY KEY DEFAULT 1,
   exec_remuneration numeric DEFAULT 0,
-  debt_repayment numeric DEFAULT 0
+  debt_repayment numeric DEFAULT 0,
+  ryo_hourly_rate numeric DEFAULT 1300  -- 社長代替コスト計算用時給（2026-05-20追加）
 );
 ```
 > 役員報酬は販管費内・全社集計時のみ計上。借入返済は営業利益から差し引き純現金収支を算出。
@@ -88,14 +94,27 @@ CREATE TABLE pe_company_settings (
 CREATE TABLE pe_monthly_records (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   store_id bigint REFERENCES stores(id),
-  period_key integer NOT NULL,        -- YYYYMM
-  service_sales numeric DEFAULT 0,    -- 提供売上（税込）
-  merchandise_sales numeric DEFAULT 0, -- 物販売上（税込）
-  labor_cost numeric DEFAULT 0,
+  period_key integer NOT NULL,              -- YYYYMM
+  service_sales numeric DEFAULT 0,          -- 提供売上（税込）
+  merchandise_sales numeric DEFAULT 0,      -- 物販売上（税込）
+  labor_cost numeric DEFAULT 0,             -- レガシー人件費（新方式の過去月フォールバック用）
+  part_time_slots_6h numeric DEFAULT 0,     -- バイトが埋めた 6h 枠数（人件費新方式）
+  part_time_slots_7_5h numeric DEFAULT 0,   -- バイトが埋めた 7.5h 枠数（人件費新方式）
+  ryo_slots_6h numeric DEFAULT 0,           -- 社長が埋めた 6h 枠数（機会費用参考用）
+  ryo_slots_7_5h numeric DEFAULT 0,         -- 社長が埋めた 7.5h 枠数（機会費用参考用）
   UNIQUE(store_id, period_key)
 );
 ```
-> 旧 `total_sales` は `service_sales` にリネーム。`rent` / `payment_fee` / `utilities` / `sundries` は廃止（設定値・計算値に移行）。
+> 旧 `total_sales` は `service_sales` にリネーム。`rent` / `payment_fee` / `utilities` / `sundries` は廃止（設定値・計算値に移行）。`labor_cost` は過去月参照用として残存。新方式では `pe_monthly_company_records` の `total_variable_payroll` と枠数列から計算。
+
+### pe_monthly_company_records（全社月次変動人件費・2026-05-20追加）
+```sql
+CREATE TABLE pe_monthly_company_records (
+  period_key integer PRIMARY KEY,         -- YYYYMM
+  total_variable_payroll numeric DEFAULT 0  -- 当月の全店バイト給与＋交通費の総額
+);
+```
+> `pe_monthly_records` は店舗×月の粒度。全社単位の月次変動人件費総額（按分の分母に使う）は本テーブルに分離。`period_key` の行が存在するかで新方式／レガシーフォールバックを切り替える。
 
 ### pe_daily_sales_cache（日次売上キャッシュ・Phase 7-2追加）
 ```sql
@@ -158,7 +177,7 @@ CREATE TABLE pe_benchmarks_revisions (
 );
 -- 旧カラム: gross_profit_margin / cost_ratio は 2026-05-18 に除外済み
 ```
-> `pe_benchmarks_revisions` は5指標（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）を1行にフラット管理。2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。
+> `pe_benchmarks_revisions` は5指標（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）を1行にフラット管理。2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。`pe_benchmarks` はフォールバック用シングルトン（`id=1`）。
 
 ## 財務ロジック（src/utils/finance.js）
 
@@ -171,13 +190,24 @@ CREATE TABLE pe_benchmarks_revisions (
 | 原価合計 | `flavorCost + charcoalCost + drinkCost + merchandiseFlavorCost` |
 | 粗利 | `totalSalesAfterTax − costTotal` |
 | 決済手数料 | `totalSalesAfterTax × payment_fee_rate` |
-| 販管費合計 | `rent + laborCost + paymentFee + utilities + sundries + execRemuneration`（全社のみ役員報酬含む）|
+| **人件費（新方式）** | `fixed_salary_total + totalVariablePayroll × storeWeightedSlots / allWeightedSlots` |
+| **重みつき枠数** | `6.0 × slots6h + 7.5 × slots7_5h` |
+| **社長代替コスト（参考）** | `ryoHourlyRate × (6.0 × ryoSlots6h + 7.5 × ryoSlots7_5h)` |
+| 人件費（レガシー） | `record.labor_cost`（`pe_monthly_company_records` 行なし月のフォールバック） |
+| 販管費合計 | `rent + laborCost + paymentFee + utilities + sundries`（全社のみ役員報酬を後段に別出し）|
 | 営業利益 | `grossProfit − sgaTotal` |
-| 純現金収支 | `operatingProfit − debtRepayment`（全社のみ）|
+| 純現金収支 | `operatingProfit − execRemuneration − debtRepayment`（全社のみ）|
 | 労働分配率 | `laborCost / grossProfit`（grossProfit > 0 のみ）|
 | **F比** | `costTotal / totalSalesAfterTax` |
 | **L比** | `laborCost / totalSalesAfterTax` |
 | **R比** | `rent / totalSalesAfterTax` |
+
+### 主要関数
+- `calcPL(record, settings, variableCosts, companySettings, laborParams)` — PL計算メイン。`laborParams` が `null` のとき `record.labor_cost` にフォールバック
+- `calcWeightedSlots({ slots6h, slots7_5h })` — 重みつき枠数
+- `calcStoreLaborCost({ fixedSalaryTotal, storeWeightedSlots, totalWeightedSlots, totalVariablePayroll })` — 店舗人件費
+- `calcRyoOpportunityCost({ ryoSlots6h, ryoSlots7_5h, ryoHourlyRate })` — 社長代替コスト（参考値）
+- `prefetchPeriods(periodKeys)` — PLApp の N+1 削減用バッチ取得（`PLApp.vue` 内）
 
 ## デプロイフロー
 

@@ -55,7 +55,7 @@ PLは**上から下へ足し引きしながら利益に落ちていく入れ子*
 | # | 項目 | 演算 | 入力／自動 | 店舗 | 全社 |
 |:---:|------|-----:|------------|:---:|:---:|
 | ⑫ | 家賃 | — | 店舗設定（固定） | ○ | ○ |
-| ⑬ | 人件費 | — | 月次手入力（必須） | ○ | ○ |
+| ⑬ | 人件費 | — | 枠数入力（画面A/B/C）から自動算出。新方式未入力月はレガシー手入力値にフォールバック | ○ | ○ |
 | ⑭ | 決済手数料 | ⑤ × 設定料率 | 自動（売上連動） | ○ | ○ |
 | ⑮ | 光熱費 | — | 店舗設定（固定） | ○ | ○ |
 | ⑯ | 雑費 | — | 店舗設定（固定） | ○ | ○ |
@@ -237,7 +237,7 @@ PL中段に常時表示されるサマリー指標。すべて **税引き後総
 
 ### 毎月入力する数字
 
-**CSV インポートモード（通常運用）**：Airメイト + Airレジ CSV をアップロードすると提供売上・物販売上が自動算出される。手入力は **人件費のみ**。
+**CSV インポートモード（通常運用）**：Airメイト + Airレジ CSV をアップロードすると提供売上・物販売上が自動算出される。人件費は枠数入力3画面（A/B/C）で算出。
 
 **手入力モード（過去月修正・フォールバック）**：
 
@@ -245,7 +245,17 @@ PL中段に常時表示されるサマリー指標。すべて **税引き後総
 |------|----------|
 | 提供売上（税込） | 必須 |
 | 物販売上（税込） | 任意（空欄=0） |
-| 人件費 | 必須 |
+| バイト枠数 6h / 7.5h（画面A） | 必須 |
+| りょーさん枠数 6h / 7.5h（画面B） | 任意 |
+| バイト給与＋交通費総額（画面C） | 必須 |
+
+**人件費の算出式**：
+```
+店舗人件費 = 店舗別固定給合計
+           + 全店バイト給与＋交通費総額 × 当店の重みつき枠数 ÷ 全店合計
+重みつき枠数 = 6.0 × 6h枠数 + 7.5 × 7.5h枠数
+```
+社長代替コスト（参考）＝ `ryo_hourly_rate × (6.0 × ryoSlots6h + 7.5 × ryoSlots7_5h)`。PLに費用計上せず参考表示のみ。
 
 これ以外はすべて自動。
 
@@ -299,7 +309,12 @@ PL中段に常時表示されるサマリー指標。すべて **税引き後総
 |------|--------|------|
 | `service_sales` | CSV インポートモード：Airメイト CSV から自動算出 / 手入力モード：月次手入力（必須） | 提供売上（税込） |
 | `merchandise_sales` | CSV インポートモード：Airメイト CSV から自動算出 / 手入力モード：月次手入力（任意） | 物販売上（税込）。空欄=0 |
-| `labor_cost` | InputApp（月次手入力・必須） | |
+| `part_time_slots_6h/7_5h` | InputApp 画面A（月次入力・必須） | バイトが埋めた枠数。人件費新方式 |
+| `ryo_slots_6h/7_5h` | InputApp 画面B（月次入力・任意） | 社長が埋めた枠数。機会費用参考用 |
+| `total_variable_payroll` | InputApp 画面C（月次入力・必須）→ `pe_monthly_company_records` | 全店バイト給与＋交通費総額 |
+| `labor_cost` | 過去月（新方式未入力）のレガシーフォールバック値 | `pe_monthly_company_records` 行なし月のみ参照 |
+| `fixed_salary_total` | `pe_store_settings_revisions`（設定値・各店舗固定給合計） | 人件費新方式の固定給按分元 |
+| `ryo_hourly_rate` | `pe_company_settings_revisions`（設定値・社長代替時給） | 既定 ¥1,300/h |
 | `fixed_rent` | `pe_store_settings`（設定値固定） | 月次入力なし |
 | `fixed_utilities` | `pe_store_settings`（設定値固定） | 月次入力なし |
 | `fixed_sundries` | `pe_store_settings`（設定値固定） | 月次入力なし |
@@ -331,9 +346,20 @@ PL中段に常時表示されるサマリー指標。すべて **税引き後総
 【粗利】
   grossProfit          = totalSalesAfterTax - costTotal
 
+【人件費（新方式 / レガシーフォールバック）】
+  if pe_monthly_company_records の period_key 行あり（新方式）:
+    storeWeightedSlots = 6.0 × part_time_slots_6h + 7.5 × part_time_slots_7_5h
+    totalWeightedSlots = 全店舗の storeWeightedSlots 合計
+    laborFixed         = fixed_salary_total                （店舗設定・担当メンバー固定給）
+    laborVariable      = totalVariablePayroll × storeWeightedSlots / totalWeightedSlots
+    laborCost          = laborFixed + laborVariable
+    ryoOpportunityCost = ryoHourlyRate × (6.0 × ryo_slots_6h + 7.5 × ryo_slots_7_5h)  （参考・PL非計上）
+  else（レガシー）:
+    laborCost          = pe_monthly_records.labor_cost
+    laborFixed = laborVariable = ryoOpportunityCost = null
+
 【販管費（店舗帰属コストのみ）】
   rent                 = pe_store_settings.fixed_rent
-  laborCost            = pe_monthly_records.labor_cost
   paymentFee           = totalSalesAfterTax × payment_fee_rate  （売上連動）
   utilities            = pe_store_settings.fixed_utilities
   sundries             = pe_store_settings.fixed_sundries

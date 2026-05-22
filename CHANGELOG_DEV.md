@@ -1,5 +1,17 @@
 # CHANGELOG_DEV
 
+## 2026-05-23
+- What: 月次入力 CSV モード Step 2 プレビュー画面に残っていた旧 `labor_cost` 直接入力欄（店舗ごと1ボックス × 3店舗）を撤去。さらに CSV モードで step 6（最終確認）に到達してもテンプレートが存在せず空白画面になっていたバグを修正し、Manual モードと同等の確認画面（売上・バイト枠・りょーさん枠・全店給与＋交通費合計）を追加
+- Why: 5/21 に人件費新方式（重みつき枠按分）への移行を完了したが、CSV モード Step 2 のテンプレートだけが旧仕様のまま残り、ユーザーから「枠数入力ではなく単純な人件費入力ボックスが表示される」と指摘された。`canNext` のコメント（line 428）には「旧人件費欄削除済み」と書かれていたが実態の template は未削除で、入力値も `submitCsv` で参照されない完全な dead code 状態だった
+- Files: `src/components/apps/InputApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_labor-cost-plan]]
+
+## 2026-05-22
+- What: notes/ を現行仕様に同期（人件費新方式・CSV UI統合・PLApp N+1削減の3件を反映）
+- Why: 2026-05-18 以降の実装変更（5/21 人件費新方式PL統合・N+1削減、5/22 CSV 6→3ボックス）が全 notes に未反映だったため
+- Files: `notes/_index.md`, `notes/V-PEACH_requirements.md`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_finance-spec.md`, `notes/V-PEACH_next-actions.md`, `notes/V-PEACH_release-plan.md`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/V-PEACH_test-plan.md`, `notes/V-PEACH_labor-cost-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_labor-cost-plan]]
+
 ## 2026-05-22
 - What: 月次入力CSVモードの Step1 アップロードUIを6ボックス→3ボックス（店舗ごと1ボックス）に統合。`<input type="file" multiple>` で当該店舗の商品別売上CSV（Airメイト）と日別売上CSV（Airレジ）を同時選択できるようにし、ヘッダー内容（「カテゴリー」「売上合計」 vs 「集計期間」「割引額」）から自動で種別判定→該当スロットへ振り分け。再選択は追加マージ方式（既存スロットは未指定なら温存・指定があれば後勝ちで上書き）、同種重複や種別不明CSVは黄バッジ警告で表示。商品別/日別の各行に「削除」ボタンを追加し、誤アップロード時に当該スロットのみクリア可能に（警告メッセージも同時クリア）
 - Why: 毎月のCSVアップロード工数を半減させるため。3店舗 × 2種類 = 6回のファイル選択が、3店舗 × 1回 = 3回で済む。ファイル名規約（`airmate_xxx` / `売上集計_xxx`）に依存せずヘッダーで判別するため、命名揺れにも強い。誤アップロードのリカバリ（片方だけやり直す等）も1クリックで可能
