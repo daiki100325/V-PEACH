@@ -1,5 +1,58 @@
 # CHANGELOG_DEV
 
+## 2026-05-25
+- What: 月次入力CSVモードのステップ表示を全6画面に統一（1/6〜6/6）。人件費A/B/Cにインジケーターを追加（CSVモード限定）、既存1/3〜3/3を1/6〜3/6に修正
+- Why: 最初の3画面にしかステップ番号がなく、残りの人件費入力画面で現在位置が分からなかった
+- Files: `src/components/apps/InputApp.vue`
+- Related: [[V-PEACH/CHANGELOG_DEV]]
+
+## 2026-05-25
+- What: 月次入力トップ画面で対象月を自動セット。`getLatestPeriodKey()`（`pe_monthly_company_records` 降順1件）で最新記録月を取得し、その翌月を `selectedYear/Month` に初期値として設定
+- Why: 毎月同じ月を手動で選び直す手間を省くため
+- Files: `src/api.js`, `src/components/apps/InputApp.vue`
+- Related: [[V-PEACH/CHANGELOG_DEV]]
+
+## 2026-05-25
+- What: 月次入力CSVモードのステップ順を修正（売上CSV → 売上プレビュー → シフトCSV → 人件費A/B/C → 確認）。シフトCSVファイル選択後に「選択されていません」のままになるUIバグを修正（`shiftsCsvFileName` を別途保持して表示）
+- Why: 以前の順番（売上CSV → シフトCSV → 売上プレビュー）はプレビューの前にシフト取込があり違和感があった。ファイル名表示は `event.target.value = ''`（同一ファイル再選択許容）がネイティブUIをリセットしてしまっていたため
+- Files: `src/components/apps/InputApp.vue`
+- Related: [[V-PEACH/CHANGELOG_DEV]]
+
+## 2026-05-25
+- What: シフト CSV 集計ズレの原因調査。パース処理・CSV データともに正しく、手カウント元のシフト表に未登録変更があったことが判明。バグなし・状況終了
+- Why: バイト6h・りょー6h の数値が手カウントと合わないと報告があったため
+- Files: なし（コード変更なし）
+- Related: [[V-PEACH/TROUBLESHOOTING]]
+
+## 2026-05-25
+- What: `detectCsvKindFromHeader` の勤務区分判定を修正。`略称` → `並び順` カラムで判定（実際の HRMOS エクスポートに `略称` 列が存在せず `表示名` / `並び順` 形式だった）
+- Why: 設定画面の勤務区分 CSV アップロードで「ヘッダー判定失敗」エラーが出て取込不可だったため
+- Files: `src/utils/csvImporter.js`
+- Related: [[V-PEACH/TROUBLESHOOTING]]
+
+## 2026-05-25
+- What: HRMOS シフト CSV 取込基盤を実装。マイグレーション（`pe_hrmos_staffs` / `pe_hrmos_segments` / `pe_jp_holidays` / `pe_jp_holidays_meta`）、`api.js` への CRUD 追加、`utils/jpHolidaysClient.js`（holidays-jp API + Supabase キャッシュ + 強制再取得）、`utils/shiftImporter.js`（シフト計算：店舗×日付×シフトタイプの fillMap、オーラス分解、馬場2号店遅番の土日祝補正、りょーさん枠＝早番/遅番の埋まらない枠、バイト枠＝固定給・社長除外）、`csvImporter.js` 拡張（HRMOS スタッフ／勤務区分／シフト CSV のヘッダ判定＋パース＋ロール・店舗・シフトタイプ自動判定）、`SettingsApp.vue` に「HRMOS マスタ管理」「祝日マスタ」セクション追加（CSV取込・既存上書き保持・ロール／按分対象の手動上書き・再取得 UI）、`InputApp.vue` の CSV モードに Step 2「シフト CSV アップロード」を挿入（任意・スキップ可・既存画面A/B 編集可）、`PortalMenu.vue` に年初祝日カバレッジバナー（自動 fetch + 失敗時のみ警告）
+- Why: 月次入力の画面A/B 12マス手入力を `vangvieng_shifts_YYYYMM.csv` 1ファイルアップロードで自動化するため。実装は §9 のフェーズ1〜8 までを一括で実施し、フェーズ9（検証）はオーナー手動で2026年1〜4月 CSV を順次取込確認する想定。実データ確認の結果、計画書の店舗名表記「馬場地区基本店／2号店」「オールイン」「[短縮稼働]」は実際の HRMOS 上では「高田馬場本店／2号店」「オーラス」「[短縮営業]」だったため、両方の表記を許容する判定ロジックで実装
+- Files: `supabase/DB_MIGRATION_hrmos_masters_20260525.sql`, `src/api.js`, `src/utils/jpHolidaysClient.js`, `src/utils/shiftImporter.js`, `src/utils/csvImporter.js`, `src/components/apps/SettingsApp.vue`, `src/components/apps/InputApp.vue`, `src/components/PortalMenu.vue`, `notes/V-PEACH_shifts-csv-import-plan.md`, `DECISIONS.md`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]], [[V-PEACH/notes/V-PEACH_labor-cost-plan]], [[V-PEACH/notes/V-PEACH_architecture]]
+
+## 2026-05-24
+- What: HRMOS シフト CSV 1ファイル取込計画書の Open Questions 5項目をオーナー確認結果で確定。設計判断確定事項セクションに置換し、祝日マスタを外部 API + Supabase キャッシュ方式に変更（holidays-jp 採用）
+- Why: ① 給与＋交通費総額（画面C）は手入力維持、② オールイン枠は早番7.5h+遅番6hに分解計上、③ 中番バイト枠は按分に含める、④ 短縮稼働など特殊枠は現状発生しないので無視、⑤ 祝日マスタは追加コスト・認証不要・CORS 許可済みの holidays-jp API を Supabase にキャッシュして自動更新、UI で再取得可、年初に翌年祝日カバレッジを PortalMenu でチェックしてアラート表示。これに伴い `pe_jp_holidays` / `pe_jp_holidays_meta` テーブル設計、`jpHolidaysClient.js` の新規追加、PortalMenu への年初バナー追加を計画に反映
+- Files: `notes/V-PEACH_shifts-csv-import-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]]
+
+## 2026-05-24
+- What: HRMOS シフト CSV 1ファイル取込で人件費入力画面A/B を自動化する実装計画書を作成
+- Why: 現状は月次入力で 3店舗×バイト/りょーさん×6h/7.5h = 12 マス + 給与総額1マスの手入力が必要。HRMOS が出力する `vangvieng_shifts_YYYYMM.csv` 1ファイルをアップロードするだけで画面A/B が自動算出されるパイプライン設計をまとめた。マスタ（スタッフ/勤務区分）は Supabase に保持し、初回投入後は HRMOS マスタ変更時のみ更新。固定給4名・りょーさん・バイトのロール判定、店舗判定（勤務区分名のプレフィックス）、土日祝日の馬場2号店遅番 7.5h 補正、店舗営業日判定（fillMap にレコードがある日）まで詳細化。Open Questions として給与総額の取り扱い（A:現状維持/B:給与CSV/C:時給マスタ）・オールイン枠・中番按分・短縮稼働枠・祝日マスタ運用の5点を明記
+- Files: `notes/V-PEACH_shifts-csv-import-plan.md`, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]], [[V-PEACH/notes/V-PEACH_labor-cost-plan]]
+
+## 2026-05-24
+- What: 2025年12月分日別売上をキャッシュテーブル投入用 SQL を生成（3店舗×25日＝75レコード）
+- Why: システム稼働開始は2026年1月だが、事業月度2026年1月の集計期間が12月を含むため、フロントのCSVインポートを経由せず Supabase SQL Editor で直接投入できる形に整形
+- Files: `csv/done/SEED_daily_sales_cache_202512.sql`
+
 ## 2026-05-23
 - What: 月次入力 CSV モード Step 2 プレビュー画面に残っていた旧 `labor_cost` 直接入力欄（店舗ごと1ボックス × 3店舗）を撤去。さらに CSV モードで step 6（最終確認）に到達してもテンプレートが存在せず空白画面になっていたバグを修正し、Manual モードと同等の確認画面（売上・バイト枠・りょーさん枠・全店給与＋交通費合計）を追加
 - Why: 5/21 に人件費新方式（重みつき枠按分）への移行を完了したが、CSV モード Step 2 のテンプレートだけが旧仕様のまま残り、ユーザーから「枠数入力ではなく単純な人件費入力ボックスが表示される」と指摘された。`canNext` のコメント（line 428）には「旧人件費欄削除済み」と書かれていたが実態の template は未削除で、入力値も `submitCsv` で参照されない完全な dead code 状態だった

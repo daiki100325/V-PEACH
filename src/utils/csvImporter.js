@@ -56,15 +56,30 @@ function parseMoney(raw) {
 }
 
 // ─── ヘッダー内容から CSV 種別を判定 ──────────────────────────────────────
-// Airメイト: ヘッダーに「カテゴリー」「売上合計」を含む
-// Airレジ:   ヘッダーに「集計期間」「割引額」を含む
-// どちらでもなければ null
+// Airメイト:   ヘッダーに「カテゴリー」「売上合計」を含む
+// Airレジ:     ヘッダーに「集計期間」「割引額」を含む
+// HRMOS シフト: ヘッダーが [拠点ID, 従業員ID, 日付, 勤務区分]
+// HRMOS スタッフ: ヘッダーに「社員ID」「ログインID」「姓」「名」「入社日」を含む
+// HRMOS 勤務区分: ヘッダーに「勤務区分ID」「勤務区分名」「並び順」を含む
+// どれでもなければ null
 export function detectCsvKindFromHeader(text) {
   const rows = parseCsv(text)
   if (rows.length === 0) return null
   const header = rows[0].map(h => (h || '').trim())
   if (header.includes('カテゴリー') && header.includes('売上合計')) return 'airmate'
   if (header.includes('集計期間') && header.includes('割引額')) return 'airregi'
+  if (
+    header.length === 4 &&
+    header.includes('拠点ID') && header.includes('従業員ID') &&
+    header.includes('日付') && header.includes('勤務区分')
+  ) return 'hrmos_shifts'
+  if (
+    header.includes('社員ID') && header.includes('ログインID') &&
+    header.includes('姓') && header.includes('名') && header.includes('入社日')
+  ) return 'hrmos_staffs'
+  if (
+    header.includes('勤務区分ID') && header.includes('勤務区分名') && header.includes('並び順')
+  ) return 'hrmos_segments'
   return null
 }
 
@@ -156,6 +171,160 @@ export function detectDateRangeFromFilename(filename) {
   if (!m) return null
   const fmt = (s) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`
   return { start_date: fmt(m[1]), end_date: fmt(m[2]) }
+}
+
+// ─── HRMOS シフト CSV パース ──────────────────────────────────────────────
+// ヘッダー: 拠点ID, 従業員ID, 日付, 勤務区分
+// 例: 7,2,2026-01-06,85
+export function parseHrmosShiftsCsv(text) {
+  const rows = parseCsv(text)
+  if (rows.length < 2) throw new Error('シフト CSV にデータがありません')
+  const header = rows[0]
+  const idxLocation = header.indexOf('拠点ID')
+  const idxStaff = header.indexOf('従業員ID')
+  const idxDate = header.indexOf('日付')
+  const idxSegment = header.indexOf('勤務区分')
+  if (idxStaff < 0 || idxDate < 0 || idxSegment < 0) {
+    throw new Error('シフト CSV のヘッダーに必須列（従業員ID/日付/勤務区分）が見つかりません')
+  }
+  const out = []
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]
+    const dateRaw = (r[idxDate] || '').trim()
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) continue
+    const staffId = Number(r[idxStaff])
+    const segmentId = Number(r[idxSegment])
+    if (!Number.isFinite(staffId) || !Number.isFinite(segmentId)) continue
+    out.push({
+      locationId: idxLocation >= 0 ? Number(r[idxLocation]) || null : null,
+      staffId,
+      date: dateRaw,
+      segmentId
+    })
+  }
+  if (out.length === 0) throw new Error('シフト CSV から有効なレコードが取得できませんでした')
+  return out
+}
+
+// ─── HRMOS スタッフマスタ CSV パース ──────────────────────────────────────
+// `display_name` = "姓 名"、ロールは display_name / account_name から自動判定
+const FIXED_SALARY_NAMES = new Set(['立花 弘行', '木村 仁美', '中道 雄耶', '塚本 大己'])
+const OWNER_RYO_ACCOUNT = 'ryo'
+
+export function decideHrmosStaffRole(displayName, accountName) {
+  if (FIXED_SALARY_NAMES.has(displayName)) return 'fixed_salary'
+  if (accountName && String(accountName).toLowerCase() === OWNER_RYO_ACCOUNT) return 'owner_ryo'
+  return 'part_time'
+}
+
+export function parseHrmosStaffsCsv(text) {
+  const rows = parseCsv(text)
+  if (rows.length < 2) throw new Error('スタッフ CSV にデータがありません')
+  const header = rows[0]
+  const idxId = header.indexOf('社員ID')
+  const idxLogin = header.indexOf('ログインID')
+  const idxLast = header.indexOf('姓')
+  const idxFirst = header.indexOf('名')
+  const idxJoined = header.indexOf('入社日')
+  const idxLeft = header.indexOf('退職日')
+  if (idxId < 0 || idxLast < 0 || idxFirst < 0) {
+    throw new Error('スタッフ CSV のヘッダーに必須列（社員ID/姓/名）が見つかりません')
+  }
+  const out = []
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]
+    const hrmosId = Number(r[idxId])
+    if (!Number.isFinite(hrmosId)) continue
+    const lastName = (r[idxLast] || '').trim()
+    const firstName = (r[idxFirst] || '').trim()
+    if (!lastName && !firstName) continue
+    const displayName = [lastName, firstName].filter(Boolean).join(' ')
+    const accountName = idxLogin >= 0 ? (r[idxLogin] || '').trim() : null
+    const joinedRaw = idxJoined >= 0 ? (r[idxJoined] || '').trim() : ''
+    const leftRaw = idxLeft >= 0 ? (r[idxLeft] || '').trim() : ''
+    out.push({
+      hrmos_staff_id: hrmosId,
+      display_name: displayName,
+      account_name: accountName || null,
+      role: decideHrmosStaffRole(displayName, accountName),
+      joined_on: /^\d{4}-\d{2}-\d{2}$/.test(joinedRaw) ? joinedRaw : null,
+      left_on: /^\d{4}-\d{2}-\d{2}$/.test(leftRaw) ? leftRaw : null
+    })
+  }
+  return out
+}
+
+// ─── HRMOS 勤務区分マスタ CSV パース ──────────────────────────────────────
+// 店舗判定（segment_name プレフィックスマッチ）と shift_type 判定を同時に行う
+// stores テーブルの store_id を解決するため、storeKeyToId マップを渡す
+//   { baba_main: 1, nakano: 2, baba_2nd: 3 }
+const SEGMENT_STORE_PATTERNS = [
+  { key: 'baba_main', match: ['高田馬場本店', '馬場本店', '馬場地区基本店'] },
+  { key: 'baba_2nd',  match: ['高田馬場2号店', '馬場2号店', '馬場地区2号店'] },
+  { key: 'nakano',    match: ['中野店'] }
+]
+
+const SEGMENT_NON_PAYROLL_PATTERNS = ['倉庫業務', '会議等', '営業中']
+
+export function decideHrmosSegmentClassification(segmentName) {
+  const name = String(segmentName || '')
+  // 1. 按分対象外（倉庫業務・会議等）
+  for (const p of SEGMENT_NON_PAYROLL_PATTERNS) {
+    if (name.includes(p)) return { storeKey: null, shiftType: 'misc', defaultHours: 0, isPayrollTarget: false }
+  }
+  // 2. 「[」プレフィックス（短縮営業・短縮稼働など特殊枠）→ 警告対象
+  if (name.startsWith('[')) {
+    return { storeKey: null, shiftType: 'misc', defaultHours: 0, isPayrollTarget: false }
+  }
+  // 3. 店舗判定
+  let storeKey = null
+  for (const p of SEGMENT_STORE_PATTERNS) {
+    if (p.match.some(m => name.includes(m))) { storeKey = p.key; break }
+  }
+  // 4. シフトタイプ判定
+  //    - "オーラス"/"オールイン" は早番+遅番分解計上のため allin
+  //    - "8.0h" 等の特殊バリアントは misc 扱い（手動上書きで対応）
+  if (name.includes('8.0h') || name.includes('6.5h')) {
+    return { storeKey, shiftType: 'misc', defaultHours: 0, isPayrollTarget: false }
+  }
+  if (name.includes('オーラス') || name.includes('オールイン')) {
+    return { storeKey, shiftType: 'allin', defaultHours: 11.5, isPayrollTarget: storeKey != null }
+  }
+  if (name.includes('早番')) return { storeKey, shiftType: 'early',  defaultHours: 7.5, isPayrollTarget: storeKey != null }
+  if (name.includes('中番')) return { storeKey, shiftType: 'middle', defaultHours: 6.0, isPayrollTarget: storeKey != null }
+  if (name.includes('遅番')) return { storeKey, shiftType: 'late',   defaultHours: 6.0, isPayrollTarget: storeKey != null }
+  // 5. 上記いずれにも該当しない（公休/振替/有休/在籍なし等）→ 按分対象外
+  return { storeKey: null, shiftType: 'misc', defaultHours: 0, isPayrollTarget: false }
+}
+
+export function parseHrmosSegmentsCsv(text, storeKeyToId) {
+  const rows = parseCsv(text)
+  if (rows.length < 2) throw new Error('勤務区分 CSV にデータがありません')
+  const header = rows[0]
+  const idxId = header.indexOf('勤務区分ID')
+  const idxName = header.indexOf('勤務区分名')
+  if (idxId < 0 || idxName < 0) {
+    throw new Error('勤務区分 CSV のヘッダーに必須列（勤務区分ID/勤務区分名）が見つかりません')
+  }
+  const out = []
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]
+    const segId = Number(r[idxId])
+    if (!Number.isFinite(segId)) continue
+    const name = (r[idxName] || '').trim()
+    if (!name) continue
+    const c = decideHrmosSegmentClassification(name)
+    const storeId = c.storeKey ? (storeKeyToId?.[c.storeKey] ?? null) : null
+    out.push({
+      hrmos_segment_id: segId,
+      segment_name: name,
+      store_id: storeId,
+      shift_type: c.shiftType,
+      default_hours: c.defaultHours,
+      is_payroll_target: c.isPayrollTarget && storeId != null
+    })
+  }
+  return out
 }
 
 // ─── 事業月度範囲の割引合計をクライアント側で算出（DB日次キャッシュ + 当月CSV） ──

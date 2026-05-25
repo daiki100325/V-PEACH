@@ -1,5 +1,25 @@
 <template>
     <div class="flex flex-col items-center justify-center py-10">
+
+        <!-- 年初祝日チェックバナー（祝日マスタが「現在の年 or 翌年」を欠く時のみ表示） -->
+        <div v-if="holidayBannerVisible"
+            class="w-full max-w-4xl px-4 mb-6">
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 flex items-start gap-3">
+                <span class="text-amber-600 text-xl">⚠</span>
+                <div class="flex-1 text-sm">
+                    <p class="font-bold text-amber-700">祝日マスタを更新してください</p>
+                    <p class="text-amber-600 text-xs mt-0.5">
+                        {{ holidayBannerMessage }}
+                        <button @click="onRefreshHolidays" :disabled="holidayRefreshing"
+                            class="ml-1 underline font-bold disabled:opacity-40">
+                            {{ holidayRefreshing ? '取得中...' : 'いま再取得' }}
+                        </button>
+                        または設定モードから手動で更新できます。
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <h3 class="text-lg font-bold text-slate-600 mb-6 bg-slate-100 px-6 py-2 rounded-full">機能を選択してください</h3>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl px-4">
@@ -76,8 +96,59 @@
 </template>
 
 <script>
+import { checkHolidaysCoverage, forceRefreshHolidays } from '../utils/jpHolidaysClient.js'
+
 export default {
     name: 'PortalMenu',
-    emits: ['open-pl', 'open-input', 'open-settings']
+    emits: ['open-pl', 'open-input', 'open-settings'],
+    data() {
+        return {
+            holidayCoverage: { currentYearOk: true, nextYearOk: true },  // 未チェック時は banner 出さない
+            holidayBannerVisible: false,
+            holidayRefreshing: false
+        }
+    },
+    computed: {
+        holidayBannerMessage() {
+            const now = new Date()
+            const cy = now.getFullYear()
+            if (!this.holidayCoverage.currentYearOk) {
+                return `${cy}年の祝日データがキャッシュにありません。`
+            }
+            if (!this.holidayCoverage.nextYearOk) {
+                return `${cy + 1}年の祝日データがキャッシュにありません。年初の集計に備えて取得を推奨します。`
+            }
+            return ''
+        }
+    },
+    async mounted() {
+        try {
+            this.holidayCoverage = await checkHolidaysCoverage()
+            this.holidayBannerVisible = !this.holidayCoverage.currentYearOk || !this.holidayCoverage.nextYearOk
+            // 欠落していたら自動取得を試みる（成功すれば banner を消す）
+            if (this.holidayBannerVisible) {
+                await this.tryAutoRefresh()
+            }
+        } catch {
+            // 失敗時は banner 非表示のまま（設定モードから手動取得可能）
+        }
+    },
+    methods: {
+        async tryAutoRefresh() {
+            const result = await forceRefreshHolidays()
+            if (result.status === 'success') {
+                this.holidayCoverage = await checkHolidaysCoverage()
+                this.holidayBannerVisible = !this.holidayCoverage.currentYearOk || !this.holidayCoverage.nextYearOk
+            }
+        },
+        async onRefreshHolidays() {
+            this.holidayRefreshing = true
+            try {
+                await this.tryAutoRefresh()
+            } finally {
+                this.holidayRefreshing = false
+            }
+        }
+    }
 }
 </script>

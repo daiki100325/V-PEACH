@@ -32,7 +32,9 @@ V-PEACH/
 │   ├── utils/
 │   │   ├── finance.js           # PL計算・変動費計算・3ヶ月平均ロジック・人件費新方式関数（calcWeightedSlots/calcStoreLaborCost/calcRyoOpportunityCost）
 │   │   ├── periods.js           # 期間キー操作ユーティリティ
-│   │   └── csvImporter.js       # Airメイト/Airレジ CSV 解析・Shift-JIS デコード・ヘッダー内容で種別自動判定
+│   │   ├── csvImporter.js       # Airメイト/Airレジ/HRMOS シフト・スタッフ・勤務区分 CSV 解析・Shift-JIS デコード・ヘッダー内容で種別自動判定
+│   │   ├── shiftImporter.js     # HRMOS シフト計算（店舗×日付×シフトタイプ正規化・オーラス分解・りょーさん枠＝埋まらない早番/遅番）
+│   │   └── jpHolidaysClient.js  # holidays-jp API クライアント + Supabase キャッシュ + 30日経過時バックグラウンド更新
 │   └── components/
 │       ├── PortalMenu.vue       # 3モードカード選択画面
 │       ├── CurrencyInput.vue    # 金額入力（フォーカス時：数値のみ、ブラー時：カンマ区切り表示）
@@ -57,6 +59,7 @@ V-PEACH/
 │   ├── DB_MIGRATION_benchmarks_restructure_20260518.sql # Phase 7: pe_benchmarks フラット化
 │   ├── DB_MIGRATION_daily_sales_cache_20260518.sql # Phase 7-2: pe_daily_sales_cache 作成
 │   ├── DB_MIGRATION_labor_cost_20260520.sql        # 人件費新方式: pe_monthly_records 4列追加・pe_monthly_company_records 新設・固定給/社長時給列追加
+│   ├── DB_MIGRATION_hrmos_masters_20260525.sql     # HRMOS シフト CSV 取込: pe_hrmos_staffs/segments + pe_jp_holidays/meta
 │   ├── SEED_store_settings_defaults.sql            # フォールバック用デフォルト値投入
 │   ├── SEED_benchmarks_defaults_20260518.sql       # ベンチマーク初期値（5指標）
 │   └── SEED_daily_sales_cache_202512.sql           # Phase 7-2: 2025年12月分初回キャッシュ

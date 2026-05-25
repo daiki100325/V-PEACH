@@ -113,7 +113,10 @@
         <!-- ───── 人件費 画面A: バイトが埋めた枠数 ───── -->
         <div v-if="step === laborStepA && (inputMode === 'manual' || inputMode === 'csv')" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">人件費入力 A</p>
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">人件費入力 A</p>
+                    <p v-if="inputMode === 'csv'" class="text-xs font-bold text-slate-400">4 / 6</p>
+                </div>
                 <p class="text-base font-bold text-slate-800">バイトが埋めた枠数 — {{ periodLabel }}</p>
                 <p class="text-xs text-slate-500 mt-1.5">店舗ごとにシフト枠数を入力してください。重みつき枠数（h）をリアルタイム計算します。</p>
             </div>
@@ -148,7 +151,10 @@
         <!-- ───── 人件費 画面B: りょーさんが埋めた枠数 ───── -->
         <div v-if="step === laborStepB && (inputMode === 'manual' || inputMode === 'csv')" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">人件費入力 B</p>
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">人件費入力 B</p>
+                    <p v-if="inputMode === 'csv'" class="text-xs font-bold text-slate-400">5 / 6</p>
+                </div>
                 <p class="text-base font-bold text-slate-800">りょーさんが埋めた枠数 — {{ periodLabel }}</p>
                 <p class="text-xs text-slate-500 mt-1.5">PL の人件費には計上されません。バイトに置き換えた場合の機会費用として参考表示します。</p>
             </div>
@@ -180,7 +186,10 @@
         <!-- ───── 人件費 画面C: 給与・交通費総額 ───── -->
         <div v-if="step === laborStepC && (inputMode === 'manual' || inputMode === 'csv')" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">人件費入力 C</p>
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">人件費入力 C</p>
+                    <p v-if="inputMode === 'csv'" class="text-xs font-bold text-slate-400">6 / 6</p>
+                </div>
                 <p class="text-base font-bold text-slate-800">バイト給与＋交通費の全社総額 — {{ periodLabel }}</p>
                 <p class="text-xs text-slate-500 mt-1.5">給与明細・交通費精算の合計を入力してください。店舗ごとに重みつき枠数で按分されます。</p>
             </div>
@@ -233,7 +242,7 @@
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <div class="flex items-center justify-between mb-1">
                     <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">CSV アップロード</p>
-                    <p class="text-xs font-bold text-slate-400">1 / 2</p>
+                    <p class="text-xs font-bold text-slate-400">1 / 6</p>
                 </div>
                 <p class="text-base font-bold text-slate-800">{{ periodLabel }}</p>
                 <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
@@ -267,16 +276,66 @@
             </p>
         </div>
 
-        <!-- ───── CSV モード: Step 2 プレビュー＋人件費 ───── -->
+        <!-- ───── CSV モード: Step 3 シフト CSV アップロード（任意） ───── -->
+        <div v-if="inputMode === 'csv' && step === 3" class="space-y-4 pb-32">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">シフトデータ取込（任意）</p>
+                    <p class="text-xs font-bold text-slate-400">3 / 6</p>
+                </div>
+                <p class="text-base font-bold text-slate-800">{{ periodLabel }} — HRMOS シフト CSV</p>
+                <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                    HRMOS から書き出した <code class="bg-slate-100 px-1 rounded">vangvieng_shifts_YYYYMM.csv</code> をアップロードすると、画面A・Bの枠数を自動算出します。<br>
+                    アップロードしない場合は画面A・B で手入力できます（既存値は保持）。
+                </p>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
+                <div class="flex items-center gap-3">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <span class="py-2 px-3 rounded-xl text-xs font-bold bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors">ファイルを選択</span>
+                        <input type="file" accept=".csv" @change="onUploadShiftsCsv($event)"
+                            ref="shiftFileInput" class="sr-only" />
+                    </label>
+                    <span class="text-xs text-slate-500">{{ shiftsCsvFileName || '選択されていません' }}</span>
+                </div>
+                <p v-if="shiftsCsvProcessing" class="text-xs text-slate-500">処理中...</p>
+                <p v-else-if="shiftsCsvError" class="text-xs text-red-500">{{ shiftsCsvError }}</p>
+                <div v-else-if="shiftsCsvResult" class="space-y-2">
+                    <p class="text-xs text-emerald-600 font-bold">✓ 取込完了：画面A・B に反映されました</p>
+                    <div v-for="r in formatShiftsResultForUi" :key="r.storeKey"
+                        class="border border-slate-100 rounded-xl px-3 py-2 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-700">{{ r.storeName }}</span>
+                            <span class="text-slate-400">営業 {{ r.openingDays }}日</span>
+                        </div>
+                        <div class="mt-1 text-slate-600">
+                            バイト: 6h × {{ r.pt6h }} / 7.5h × {{ r.pt7_5h }}（合計 {{ r.ptWeighted.toFixed(1) }}h）<br>
+                            りょーさん: 6h × {{ r.ryo6h }} / 7.5h × {{ r.ryo7_5h }}（合計 {{ r.ryoWeighted.toFixed(1) }}h）
+                        </div>
+                    </div>
+                    <div v-if="shiftsCsvResult.warnings.length > 0"
+                        class="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 space-y-1">
+                        <p class="font-bold">⚠ 警告</p>
+                        <ul class="list-disc list-inside">
+                            <li v-for="(w, i) in shiftsCsvResult.warnings" :key="i">{{ w }}</li>
+                        </ul>
+                    </div>
+                </div>
+                <p v-else class="text-xs text-slate-400">未アップロード（画面A・B で手入力）</p>
+            </div>
+        </div>
+
+        <!-- ───── CSV モード: Step 2 売上プレビュー ───── -->
         <div v-if="inputMode === 'csv' && step === 2" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <div class="flex items-center justify-between mb-1">
                     <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">プレビュー</p>
-                    <p class="text-xs font-bold text-slate-400">2 / 2</p>
+                    <p class="text-xs font-bold text-slate-400">2 / 6</p>
                 </div>
                 <p class="text-base font-bold text-slate-800">{{ periodLabel }} — 計算結果確認</p>
                 <p class="text-xs text-slate-500 mt-1.5">
-                    内容に問題なければ「次へ」で人件費入力に進んでください。
+                    内容に問題なければ「次へ」でシフトデータ取込に進んでください。
                 </p>
             </div>
 
@@ -317,7 +376,7 @@
             <p class="text-xs text-slate-400 px-1">家賃・固定給・決済手数料・光熱費・雑費は設定値から自動適用されます</p>
         </div>
 
-        <!-- ───── CSV モード: 確認画面（step 6） ───── -->
+        <!-- ───── CSV モード: 確認画面（step 7） ───── -->
         <div v-if="inputMode === 'csv' && step === confirmStep" class="space-y-4 pb-32">
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">最終確認</p>
@@ -362,13 +421,16 @@
 import {
     getMonthlyRecord, upsertMonthlyRecord, getCostReportDates,
     getDailySalesInRange, upsertDailySalesCache, deleteOldDailySalesCache,
-    getMonthlyCompanyRecord, upsertMonthlyCompanyRecord
+    getMonthlyCompanyRecord, upsertMonthlyCompanyRecord, getLatestPeriodKey
 } from '../../api.js'
-import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getPrevPeriodKey } from '../../utils/periods.js'
+import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getPrevPeriodKey, getNextPeriodKey, parsePeriodKey } from '../../utils/periods.js'
 import {
     readShiftJisFile, parseAirmateCsv, parseAirregiCsv,
     detectDateRangeFromFilename, calcDiscountTotalInPeriod, detectCsvKindFromHeader
 } from '../../utils/csvImporter.js'
+import { calcShiftsFromFile } from '../../utils/shiftImporter.js'
+import { fetchJpHolidaysCached } from '../../utils/jpHolidaysClient.js'
+import { getHrmosStaffs, getHrmosSegments, getStores } from '../../api.js'
 import CurrencyInput from '../CurrencyInput.vue'
 import StoreCsvUpload from '../StoreCsvUpload.vue'
 
@@ -395,7 +457,13 @@ export default {
             months: buildMonthOptions(),
             // 人件費入力（画面A/B/C 共通）
             laborSlots: {},    // { storeKey: { pt6h, pt7_5h, ryo6h, ryo7_5h } }
-            totalVariablePayroll: null
+            totalVariablePayroll: null,
+            // シフト CSV 取込（CSV モード Step 2）
+            shiftsCsvFile: null,
+            shiftsCsvResult: null,    // calcShiftsFromFile の戻り値
+            shiftsCsvError: null,
+            shiftsCsvProcessing: false,
+            shiftsCsvFileName: null
         }
     },
     computed: {
@@ -414,10 +482,18 @@ export default {
             }
             return null
         },
+        // CSV モードのみ：売上プレビュー = step 2
+        csvPreviewStep() {
+            return this.inputMode === 'csv' ? 2 : null
+        },
+        // CSV モードのみ：シフト CSV アップロード = step 3
+        shiftsCsvStep() {
+            return this.inputMode === 'csv' ? 3 : null
+        },
         laborStepA() {
-            // Manual: step N+1, CSV: step 3
+            // Manual: step N+1, CSV: step 4（売上+シフト+プレビュー の後）
             if (this.inputMode === 'manual') return this.stores.length + 1
-            return 3
+            return 4
         },
         laborStepB() {
             return this.laborStepA + 1
@@ -427,7 +503,26 @@ export default {
         },
         confirmStep() {
             if (this.inputMode === 'manual') return this.stores.length + 4
-            return 6
+            return 7
+        },
+        formatShiftsResultForUi() {
+            if (!this.shiftsCsvResult) return []
+            const storeNameByKey = Object.fromEntries(this.stores.map(s => [s.key === 'baba' ? 'baba_main' : s.key, s.name]))
+            // shiftImporter は 'baba_main' / 'nakano' / 'baba_2nd' で返す
+            const STORE_KEYS = ['baba_main', 'nakano', 'baba_2nd']
+            return STORE_KEYS.map(storeKey => {
+                const s = this.shiftsCsvResult.slots[storeKey] || { pt6h: 0, pt7_5h: 0, ryo6h: 0, ryo7_5h: 0 }
+                const ptWeighted  = 6 * s.pt6h + 7.5 * s.pt7_5h
+                const ryoWeighted = 6 * s.ryo6h + 7.5 * s.ryo7_5h
+                return {
+                    storeKey,
+                    storeName: storeNameByKey[storeKey] || storeKey,
+                    ...s,
+                    ptWeighted,
+                    ryoWeighted,
+                    openingDays: this.shiftsCsvResult.diagnostics?.storeOpeningDays?.[storeKey] ?? 0
+                }
+            })
         },
         canNext() {
             if (this.inputMode === 'manual') {
@@ -453,16 +548,16 @@ export default {
                     return c?.airmate?.parsed && c?.airregi?.parsed && c?.costReport
                 })
             }
-            if (this.step === 2) return true  // プレビュー（旧人件費欄削除済み）
-            if (this.step === 3) return true  // 画面A
-            if (this.step === 4) return true  // 画面B
-            if (this.step === 5) return this.totalVariablePayroll != null && this.totalVariablePayroll >= 0
-            if (this.step === 6) return true  // 確認
+            if (this.step === 2) return true  // 売上プレビュー
+            if (this.step === 3) return !this.shiftsCsvProcessing  // シフト CSV（任意・処理中以外いつでも次へ）
+            if (this.step === 4) return true  // 画面A
+            if (this.step === 5) return true  // 画面B
+            if (this.step === 6) return this.totalVariablePayroll != null && this.totalVariablePayroll >= 0  // 画面C
+            if (this.step === 7) return true  // 確認
             return false
         },
         isLastStep() {
-            if (this.inputMode === 'manual') return this.step === this.confirmStep
-            return this.step === 6
+            return this.step === this.confirmStep
         }
     },
     watch: {
@@ -501,6 +596,21 @@ export default {
             } finally {
                 this.loadingPreview = false
             }
+        }
+    },
+    async mounted() {
+        try {
+            const latestPk = await getLatestPeriodKey()
+            if (latestPk) {
+                const nextPk = getNextPeriodKey(latestPk)
+                const parsed = parsePeriodKey(nextPk)
+                if (parsed) {
+                    this.selectedYear = String(parsed.year)
+                    this.selectedMonth = String(parsed.month)
+                }
+            }
+        } catch {
+            // 取得失敗時は空のまま（ユーザーが手動選択）
         }
     },
     methods: {
@@ -736,7 +846,7 @@ export default {
             if (this.step > 0) this.step--
         },
         async nextStep() {
-            // CSV step 1 → 2: プレビュー生成
+            // CSV step 1 → 2: 売上プレビュー生成
             if (this.inputMode === 'csv' && this.step === 1) {
                 const ok = await this.buildCsvPreview()
                 if (!ok) return
@@ -826,9 +936,55 @@ export default {
             this.csvPreview = []
             this.laborSlots = {}
             this.totalVariablePayroll = null
+            this.shiftsCsvFile = null
+            this.shiftsCsvResult = null
+            this.shiftsCsvError = null
+            this.shiftsCsvFileName = null
         },
         calcWeightedH(slots6h, slots7_5h) {
             return 6.0 * Number(slots6h || 0) + 7.5 * Number(slots7_5h || 0)
+        },
+        // シフト CSV 取込（CSV モード Step 2）
+        async onUploadShiftsCsv(event) {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            this.shiftsCsvFileName = file.name
+            this.shiftsCsvFile = file
+            this.shiftsCsvError = null
+            this.shiftsCsvResult = null
+            this.shiftsCsvProcessing = true
+            try {
+                const [staffs, segments, storesDb] = await Promise.all([
+                    getHrmosStaffs(),
+                    getHrmosSegments(),
+                    getStores()
+                ])
+                if (staffs.length === 0 || segments.length === 0) {
+                    throw new Error('HRMOS スタッフ／勤務区分マスタが未登録です。設定モードから CSV を取り込んでください。')
+                }
+                const storeKeyById = new Map(storesDb.map(s => [s.id, s.store_key]))
+                const holidaySet = await fetchJpHolidaysCached(this.periodKey)
+                const result = await calcShiftsFromFile(file, this.periodKey, {
+                    staffs, segments, holidaySet, storeKeyById
+                })
+                this.shiftsCsvResult = result
+                // laborSlots に反映（store_key 正規化：baba → baba_main）
+                for (const sKey of ['baba_main', 'nakano', 'baba_2nd']) {
+                    const target = (sKey === 'baba_main' && this.laborSlots['baba']) ? 'baba' : sKey
+                    if (!this.laborSlots[target]) this.laborSlots[target] = { pt6h: 0, pt7_5h: 0, ryo6h: 0, ryo7_5h: 0 }
+                    const s = result.slots[sKey]
+                    if (!s) continue
+                    this.laborSlots[target].pt6h    = s.pt6h
+                    this.laborSlots[target].pt7_5h  = s.pt7_5h
+                    this.laborSlots[target].ryo6h   = s.ryo6h
+                    this.laborSlots[target].ryo7_5h = s.ryo7_5h
+                }
+            } catch (e) {
+                this.shiftsCsvError = e.message || 'シフト CSV の処理に失敗しました'
+            } finally {
+                this.shiftsCsvProcessing = false
+            }
         }
     }
 }

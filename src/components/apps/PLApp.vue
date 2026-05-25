@@ -288,7 +288,7 @@
                     class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
                         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            月次推移（{{ selectedPeriodMode === 'annual' ? selectedYear + '年' : '直近12ヶ月' }}）
+                            {{ trendChartTitle }}
                         </span>
                     </div>
                     <div class="p-4">
@@ -398,6 +398,11 @@ export default {
         },
         trendLabels() {
             return this.trendMonthly.map(m => m.label)
+        },
+        trendChartTitle() {
+            if (this.selectedPeriodMode === 'annual') return `年次推移（直近12年）`
+            // 月次・3ヶ月平均どちらも選択年の1〜12月トレンド
+            return `月次推移（${this.selectedYear}年）`
         }
     },
     watch: {
@@ -453,37 +458,69 @@ export default {
                 this.benchmarks = benchmarks
 
                 if (this.selectedPeriodMode === 'monthly') {
-                    // 単月+トレンド12ヶ月をまとめて prefetch（重複API呼び出しを排除）
-                    const periodKeys = getNPrevPeriodKeys(this.periodKey, 12)
-                    const prefetched = await this.prefetchPeriods(periodKeys)
+                    // トレンドは選択年の1〜12月（選択月の単月PLも同じprefetchから取得）
+                    const yearPeriodKeys = getYearPeriodKeys(this.selectedYear)
+                    const prefetched = await this.prefetchPeriods(yearPeriodKeys)
                     const pl = await this.loadMonthlyPLCore(
                         this.selectedStoreKey, this.periodKey, companySettings,
                         prefetched.byPeriod[this.periodKey]
                     )
-                    const monthly = await this.buildTrend(this.selectedStoreKey, periodKeys, companySettings, prefetched)
+                    const pls = await Promise.all(
+                        yearPeriodKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                    )
                     this.plResult = pl
-                    this.trendMonthly = monthly
+                    this.trendMonthly = yearPeriodKeys.map((pk, i) => ({
+                        label: `${pk % 100}月`,
+                        pl: pls[i]
+                    }))
                 } else if (this.selectedPeriodMode === 'rolling3') {
-                    const periodKeys = getNPrevPeriodKeys(this.periodKey, 12)
-                    const prefetched = await this.prefetchPeriods(periodKeys)
-                    // 3ヶ月平均は periodKeys の末尾3ヶ月（=対象月含む直近3ヶ月）
-                    const last3 = periodKeys.slice(-3)
+                    const yearPeriodKeys = getYearPeriodKeys(this.selectedYear)
+                    // 3ヶ月平均の計算に必要なもの（1・2月選択時は前年の月を含む場合あり）
+                    const last3Keys = getNPrevPeriodKeys(this.periodKey, 3)
+                    // 年内 + 前年の月をまとめてprefetch（重複をSetで排除）
+                    const allKeys = [...new Set([...yearPeriodKeys, ...last3Keys].map(String))].map(Number)
+                    const prefetched = await this.prefetchPeriods(allKeys)
+                    // 3ヶ月平均のPL
                     const plResults = await Promise.all(
-                        last3.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                        last3Keys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
                     )
                     this.plResult = calcRolling3MonthAvg(plResults)
-                    this.trendMonthly = await this.buildTrend(this.selectedStoreKey, periodKeys, companySettings, prefetched)
-                } else if (this.selectedPeriodMode === 'annual') {
-                    const periodKeys = getYearPeriodKeys(this.selectedYear)
-                    const prefetched = await this.prefetchPeriods(periodKeys)
-                    const monthlyPLs = await Promise.all(
-                        periodKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                    // トレンドは選択年の1〜12月
+                    const pls = await Promise.all(
+                        yearPeriodKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
                     )
-                    this.plResult = calcAnnualSum(monthlyPLs)
-                    this.trendMonthly = periodKeys.map((pk, i) => ({
+                    this.trendMonthly = yearPeriodKeys.map((pk, i) => ({
                         label: `${pk % 100}月`,
-                        pl: monthlyPLs[i]
+                        pl: pls[i]
                     }))
+                } else if (this.selectedPeriodMode === 'annual') {
+                    // 選択年のPL（年次合計）
+                    const selectedYearNum = Number(this.selectedYear)
+                    // トレンド: 選択年を終点に最大12年（最小開始年2026）
+                    const trendStartYear = Math.max(2026, selectedYearNum - 11)
+                    const trendYears = Array.from(
+                        { length: selectedYearNum - trendStartYear + 1 },
+                        (_, i) => trendStartYear + i
+                    )
+                    // 全年×12ヶ月分をまとめてprefetch（APIコール最小化）
+                    const allPeriodKeys = trendYears.flatMap(y => getYearPeriodKeys(y))
+                    const prefetched = await this.prefetchPeriods(allPeriodKeys)
+                    // 選択年のPL
+                    const selectedYearKeys = getYearPeriodKeys(this.selectedYear)
+                    const selectedMonthlyPLs = await Promise.all(
+                        selectedYearKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                    )
+                    this.plResult = calcAnnualSum(selectedMonthlyPLs)
+                    // 年次トレンド: 各年の年次合計PL
+                    const yearlyTrend = []
+                    for (const year of trendYears) {
+                        const yearKeys = getYearPeriodKeys(year)
+                        const monthlyPLs = await Promise.all(
+                            yearKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                        )
+                        yearlyTrend.push({ label: `${year}年`, pl: calcAnnualSum(monthlyPLs) })
+                    }
+                    this.trendMonthly = yearlyTrend
                 }
                 this.hasLoaded = true
             } catch (e) {

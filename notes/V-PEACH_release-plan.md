@@ -101,12 +101,27 @@ parent: [[V-PEACH/notes/_index]]
 - `prefetchPeriods(periodKeys)` を新設し `pe_monthly_company_records` と全店 `pe_monthly_records` をバッチ取得
 - `loadMonthlyPL` / `loadRolling3PL` / `loadTrendForPeriod` / `loadAnnualPL` を `loadPL` に統合
 
+### ✅ HRMOS シフト CSV 取込基盤（2026-05-25 完了）
+- `DB_MIGRATION_hrmos_masters_20260525.sql`：`pe_hrmos_staffs` / `pe_hrmos_segments` / `pe_jp_holidays` / `pe_jp_holidays_meta` 新設
+- `src/utils/shiftImporter.js`：HRMOS シフト CSV 計算（店舗×日付×シフトタイプ正規化）
+- `src/utils/jpHolidaysClient.js`：holidays-jp API + Supabase キャッシュ + 30日経過時バックグラウンド更新
+- `src/utils/csvImporter.js` 拡張：HRMOS スタッフ・勤務区分 CSV 解析追加
+- `SettingsApp.vue`：HRMOS マスタ管理（スタッフ・勤務区分・祈日キャッシュ確認・リフレッシュ）
+- `InputApp.vue` Step 3：HRMOS シフト CSV アップロード画面（任意ステップ）および店舗別集計結果表示
+- `PortalMenu.vue`：年初バナー（マスタ未投入時の警告）
+
+### ✅ UI/UX 改修（2026-05-25 完了）
+- **シフト CSV ファイル選択 UI カスタム化**：`InputApp.vue` Step 3 の `input[type=file]` を非表示化しカスタムボタンでラップ。ファイル選択後はボタン横にファイル名を表示（「選択されていません」が残る不具合修正）
+- **トレンドチャート・月次モード**：直近12ヶ月 → **選択年の 1〜12 月**。ラベルは「1月」–12月」、タイトルは「月次推移（YYYY年）」
+- **トレンドチャート・3ヶ月平均モード**：直近12ヶ月 → **選択年の 1〜12 月**（PL値自体は直近3ヶ月平均を維持）
+- **トレンドチャート・年次モード**：選択年の月別 → **選択年終点・直近最大12年の年次合計PL**。ラベルは「2026年」“YYYY年」、タイトルは「年次推移（直近12年）」
+
 ### 🔄 Phase 7-5：エラー処理・UX 仕上げ（dev 確認待ち）
 - 前月キャッシュ欠落の確認ダイアログ・パースエラー表示等、主要ケース対応済み
 - dev 環境での動作確認・UX 最終調整が残タスク
 
 ## 現在のステータス
-Phase 7-4 + 人件費新方式 + N+1削減 + CSV UI統合まで完了。Phase 7-5（エラー処理・UX）は dev 確認中。
+HRMOS シフト CSV 取込基盤 + UI/UX 改修（トレンドチャート仕様変更・シフトファイル選択 UI）まで完了。Phase 7-5（エラー処理・UX）は dev 確認中。
 テスト実施待ち（手順: [[V-PEACH/notes/V-PEACH_test-plan]]）。
 固定給初期値 SEED はオーナー確認後に別途投入。
 

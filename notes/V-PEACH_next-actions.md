@@ -1,7 +1,7 @@
 ---
 tags: [project/v-peach, type/todo]
 parent: [[V-PEACH/notes/_index]]
-updated: 2026-05-22
+updated: 2026-05-25
 ---
 
 # V-PEACH — Next Actions
@@ -10,12 +10,14 @@ updated: 2026-05-22
 
 | # | タスク | 状態 | 備考 |
 |---|--------|------|------|
-| 1 | テストデータ投入・動作確認（人件費新方式含む） | 未着手 | test-plan に沿って |
-| 2 | ベンチマーク目標値をオーナーと確認・Supabase 登録 | 未着手 | オーナー確認必要 |
-| 3 | 固定給初期値 SEED をオーナーに確認・投入 | 未着手 | おの・ばな+ぴー・つー の月報酬確認後 |
-| 4 | Phase 7-5 dev 確認（CSV エラー処理・UX） | dev 確認中 | 3ボックスUI含め動作確認 |
-| 5 | PL ブロック図 UI のオーナーフィードバック収集 | 未着手 | モックを見せてから判断 |
-| 6 | PL UI デザイン変更実装 | 保留 | 5の確認後 |
+| 1 | HRMOS シフト CSV 検証（2026年1〜4月を順次取込・手カウントと一致確認） | オーナー実施中 | [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]] §10 |
+| 2 | HRMOS スタッフ・勤務区分マスタ CSV を本番 Supabase に投入 | オーナー操作待ち | 設定モード → HRMOS マスタ管理から取込 |
+| 3 | テストデータ投入・動作確認（人件費新方式含む） | 未着手 | test-plan に沿って |
+| 4 | ベンチマーク目標値をオーナーと確認・Supabase 登録 | 未着手 | オーナー確認必要 |
+| 5 | 固定給初期値 SEED をオーナーに確認・投入 | 未着手 | おの・ばな+ぴー・つー の月報酬確認後 |
+| 6 | Phase 7-5 dev 確認（CSV エラー処理・UX） | dev 確認中 | 3ボックスUI含め動作確認 |
+| 7 | PL ブロック図 UI のオーナーフィードバック収集 | 未着手 | モックを見せてから判断 |
+| 8 | PL UI デザイン変更実装 | 保留 | 7の確認後 |
 
 ---
 
@@ -182,6 +184,9 @@ updated: 2026-05-22
 - ✅ 人件費新方式（重みつき枠按分）DB・API・finance.js・InputApp 3画面・PLApp 内訳表示（2026-05-21）
 - ✅ PLApp N+1 削減（prefetchPeriods バッチ取得・loadPL 統合。2026-05-21）
 - ✅ CSV アップロード UI 統合：6ボックス → 3ボックス（ヘッダー内容で自動判定。2026-05-22）
+- ✅ HRMOS シフト CSV 取込基盤（DB・API・jpHolidaysClient.js・shiftImporter.js・csvImporter.js 拡張・SettingsApp HRMOS/祝日マスタ管理・InputApp Step 3・PortalMenu 年初バナー。2026-05-25）
+- ✅ シフト CSV ファイル選択 UI カスタム化（`input[type=file]` 非表示・カスタムボタン＋ファイル名表示。「選択されていません」残存バグ修正。2026-05-25）
+- ✅ トレンドチャート仕様変更（月次・3ヶ月平均 → 選択年1〜12月、年次 → 選択年終点の直近最大12年。2026-05-25）
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_requirements]]

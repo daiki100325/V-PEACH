@@ -10,7 +10,7 @@ tags: [project/v-peach, type/hub]
 - Owner: Vangvieng
 - Repo: [daiki100325/V-PEACH](https://github.com/daiki100325/V-PEACH)
 
-## 現在のステータス（2026-05-22）
+## 現在のステータス（2026-05-25）
 - Phase 0（セットアップ）: ✅ 完了
 - Phase 1（DBマイグレーション）: ✅ 完了（2026-05-16）
 - Phase 2（月次入力・設定モード）: ✅ 完了
@@ -24,6 +24,7 @@ tags: [project/v-peach, type/hub]
 - 人件費新方式（重みつき枠按分・PL統合）: ✅ 完了（2026-05-21）
 - PLApp N+1 削減（prefetchPeriods 一括取得）: ✅ 完了（2026-05-21）
 - CSV アップロード UI 統合（6→3ボックス・ヘッダー自動判定）: ✅ 完了（2026-05-22）
+- HRMOS シフト CSV 取込（画面A/B 自動化・祝日マスタ・PortalMenu バナー）: ✅ 実装完了（2026-05-25・要検証）
 
 ## Key Links
 - Decisions: [[V-PEACH/DECISIONS]]
@@ -40,6 +41,7 @@ tags: [project/v-peach, type/hub]
 - [[V-PEACH/notes/V-PEACH_release-plan]]
 - [[V-PEACH/notes/V-PEACH_next-actions]] — 次のアクション（ベンチマーク見直し・UI変更検討）
 - [[V-PEACH/notes/V-PEACH_labor-cost-plan]] — 人件費計算ロジック実装計画（重みつき枠按分方式・PL/月次入力/設定）
+- [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]] — HRMOS シフト CSV 1ファイル取込で画面A/B を自動化する実装計画
 - [[V-PEACH/notes/V-PEACH_sales-import-plan]] — 売上データ自動取り込み（Airメイト/Airレジ CSV）検討資料
 
 ## Weekly Review

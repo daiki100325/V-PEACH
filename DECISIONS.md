@@ -1,5 +1,60 @@
 # DECISIONS
 
+## ADR-20260525-01: HRMOS シフト CSV 取込で画面A/B を自動化
+- Status: Accepted
+- Date: 2026-05-25
+- Owners: daiki100325
+
+### Context
+- 月次入力の画面A（バイト枠数）・画面B（りょーさん枠数）は 3店舗×6h/7.5h = 12 マスの手入力が必要で、最も負荷が高いステップだった
+- HRMOS は月次シフト raw CSV（`vangvieng_shifts_YYYYMM.csv`）を出力可能で、1ファイルで店舗×日付×従業員×勤務区分の情報が揃う
+
+### Decision
+- 月次入力 CSV モードに「Step 2: シフト CSV アップロード」を挿入し、HRMOS シフト CSV から画面A/B の枠数を自動算出
+- スタッフマスタ（固定給/バイト/社長のロール）・勤務区分マスタ（店舗・シフトタイプ・既定時間・按分対象）は Supabase（`pe_hrmos_staffs` / `pe_hrmos_segments`）に永続化し、初回投入後は HRMOS マスタ変更時のみ更新
+- 画面A/B は残置し、シフト CSV をスキップした月や自動算出後の編集に使う
+- 画面C（給与＋交通費総額）は手入力維持
+
+### Alternatives
+- 給与 CSV から総額自動入力：HRMOS から該当 CSV が確実に得られる確証がないため不採用
+- 時給マスタ × 枠数で総額算出：実給与（賞与・交通費含む）との差異が大きく不採用
+
+### Consequences
+- Positive: 入力工数が 12+ マス → ファイル1個に圧縮。誤入力リスクも低減
+- Negative: HRMOS マスタの整合性管理が新たに必要（自動判定不可レコードは設定 UI で手動上書き）
+
+### Links
+- Plan: [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]]
+- Migration: `supabase/DB_MIGRATION_hrmos_masters_20260525.sql`
+
+## ADR-20260525-02: 祝日マスタは holidays-jp + Supabase キャッシュ方式
+- Status: Accepted
+- Date: 2026-05-25
+- Owners: daiki100325
+
+### Context
+- 馬場2号店遅番の土日祝補正（6h → 7.5h）に祝日判定が必要
+- オーナー要望：「追加コストかからず、実装上ムリがないなら自動化」
+
+### Decision
+- データソース：`https://holidays-jp.github.io/api/v1/date.json`（無料・認証不要・CORS 許可済み・過去〜翌年祝日を網羅）
+- Supabase `pe_jp_holidays` にキャッシュ + `pe_jp_holidays_meta` で取得状況を記録
+- 月次入力フローの先頭で `refreshHolidaysIfStale()`：当年データ欠落 or 30日経過時に再取得
+- 失敗時はキャッシュにフォールバック、UI に警告
+- 設定モードに「いま再取得する」ボタン、PortalMenu に年初カバレッジバナー（自動 fetch を試行し失敗時のみ警告表示）
+
+### Alternatives
+- 手動 SEED：年初の祝日改正対応漏れリスクあり
+- 有料 API：追加コストが発生
+
+### Consequences
+- Positive: ほぼゼロ運用コストで祝日対応。GitHub Pages 障害時もキャッシュで継続
+- Negative: 個人運用 API への依存（mitigation: Supabase キャッシュ + UI 再取得）
+
+### Links
+- Plan: [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]] §3.4
+- Client: `src/utils/jpHolidaysClient.js`
+
 ## ADR-20260515-01: Supabase共用・pe_プレフィックスで分離
 - Status: Accepted
 - Date: 2026-05-15

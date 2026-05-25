@@ -30,6 +30,10 @@ parent:
 | `pe_store_settings_revisions` | マスタ | Phase 5+ | 店舗別固定費の改定履歴（`effective_from` ベース） |
 | `pe_company_settings_revisions` | マスタ | Phase 5+ | 全社共通費の改定履歴（`effective_from` ベース） |
 | `pe_benchmarks_revisions` | マスタ | Phase 5+ | ベンチマーク目標値の改定履歴（5指標を1行で管理） |
+| `pe_hrmos_staffs` | マスタ | HRMOS 取込（2026-05-25） | HRMOS スタッフマスタ（社員ID PK・display_name・role: fixed_salary/part_time/owner_ryo） |
+| `pe_hrmos_segments` | マスタ | HRMOS 取込（2026-05-25） | HRMOS 勤務区分マスタ（勤務区分ID PK・store_id・shift_type: early/middle/late/allin/misc・default_hours・is_payroll_target） |
+| `pe_jp_holidays` | キャッシュ | HRMOS 取込（2026-05-25） | 日本国民の祝日キャッシュ（holiday_date PK）。holidays-jp API から取得 |
+| `pe_jp_holidays_meta` | メタ | HRMOS 取込（2026-05-25） | 祝日 API 取得状況（シングルトン `id=1`：last_fetched_at / last_fetch_status / last_fetch_error） |
 
 ### 廃止済み（Phase 5 で削除）
 
@@ -199,6 +203,10 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `getDailySalesInRange(storeId, startDate, endDate)` | `pe_daily_sales_cache` | 日次売上キャッシュ範囲取得（事業月度計算用） |
 | `upsertDailySalesCache(rows)` | `pe_daily_sales_cache` | 日次売上キャッシュ upsert |
 | `deleteOldDailySalesCache(storeId, beforeDate)` | `pe_daily_sales_cache` | 古いキャッシュ削除（start_date より前） |
+| `getHrmosStaffs / upsertHrmosStaffs / updateHrmosStaffRole` | `pe_hrmos_staffs` | HRMOS スタッフマスタ CRUD（CSV取込時バルク upsert・ロール手動上書き） |
+| `getHrmosSegments / upsertHrmosSegments / updateHrmosSegment` | `pe_hrmos_segments` | HRMOS 勤務区分マスタ CRUD（自動判定不可レコードの手動上書き対応） |
+| `getJpHolidays(yearOrRange) / upsertJpHolidays(rows)` | `pe_jp_holidays` | 祝日キャッシュ参照・バルク upsert |
+| `getJpHolidaysMeta / updateJpHolidaysMeta` | `pe_jp_holidays_meta` | 祝日 API 最終取得状況の参照・更新 |
 
 ## store_key 対応（UI ↔ DB）
 
@@ -220,6 +228,7 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `supabase/DB_MIGRATION_benchmarks_restructure_20260518.sql` | Phase 7: `pe_benchmarks` をフラット・シングルトン形式に再設計 |
 | `supabase/DB_MIGRATION_daily_sales_cache_20260518.sql` | Phase 7-2: `pe_daily_sales_cache` 作成 |
 | `supabase/DB_MIGRATION_labor_cost_20260520.sql` | 人件費新方式: `pe_monthly_records` に枠数4列追加・`pe_monthly_company_records` 新設・`pe_store_settings` に `fixed_salary_total` 追加・`pe_company_settings` に `ryo_hourly_rate` 追加 |
+| `supabase/DB_MIGRATION_hrmos_masters_20260525.sql` | HRMOS シフト CSV 取込基盤: `pe_hrmos_staffs` / `pe_hrmos_segments` / `pe_jp_holidays` / `pe_jp_holidays_meta` を新規作成、RLS 有効化 |
 | `supabase/SEED_store_settings_defaults.sql` | フォールバック用デフォルト値投入（`pe_store_settings_revisions` 未適用期間の 0 落ち防止） |
 | `supabase/SEED_benchmarks_defaults_20260518.sql` | ベンチマーク 5 指標の初期値投入（`pe_benchmarks` シングルトン） |
 | `supabase/SEED_daily_sales_cache_202512.sql` | Phase 7-2: 2025年12月分 Airレジ日次キャッシュ初回投入（3店舗 × 25日 = 75行） |

@@ -32,6 +32,22 @@
                         </div>
                         <div class="text-sm text-slate-500">人件費率・原価率などの目標値を設定します</div>
                     </button>
+                    <button @click="openHrmosMasters"
+                        class="text-left rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 p-5 transition-colors focus:outline-none">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">👥</span>
+                            <span class="text-base font-bold text-slate-800">HRMOS マスタ管理</span>
+                        </div>
+                        <div class="text-sm text-slate-500">スタッフ・勤務区分マスタをCSV取込・手動上書きします</div>
+                    </button>
+                    <button @click="openHolidays"
+                        class="text-left rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 p-5 transition-colors focus:outline-none">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">📅</span>
+                            <span class="text-base font-bold text-slate-800">祝日マスタ</span>
+                        </div>
+                        <div class="text-sm text-slate-500">日本国民の祝日キャッシュを再取得します</div>
+                    </button>
                 </div>
             </div>
         </div>
@@ -386,6 +402,159 @@
             </template>
         </div>
 
+        <!-- ─── HRMOS マスタ管理 ───────────────────────────────────────── -->
+        <div v-if="subMode === 'hrmos-masters'" class="space-y-4 pb-16">
+            <h2 class="text-base font-bold text-slate-700">HRMOS マスタ管理</h2>
+            <p class="text-xs text-slate-400">HRMOS から書き出したスタッフ／勤務区分 CSV を取り込み、シフト CSV 取込の自動算出に使用します。</p>
+
+            <div v-if="hmLoading" class="text-center py-12 text-slate-400 text-sm">読み込み中...</div>
+
+            <template v-else>
+                <!-- スタッフマスタ -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-bold text-slate-700">スタッフマスタ</span>
+                        <span class="text-xs text-slate-400">
+                            登録: {{ hmStaffs.length }}名（固定給 {{ hmStaffCounts.fixed_salary }} / バイト {{ hmStaffCounts.part_time }} / 社長 {{ hmStaffCounts.owner_ryo }}）
+                        </span>
+                    </div>
+                    <label class="block">
+                        <span class="sr-only">スタッフ CSV</span>
+                        <input type="file" accept=".csv" @change="onUploadStaffsCsv($event)"
+                            class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100" />
+                    </label>
+                    <p v-if="hmStaffUploadMsg" class="text-xs" :class="hmStaffUploadOk ? 'text-emerald-600' : 'text-red-500'">{{ hmStaffUploadMsg }}</p>
+
+                    <div v-if="hmStaffs.length > 0" class="border border-slate-100 rounded-xl max-h-64 overflow-y-auto divide-y divide-slate-50">
+                        <div v-for="s in hmStaffs" :key="s.hrmos_staff_id" class="px-3 py-2 flex items-center justify-between text-xs">
+                            <div class="min-w-0 flex-1">
+                                <div class="font-medium text-slate-700 truncate">{{ s.display_name }}</div>
+                                <div class="text-slate-400">ID {{ s.hrmos_staff_id }} / {{ s.account_name || '—' }}</div>
+                            </div>
+                            <select :value="s.role" @change="onChangeStaffRole(s, $event.target.value)"
+                                class="text-xs border border-slate-200 rounded-lg px-2 py-1 font-bold"
+                                :class="{
+                                    'text-emerald-600 bg-emerald-50': s.role === 'fixed_salary',
+                                    'text-slate-600 bg-slate-50': s.role === 'part_time',
+                                    'text-amber-600 bg-amber-50': s.role === 'owner_ryo'
+                                }">
+                                <option value="fixed_salary">固定給</option>
+                                <option value="part_time">バイト</option>
+                                <option value="owner_ryo">社長</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 勤務区分マスタ -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-bold text-slate-700">勤務区分マスタ</span>
+                        <span class="text-xs text-slate-400">
+                            登録: {{ hmSegments.length }}件（按分対象 {{ hmSegmentCounts.payroll }} / 対象外 {{ hmSegmentCounts.nonPayroll }}）
+                        </span>
+                    </div>
+                    <label class="block">
+                        <span class="sr-only">勤務区分 CSV</span>
+                        <input type="file" accept=".csv" @change="onUploadSegmentsCsv($event)"
+                            class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100" />
+                    </label>
+                    <p v-if="hmSegUploadMsg" class="text-xs" :class="hmSegUploadOk ? 'text-emerald-600' : 'text-red-500'">{{ hmSegUploadMsg }}</p>
+
+                    <div v-if="hmSegmentCounts.misc > 0" class="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
+                        ⚠ 自動判定不可（misc）: {{ hmSegmentCounts.misc }}件。下記から個別に上書きしてください。
+                    </div>
+
+                    <div v-if="hmSegments.length > 0" class="border border-slate-100 rounded-xl max-h-80 overflow-y-auto divide-y divide-slate-50">
+                        <div v-for="seg in hmSegments" :key="seg.hrmos_segment_id" class="px-3 py-2 space-y-1 text-xs">
+                            <div class="flex items-center justify-between">
+                                <div class="min-w-0 flex-1">
+                                    <div class="font-medium text-slate-700 truncate">{{ seg.segment_name }}</div>
+                                    <div class="text-slate-400">ID {{ seg.hrmos_segment_id }}</div>
+                                </div>
+                                <label class="inline-flex items-center gap-1 text-slate-500">
+                                    <input type="checkbox" :checked="seg.is_payroll_target"
+                                        @change="onUpdateSegment(seg, { is_payroll_target: $event.target.checked })" />
+                                    按分対象
+                                </label>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <select :value="seg.store_id ?? ''"
+                                    @change="onUpdateSegment(seg, { store_id: $event.target.value === '' ? null : Number($event.target.value) })"
+                                    class="text-xs border border-slate-200 rounded-lg px-2 py-1 flex-1">
+                                    <option value="">店舗なし</option>
+                                    <option v-for="st in hmStoresDb" :key="st.id" :value="st.id">{{ st.name }}</option>
+                                </select>
+                                <select :value="seg.shift_type"
+                                    @change="onUpdateSegment(seg, { shift_type: $event.target.value })"
+                                    class="text-xs border border-slate-200 rounded-lg px-2 py-1">
+                                    <option value="early">早番</option>
+                                    <option value="middle">中番</option>
+                                    <option value="late">遅番</option>
+                                    <option value="allin">オーラス</option>
+                                    <option value="misc">その他</option>
+                                </select>
+                                <input type="number" min="0" step="0.5" :value="seg.default_hours"
+                                    @change="onUpdateSegment(seg, { default_hours: Number($event.target.value) })"
+                                    class="w-16 text-xs border border-slate-200 rounded-lg px-2 py-1 text-right" />
+                                <span class="text-slate-400">h</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ─── 祝日マスタ ─────────────────────────────────────────────── -->
+        <div v-if="subMode === 'holidays'" class="space-y-4 pb-16">
+            <h2 class="text-base font-bold text-slate-700">祝日マスタ（日本国民の祝日）</h2>
+            <p class="text-xs text-slate-400">
+                データソース：<a href="https://holidays-jp.github.io/" target="_blank" rel="noopener" class="underline">holidays-jp.github.io</a>
+                — 月次入力フローのシフト CSV 取込時に自動更新（30日経過時 or 当年データ欠落時）。
+            </p>
+
+            <div v-if="holLoading" class="text-center py-12 text-slate-400 text-sm">読み込み中...</div>
+
+            <template v-else>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+                    <div class="text-sm space-y-1">
+                        <div>
+                            <span class="text-slate-500">最終取得：</span>
+                            <span class="font-bold text-slate-800">{{ holMeta.last_fetched_at ? formatTs(holMeta.last_fetched_at) : '未取得' }}</span>
+                            <span v-if="holMeta.last_fetch_status === 'success'" class="ml-2 text-emerald-600 font-bold">✓ 成功</span>
+                            <span v-else-if="holMeta.last_fetch_status === 'failed'" class="ml-2 text-red-500 font-bold">✗ 失敗</span>
+                        </div>
+                        <div><span class="text-slate-500">キャッシュ件数：</span><span class="font-bold text-slate-800">{{ holRows.length }}件</span></div>
+                    </div>
+
+                    <div v-if="holMeta.last_fetch_status === 'failed' && holMeta.last_fetch_error"
+                        class="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">
+                        前回エラー: {{ holMeta.last_fetch_error }}（キャッシュで動作中）
+                    </div>
+                    <div v-else-if="isHolidayStale" class="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
+                        ⚠ 30日以上取得していません。年初の祝日改正に注意してください。
+                    </div>
+
+                    <button @click="onRefreshHolidays" :disabled="holRefreshing"
+                        class="w-full py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-brand-600 hover:bg-brand-700 text-white">
+                        {{ holRefreshing ? '取得中...' : 'いま再取得する' }}
+                    </button>
+                </div>
+
+                <div v-if="holRows.length > 0" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">キャッシュ一覧（最新200件）</span>
+                    </div>
+                    <div class="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                        <div v-for="r in holRowsView" :key="r.holiday_date" class="px-4 py-2 flex justify-between text-xs">
+                            <span class="text-slate-600">{{ r.holiday_date }}</span>
+                            <span class="font-medium text-slate-700">{{ r.holiday_name }}</span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
     </main>
 </template>
 
@@ -393,10 +562,21 @@
 import {
     getStoreSettingsRevisions, addStoreSettingsRevision, deleteStoreSettingsRevision,
     getCompanySettingsRevisions, addCompanySettingsRevision, deleteCompanySettingsRevision,
-    getBenchmarksRevisions, addBenchmarksRevision, deleteBenchmarksRevision
+    getBenchmarksRevisions, addBenchmarksRevision, deleteBenchmarksRevision,
+    getHrmosStaffs, upsertHrmosStaffs, updateHrmosStaffRole,
+    getHrmosSegments, upsertHrmosSegments, updateHrmosSegment,
+    getJpHolidays, getJpHolidaysMeta,
+    getStores
 } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey } from '../../utils/periods.js'
 import CurrencyInput from '../CurrencyInput.vue'
+import {
+    readShiftJisFile,
+    detectCsvKindFromHeader,
+    parseHrmosStaffsCsv,
+    parseHrmosSegmentsCsv
+} from '../../utils/csvImporter.js'
+import { forceRefreshHolidays } from '../../utils/jpHolidaysClient.js'
 
 function fmLabel(from) {
     return `${String(from).slice(0, 4)}年${Number(String(from).slice(4))}月〜`
@@ -429,7 +609,21 @@ export default {
             bmRevisions: [],
             bmLoading: false,
             bmSaving: false,
-            bmNewForm: { year: '', month: '', note: '', f_ratio: null, l_ratio: null, r_ratio: null, operating_profit_margin: null, labor_rate: null }
+            bmNewForm: { year: '', month: '', note: '', f_ratio: null, l_ratio: null, r_ratio: null, operating_profit_margin: null, labor_rate: null },
+            // HRMOS マスタ
+            hmLoading: false,
+            hmStaffs: [],
+            hmSegments: [],
+            hmStoresDb: [],  // { id, store_key, name }（マスタ取込時の store_id 解決用）
+            hmStaffUploadMsg: '',
+            hmStaffUploadOk: false,
+            hmSegUploadMsg: '',
+            hmSegUploadOk: false,
+            // 祝日
+            holLoading: false,
+            holRefreshing: false,
+            holMeta: { last_fetched_at: null, last_fetch_status: null, last_fetch_error: null },
+            holRows: []
         }
     },
     computed: {
@@ -465,6 +659,30 @@ export default {
         },
         selectedSS() {
             return this.ssAllData.find(s => s.storeKey === this.selectedStoreKey) || null
+        },
+        hmStaffCounts() {
+            const c = { fixed_salary: 0, part_time: 0, owner_ryo: 0 }
+            for (const s of this.hmStaffs) {
+                if (c[s.role] != null) c[s.role]++
+            }
+            return c
+        },
+        hmSegmentCounts() {
+            let payroll = 0, nonPayroll = 0, misc = 0
+            for (const seg of this.hmSegments) {
+                if (seg.is_payroll_target) payroll++
+                else nonPayroll++
+                if (seg.shift_type === 'misc') misc++
+            }
+            return { payroll, nonPayroll, misc }
+        },
+        isHolidayStale() {
+            if (!this.holMeta.last_fetched_at) return false
+            const elapsed = Date.now() - new Date(this.holMeta.last_fetched_at).getTime()
+            return elapsed > 30 * 24 * 60 * 60 * 1000
+        },
+        holRowsView() {
+            return this.holRows.slice(0, 200)
         }
     },
     methods: {
@@ -695,6 +913,149 @@ export default {
                 this.bmSaving = false
                 this.$emit('update:loading', false)
             }
+        },
+
+        // ─── HRMOS マスタ管理 ──────────────────────────────────────────
+        async openHrmosMasters() {
+            this.subMode = 'hrmos-masters'
+            this.hmLoading = true
+            try {
+                const [staffs, segments, storesDb] = await Promise.all([
+                    getHrmosStaffs(), getHrmosSegments(), getStores()
+                ])
+                this.hmStaffs = staffs
+                this.hmSegments = segments
+                this.hmStoresDb = storesDb
+            } catch (e) {
+                alert(e.message || '読み込みに失敗しました。')
+            } finally {
+                this.hmLoading = false
+            }
+        },
+        async onUploadStaffsCsv(event) {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            this.hmStaffUploadMsg = ''
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', 'スタッフマスタ取込中...')
+            try {
+                const text = await readShiftJisFile(file)
+                const kind = detectCsvKindFromHeader(text)
+                if (kind !== 'hrmos_staffs') throw new Error('スタッフ CSV ではありません（ヘッダー判定失敗）')
+                const rows = parseHrmosStaffsCsv(text)
+                if (rows.length === 0) throw new Error('有効なスタッフ行が見つかりませんでした')
+                // 既存ロールを尊重しつつ upsert（既存スタッフのロールは上書きしない）
+                const existingById = new Map(this.hmStaffs.map(s => [s.hrmos_staff_id, s]))
+                const payload = rows.map(r => {
+                    const existing = existingById.get(r.hrmos_staff_id)
+                    return existing ? { ...r, role: existing.role } : r
+                })
+                await upsertHrmosStaffs(payload)
+                this.hmStaffs = await getHrmosStaffs()
+                this.hmStaffUploadOk = true
+                this.hmStaffUploadMsg = `${rows.length}件を取り込みました（既存スタッフのロールは保持）`
+            } catch (e) {
+                this.hmStaffUploadOk = false
+                this.hmStaffUploadMsg = e.message || '取込に失敗しました'
+            } finally {
+                this.$emit('update:loading', false)
+            }
+        },
+        async onChangeStaffRole(staff, newRole) {
+            try {
+                await updateHrmosStaffRole(staff.hrmos_staff_id, newRole)
+                staff.role = newRole
+            } catch (e) {
+                alert(e.message || 'ロール更新に失敗しました')
+            }
+        },
+        async onUploadSegmentsCsv(event) {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            this.hmSegUploadMsg = ''
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', '勤務区分マスタ取込中...')
+            try {
+                const text = await readShiftJisFile(file)
+                const kind = detectCsvKindFromHeader(text)
+                if (kind !== 'hrmos_segments') throw new Error('勤務区分 CSV ではありません（ヘッダー判定失敗）')
+                const storeKeyToId = {}
+                for (const st of this.hmStoresDb) {
+                    storeKeyToId[st.store_key] = st.id
+                }
+                const rows = parseHrmosSegmentsCsv(text, storeKeyToId)
+                if (rows.length === 0) throw new Error('有効な勤務区分行が見つかりませんでした')
+                // 既存上書きを尊重（store_id/shift_type/default_hours/is_payroll_target を保持）
+                const existingById = new Map(this.hmSegments.map(s => [s.hrmos_segment_id, s]))
+                const payload = rows.map(r => {
+                    const existing = existingById.get(r.hrmos_segment_id)
+                    if (existing) {
+                        return {
+                            ...r,
+                            store_id: existing.store_id,
+                            shift_type: existing.shift_type,
+                            default_hours: existing.default_hours,
+                            is_payroll_target: existing.is_payroll_target
+                        }
+                    }
+                    return r
+                })
+                await upsertHrmosSegments(payload)
+                this.hmSegments = await getHrmosSegments()
+                this.hmSegUploadOk = true
+                this.hmSegUploadMsg = `${rows.length}件を取り込みました（既存区分の手動上書きは保持）`
+            } catch (e) {
+                this.hmSegUploadOk = false
+                this.hmSegUploadMsg = e.message || '取込に失敗しました'
+            } finally {
+                this.$emit('update:loading', false)
+            }
+        },
+        async onUpdateSegment(seg, patch) {
+            try {
+                await updateHrmosSegment(seg.hrmos_segment_id, patch)
+                Object.assign(seg, patch)
+            } catch (e) {
+                alert(e.message || '勤務区分の更新に失敗しました')
+            }
+        },
+
+        // ─── 祝日マスタ ──────────────────────────────────────────────
+        async openHolidays() {
+            this.subMode = 'holidays'
+            this.holLoading = true
+            try {
+                await this.reloadHolidays()
+            } finally {
+                this.holLoading = false
+            }
+        },
+        async reloadHolidays() {
+            const [meta, rows] = await Promise.all([
+                getJpHolidaysMeta(),
+                getJpHolidays()
+            ])
+            this.holMeta = meta
+            this.holRows = rows.slice().reverse()  // 新しい順
+        },
+        async onRefreshHolidays() {
+            this.holRefreshing = true
+            try {
+                const result = await forceRefreshHolidays()
+                await this.reloadHolidays()
+                if (result.status === 'failed') {
+                    alert(`祝日 API の取得に失敗しました: ${result.error}\nキャッシュは保持されます。`)
+                }
+            } finally {
+                this.holRefreshing = false
+            }
+        },
+        formatTs(ts) {
+            const d = new Date(ts)
+            const z = n => String(n).padStart(2, '0')
+            return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`
         }
     }
 }

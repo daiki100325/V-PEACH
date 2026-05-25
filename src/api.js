@@ -97,6 +97,19 @@ export async function getMonthlyCompanyRecord(periodKey) {
   return data
 }
 
+/** 記録済みの最新 period_key を返す（未記録なら null） */
+export async function getLatestPeriodKey() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_monthly_company_records')
+    .select('period_key')
+    .order('period_key', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data?.period_key ?? null
+}
+
 /** 全社人件費レコードを upsert */
 export async function upsertMonthlyCompanyRecord(periodKey, fields) {
   requireSupabase()
@@ -454,6 +467,150 @@ export async function deleteOldDailySalesCache(storeKey, beforeDate) {
     .lt('sale_date', beforeDate)
   if (error) throw error
 }
+
+// ─── pe_hrmos_staffs（HRMOS スタッフマスタ） ─────────────────────────────
+// 参照: V-PEACH/notes/V-PEACH_shifts-csv-import-plan.md §2.1
+
+export async function getHrmosStaffs() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_hrmos_staffs')
+    .select('*')
+    .order('hrmos_staff_id', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
+/**
+ * staffs CSV 取込時のバルク upsert
+ * @param rows [{ hrmos_staff_id, display_name, account_name, role, default_store_id?, joined_on?, left_on?, note? }, ...]
+ */
+export async function upsertHrmosStaffs(rows) {
+  requireSupabase()
+  if (!rows || rows.length === 0) return
+  const payload = rows.map(r => ({ ...r, updated_at: new Date().toISOString() }))
+  const { error } = await supabase
+    .from('pe_hrmos_staffs')
+    .upsert(payload, { onConflict: 'hrmos_staff_id' })
+  if (error) throw error
+}
+
+/** 個別ロール上書き */
+export async function updateHrmosStaffRole(hrmosStaffId, role) {
+  requireSupabase()
+  const { error } = await supabase
+    .from('pe_hrmos_staffs')
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq('hrmos_staff_id', hrmosStaffId)
+  if (error) throw error
+}
+
+// ─── pe_hrmos_segments（HRMOS 勤務区分マスタ） ───────────────────────────
+// 参照: V-PEACH/notes/V-PEACH_shifts-csv-import-plan.md §2.2
+
+export async function getHrmosSegments() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_hrmos_segments')
+    .select('*')
+    .order('hrmos_segment_id', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
+/**
+ * segments CSV 取込時のバルク upsert
+ * @param rows [{ hrmos_segment_id, segment_name, store_id, shift_type, default_hours, is_payroll_target, note? }, ...]
+ */
+export async function upsertHrmosSegments(rows) {
+  requireSupabase()
+  if (!rows || rows.length === 0) return
+  const payload = rows.map(r => ({ ...r, updated_at: new Date().toISOString() }))
+  const { error } = await supabase
+    .from('pe_hrmos_segments')
+    .upsert(payload, { onConflict: 'hrmos_segment_id' })
+  if (error) throw error
+}
+
+/** 自動判定不可レコードの手動上書き */
+export async function updateHrmosSegment(hrmosSegmentId, fields) {
+  requireSupabase()
+  const { error } = await supabase
+    .from('pe_hrmos_segments')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('hrmos_segment_id', hrmosSegmentId)
+  if (error) throw error
+}
+
+// ─── pe_jp_holidays / pe_jp_holidays_meta（祝日キャッシュ） ──────────────
+// 参照: V-PEACH/notes/V-PEACH_shifts-csv-import-plan.md §3.4
+
+/**
+ * 祝日キャッシュ取得（年指定 or 範囲指定）
+ * @param yearOrRange  number（年指定: 2026）または { from: 2025, to: 2027 }
+ */
+export async function getJpHolidays(yearOrRange) {
+  requireSupabase()
+  let query = supabase.from('pe_jp_holidays').select('holiday_date,holiday_name').order('holiday_date')
+  if (typeof yearOrRange === 'number') {
+    const fromDate = `${yearOrRange}-01-01`
+    const toDate = `${yearOrRange}-12-31`
+    query = query.gte('holiday_date', fromDate).lte('holiday_date', toDate)
+  } else if (yearOrRange && typeof yearOrRange === 'object') {
+    const fromDate = `${yearOrRange.from}-01-01`
+    const toDate = `${yearOrRange.to}-12-31`
+    query = query.gte('holiday_date', fromDate).lte('holiday_date', toDate)
+  }
+  const { data, error } = await query
+  if (error) throw error
+  return data || []
+}
+
+/**
+ * 祝日 API フェッチ成功時のバルク upsert
+ * @param rows [{ holiday_date: '2026-01-01', holiday_name: '元日' }, ...]
+ */
+export async function upsertJpHolidays(rows) {
+  requireSupabase()
+  if (!rows || rows.length === 0) return
+  const payload = rows.map(r => ({
+    holiday_date: r.holiday_date,
+    holiday_name: r.holiday_name,
+    fetched_at: new Date().toISOString()
+  }))
+  const { error } = await supabase
+    .from('pe_jp_holidays')
+    .upsert(payload, { onConflict: 'holiday_date' })
+  if (error) throw error
+}
+
+/** 祝日マスタの取得状況メタを参照 */
+export async function getJpHolidaysMeta() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_jp_holidays_meta')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error) throw error
+  return data ?? { id: 1, last_fetched_at: null, last_fetch_status: null, last_fetch_error: null }
+}
+
+/** 祝日マスタの取得状況メタを更新 */
+export async function updateJpHolidaysMeta(payload) {
+  requireSupabase()
+  const row = {
+    id: 1,
+    ...payload,
+    updated_at: new Date().toISOString()
+  }
+  const { error } = await supabase
+    .from('pe_jp_holidays_meta')
+    .upsert(row, { onConflict: 'id' })
+  if (error) throw error
+}
+
+// ─── V-MINT cost_price_masters ──────────────────────────────────────────
 
 /** 指定periodKeyに有効なV-MINTの単価マスター（フレーバー・炭単価）を返す */
 export async function getCostPriceForPeriod(periodKey) {
