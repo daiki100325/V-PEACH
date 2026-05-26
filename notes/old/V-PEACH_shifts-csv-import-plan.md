@@ -1,8 +1,8 @@
 ---
-tags: [project/v-peach, type/plan]
+tags: [project/v-peach, type/plan, archived]
 parent: [[V-PEACH/notes/_index]]
 updated: 2026-05-25
-status: 実装完了（§9 フェーズ1〜8。フェーズ9 検証はオーナー手動）
+status: archived — 実装完了（2026-05-25）。以降の実装変更による更新不要。参照専用。
 ---
 
 # V-PEACH — HRMOS シフト CSV 1ファイル取込による人件費自動算出 実装計画

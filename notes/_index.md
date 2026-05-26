@@ -31,18 +31,27 @@ tags: [project/v-peach, type/hub]
 - Dev Log: [[V-PEACH/CHANGELOG_DEV]]
 - Troubleshooting: [[V-PEACH/TROUBLESHOOTING]]
 
-## Notes
-- [[V-PEACH/notes/V-PEACH_requirements]]
-- [[V-PEACH/notes/V-PEACH_architecture]]
+## Notes（現行・更新対象）
+
+- [[V-PEACH/notes/V-PEACH_history]] — V-MINT 誕生からシーシャ経営ダッシュボード完成までの全開発史
+- [[V-PEACH/notes/V-PEACH_requirements]] — 要件定義・財務ロジック・モード別仕様
+- [[V-PEACH/notes/V-PEACH_architecture]] — スタック・DB設計・財務ロジック・デプロイフロー
 - [[V-PEACH/notes/V-PEACH_supabase-er-diagram]] — Supabase ER 図（pe_* + V-MINT 参照）
-- [[V-PEACH/notes/V-PEACH_finance-spec]]
+- [[V-PEACH/notes/V-PEACH_finance-spec]] — 財務計算仕様詳細
 - [[V-PEACH/notes/V-PEACH_test-plan]] — テスト計画・テストデータ投入手順
-- [[V-PEACH/notes/old/V-PEACH_revision-plan]] ✅ 完了
-- [[V-PEACH/notes/V-PEACH_release-plan]]
-- [[V-PEACH/notes/V-PEACH_next-actions]] — 次のアクション（ベンチマーク見直し・UI変更検討）
-- [[V-PEACH/notes/V-PEACH_labor-cost-plan]] — 人件費計算ロジック実装計画（重みつき枠按分方式・PL/月次入力/設定）
-- [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]] — HRMOS シフト CSV 1ファイル取込で画面A/B を自動化する実装計画
-- [[V-PEACH/notes/V-PEACH_sales-import-plan]] — 売上データ自動取り込み（Airメイト/Airレジ CSV）検討資料
+- [[V-PEACH/notes/V-PEACH_release-plan]] — リリース・検証手順
+- [[V-PEACH/notes/V-PEACH_how-to-use]] — 操作マニュアル（月次作業・随時作業の手順）
+
+## Notes（アーカイブ・`old/` 配下）
+
+> 以下のファイルは実装完了に伴い `notes/old/` へ移動済み。  
+> **実装変更による更新は不要。** 設計経緯の参照用としてのみ保持する。
+
+- [[V-PEACH/notes/old/V-PEACH_revision-plan]] ✅ 完了 — 売上・原価体系改修（Phase 5）の実装計画
+- [[V-PEACH/notes/old/V-PEACH_labor-cost-plan]] ✅ 完了 — 人件費新方式（重みつき枠按分）の実装計画
+- [[V-PEACH/notes/old/V-PEACH_shifts-csv-import-plan]] ✅ 完了 — HRMOS シフト CSV 取込の実装計画
+- [[V-PEACH/notes/old/V-PEACH_sales-import-plan]] ✅ 完了 — Airメイト/Airレジ CSV 自動取込の検討資料
+- [[V-PEACH/notes/old/V-PEACH_next-actions]] ✅ 完了 — 完了済みネクストアクション一覧（2026-05-25時点）
 
 ## Weekly Review
 - Wins:

@@ -1,5 +1,63 @@
 # CHANGELOG_DEV
 
+## 2026-05-26
+- What: 経営PL「全店舗合計」のレスポンシブ表示を全面刷新。`plRowClass`/`plLabelClass`/`plValueClass`/`plProfitColor` 共通メソッドに集約。カードの `overflow-hidden` を除去しヘッダー/最終行に個別 `rounded-t-2xl`/`rounded-b-2xl` を付与（sticky が親 `overflow-hidden` でブロックされる問題を解消）。モバイルは項目列 `w-[120px] sticky`＋拠点列 `w-[88px]`、デスクトップは `md:flex-1` で項目列が広がり右側を目一杯使用
+- Why: 1) stickyが効いていなかった 2) デスクトップで左側に空白ができていた 3) モバイルで列間が広すぎた
+- Files: `src/components/apps/PLApp.vue`
+
+- What: 経営PL「全店舗合計」の拠点別列表示を改善。スクロール時に項目名を `position:sticky;left:0` で左固定。全社調整セクションをスクロールエリア外に移動し常時表示
+- Why: 右スクロール時に項目名が流れる・全社調整が常時見えないとの指摘
+- Files: `src/components/apps/PLApp.vue`
+
+- What: 経営PL「全店舗合計」表示に拠点別列を追加。売上・原価・販管費の各セクションに全店舗合計・馬場本店・中野店・馬場2号店の4列を並列表示。モバイルは横スクロール対応
+- Why: 全社合計だけでは拠点別の数値が見えず、内訳確認のたびに拠点を切り替える必要があったため
+- Files: `src/components/apps/PLApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_architecture]]
+
+## 2026-05-26
+- What: `notes/_index.md` の「現行・更新対象」に `V-PEACH_how-to-use` への内部リンクを追記
+- Why: 操作マニュアルが一覧から抜け落ちており、Hub から辿れない状態だったため
+- Files: `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_how-to-use]]
+
+- What: `notes/V-PEACH_supabase-er-diagram.md` を現行仕様（13テーブル）に全面更新。Mermaid ER 図を大幅拡張し、改定履歴テーブル群・`pe_monthly_company_records`・`pe_daily_sales_cache`・HRMOS マスタ4テーブルを追加。各テーブルの詳細 Notes も最新カラム構成に同期
+- Why: 旧 ER 図は 4テーブル（フォールバック系のみ）しか図示しておらず、2026-05-20〜25 に追加された9テーブルが一切反映されていなかったため
+- Files: `notes/V-PEACH_supabase-er-diagram.md`
+- Related: [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
+
+- What: `notes/V-PEACH_history.md` §13 タイムラインの 2026-05-16 エントリを Phase 0〜4 完了として更新。Phase 2〜4（月次入力・PL・Health Check・トレンドチャート）が同日中に完了していた実態を反映
+- Why: 直前の更新で Phase 0〜1 のみ記載されており、Phase 2〜4 の完了日が欠落していたため
+- Files: `notes/V-PEACH_history.md`
+- Related: [[V-PEACH/notes/V-PEACH_history]]
+
+- What: `notes/V-PEACH_history.md` §13 タイムラインを修正。2/20完成はフェーズ1のみ（フェーズ1〜2ではない）、完成後は馬場2号店限定で現場テスト、2/20〜3/23の間に社長→中野店店長→棚卸担当者2名への提案・ヒアリング実施、3/23リリースでフェーズ2〜3を一気完了という実際の流れに補正
+- Why: 前回更新でフェーズ区分と日程が不正確だったため、実際の開発・提案プロセスに沿って訂正
+- Files: `notes/V-PEACH_history.md`
+- Related: [[V-PEACH/notes/V-PEACH_history]]
+
+- What: `notes/V-PEACH_history.md` §13 タイムラインを実際の開発日程（2026/2/15〜5/25）に修正し、§14 に「異例の開発スピードを支えた4つの要因」を追加（実務者兼開発・社長直轄裁量・AI駆動開発・戦略コンサル知識基盤）
+- Why: 推定日程だったタイムラインを実績ベースの日付に正確化し、V-MINTプロトタイプ〜V-PEACH完成までの3.5ヶ月という開発スピードの背景を記録・継承するため
+- Files: `notes/V-PEACH_history.md`
+- Related: [[V-PEACH/notes/V-PEACH_history]]
+
+## 2026-05-25
+- What: `notes/V-PEACH_test-plan.md` を現行仕様に全面同期。Phase 範囲を HRMOS シフト CSV 取込まで拡張、DB 前提確認 SQL に `pe_hrmos_*`/`pe_jp_holidays*`/`pe_*_revisions`/`fixed_salary_total`/`ryo_hourly_rate` 確認を追加。テストデータ SQL を revisions テーブル + 人件費新方式列に対応させ、202603 を新方式 PL 検証用パターンに更新。テストケースに COM-05/06（祝日バナー）・SET-10〜15（HRMOS マスタ/祝日マスタ）・INP-00（対象月自動セット）・CSV-01〜12（売上→プレビュー→シフトCSV→画面A/B/C→確認の Step 1〜7 構造）・PLM-00（デフォルト参照月）・PLM-01b/07/08（新方式 PL・集計期間バッジ・FLR比）・PLT-05（カテゴリトグル）・EDG-04（枠数全0新方式）を追加。§4.2 に新方式人件費の期待値計算を新設
+- Why: 2026-05-18 の同期以降に「人件費新方式の PL 統合（5/21）」「PLApp N+1 削減（5/21）」「CSV モード UI 6→3 統合・旧 labor_cost 撤去（5/22-23）」「対象月自動セット・PL デフォルト最新月・CSV モードステップ順変更（5/25）」「HRMOS シフト CSV 取込基盤一式（5/25）」と大規模改修が続き、test-plan が旧 Phase 7 ベースのままで実装と乖離していたため
+- Files: `notes/V-PEACH_test-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_release-plan]], [[V-PEACH/notes/V-PEACH_shifts-csv-import-plan]], [[V-PEACH/notes/V-PEACH_labor-cost-plan]], [[V-PEACH/notes/V-PEACH_finance-spec]]
+
+## 2026-05-25
+- What: `V-PEACH/notes/V-PEACH_history.md` を新規作成。V-MINT 無印〜2.0 の全開発史を包含しつつ、Supabase 移行が V-PEACH 早期実現に果たした役割と、経営ダッシュボードとしての意義を詳述
+- Why: V-MINT の棚卸し実績がどのように経営判断へ昇華したかを一本の文書で記録・継承するため
+- Files: `notes/V-PEACH_history.md`, `notes/_index.md`
+- Related: [[V-MINT2.0/notes/V-MINT2.0_history]], [[V-PEACH/notes/V-PEACH_architecture]]
+
+## 2026-05-25
+- What: 経営PL画面のデフォルト参照月を当月から「月次入力が完了済みの最新月」へ変更。`created()` フックで `getLatestPeriodKey()` を呼び出し、取得できた場合は `selectedYear/Month` を上書き（取得失敗時は当月にフォールバック）
+- Why: 当月分が未入力の状態でページを開くと空のPLが表示されており、実際に確認したいのは直近の完了済み月であるため
+- Files: `src/components/apps/PLApp.vue`
+- Related: [[V-PEACH/CHANGELOG_DEV]]
+
 ## 2026-05-25
 - What: 月次入力CSVモードのステップ表示を全6画面に統一（1/6〜6/6）。人件費A/B/Cにインジケーターを追加（CSVモード限定）、既存1/3〜3/3を1/6〜3/6に修正
 - Why: 最初の3画面にしかステップ番号がなく、残りの人件費入力画面で現在位置が分からなかった

@@ -1,7 +1,8 @@
 ---
-tags: [project/v-peach, type/plan]
+tags: [project/v-peach, type/plan, archived]
 parent: [[V-PEACH/notes/_index]]
 updated: 2026-05-23
+status: archived — 実装完了（2026-05-25）。以降の実装変更による更新不要。参照専用。
 ---
 
 # V-PEACH — 人件費計算ロジック実装計画

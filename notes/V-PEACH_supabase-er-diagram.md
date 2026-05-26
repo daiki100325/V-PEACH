@@ -12,7 +12,7 @@ parent:
 ## Summary
 - `V-PEACH` の Supabase 永続化層（`pe_*` テーブル）と、V-MINT 2.0 共用テーブルとの参照関係をまとめた ER 図。
 - Supabase プロジェクトは V-MINT 2.0 と同一（`moejgsremxdksmzrowpw`）。`pe_` プレフィックスで名前空間を分離。
-- 正本: [[V-PEACH/supabase/DB_MIGRATION.sql]] + [[V-PEACH/supabase/DB_MIGRATION_revision_20260517.sql]]
+- 正本: [[V-PEACH/supabase/DB_MIGRATION.sql]] ほか各マイグレーションファイル（下記 Migration 履歴参照）
 - V-MINT 側の詳細: [[V-MINT2.0/notes/V-MINT2.0_supabase-er-diagram]]
 
 ## テーブル一覧
@@ -21,17 +21,17 @@ parent:
 
 | テーブル名 | 区分 | 追加タイミング | 説明 |
 |---|---|---|---|
-| `pe_store_settings` | マスタ | Phase 1 | 店舗別固定費・決済手数料率・固定給月報酬（改定履歴なし・フォールバック用） |
-| `pe_company_settings` | マスタ | Phase 1 | 全社共通費・社長代替時給（シングルトン `id=1`・フォールバック用） |
-| `pe_monthly_records` | トランザクション | Phase 1 | 月次実績（提供/物販売上・レガシー人件費・バイト/社長枠数） |
+| `pe_store_settings` | マスタ（フォールバック） | Phase 1 | 店舗別固定費・決済手数料率・固定給合計（改定履歴なし・旧系フォールバック用） |
+| `pe_company_settings` | マスタ（フォールバック） | Phase 1 | 全社共通費・社長代替時給（シングルトン `id=1`・旧系フォールバック用） |
+| `pe_benchmarks` | マスタ（フォールバック） | Phase 1 / Phase 7 再設計 | Health Check 目標値・5指標フラット（シングルトン `id=1`・旧系フォールバック用） |
+| `pe_store_settings_revisions` | マスタ（主系） | Phase 5+ | 店舗別固定費の改定履歴（`effective_from` ベース） |
+| `pe_company_settings_revisions` | マスタ（主系） | Phase 5+ | 全社共通費の改定履歴（`effective_from` ベース） |
+| `pe_benchmarks_revisions` | マスタ（主系） | Phase 5+ / Phase 7 拡張 | ベンチマーク目標値の改定履歴（5指標 FLR+2 を1行で管理） |
+| `pe_monthly_records` | トランザクション | Phase 1 / 複数回改修 | 月次実績（提供/物販売上・シフト枠数4列・レガシー人件費） |
 | `pe_monthly_company_records` | トランザクション | 人件費新方式（2026-05-20） | 全社月次変動人件費総額（`total_variable_payroll`）。`period_key` PK |
-| `pe_daily_sales_cache` | キャッシュ | Phase 7-2 | Airレジ日別売上（店舗×日付。事業月度計算で前月最終盤を保持） |
-| `pe_benchmarks` | マスタ | Phase 1 | Health Check 目標値（フラット・シングルトン `id=1`・フォールバック用） |
-| `pe_store_settings_revisions` | マスタ | Phase 5+ | 店舗別固定費の改定履歴（`effective_from` ベース） |
-| `pe_company_settings_revisions` | マスタ | Phase 5+ | 全社共通費の改定履歴（`effective_from` ベース） |
-| `pe_benchmarks_revisions` | マスタ | Phase 5+ | ベンチマーク目標値の改定履歴（5指標を1行で管理） |
+| `pe_daily_sales_cache` | キャッシュ | Phase 7-2（2026-05-18） | Airレジ日別売上（店舗×日付。事業月度計算で前月最終盤を保持） |
 | `pe_hrmos_staffs` | マスタ | HRMOS 取込（2026-05-25） | HRMOS スタッフマスタ（社員ID PK・display_name・role: fixed_salary/part_time/owner_ryo） |
-| `pe_hrmos_segments` | マスタ | HRMOS 取込（2026-05-25） | HRMOS 勤務区分マスタ（勤務区分ID PK・store_id・shift_type: early/middle/late/allin/misc・default_hours・is_payroll_target） |
+| `pe_hrmos_segments` | マスタ | HRMOS 取込（2026-05-25） | HRMOS 勤務区分マスタ（勤務区分ID PK・store_id・shift_type・default_hours・is_payroll_target） |
 | `pe_jp_holidays` | キャッシュ | HRMOS 取込（2026-05-25） | 日本国民の祝日キャッシュ（holiday_date PK）。holidays-jp API から取得 |
 | `pe_jp_holidays_meta` | メタ | HRMOS 取込（2026-05-25） | 祝日 API 取得状況（シングルトン `id=1`：last_fetched_at / last_fetch_status / last_fetch_error） |
 
@@ -52,37 +52,101 @@ parent:
 | `drink_orders` | ジュース発注額（ジュース原価） |
 | `cost_price_masters` | フレーバー・炭の単価（`effective_from` で期間解決） |
 
-> PL の物販フレーバー原価（`merchandise_sales × 89%`）と決済手数料（売上連動）は **DB ではなく `finance.js` で計算**。家賃・光熱・雑費は `pe_store_settings` からフロントで結合。
+> PL の物販フレーバー原価（`merchandise_sales × 89%`）と決済手数料（売上連動）は **DB ではなく `finance.js` で計算**。家賃・光熱・雑費は `pe_store_settings_revisions` → `pe_store_settings` フォールバックでフロントに結合。
 
 ## Mermaid ER
 
-`pe_*`（経営ダッシュボード）と V-MINT 参照（在庫・原価）を上下 2 段で表現。破線はアプリ層での論理参照（FK なし）。
+6 つのグループに分類。実線は DB FK、破線はアプリ層での論理参照（FK なし）。
 
 ```mermaid
 flowchart TD
-    subgraph PEACH["V-PEACH pe_*（書き込み）"]
+    subgraph PEACH_FB["V-PEACH マスタ（フォールバック用・旧系）"]
         PE_STORE["`**PE_STORE_SETTINGS**
         PK store_id→STORES
         fixed_rent / fixed_utilities
-        fixed_sundries / payment_fee_rate`"]
+        fixed_sundries / payment_fee_rate
+        fixed_salary_total`"]
 
         PE_COMPANY["`**PE_COMPANY_SETTINGS**
         PK id=1 CHECK
-        exec_remuneration / debt_repayment`"]
+        exec_remuneration / debt_repayment
+        ryo_hourly_rate`"]
 
+        PE_BENCH["`**PE_BENCHMARKS**
+        PK id=1 CHECK（フラット）
+        f_ratio / l_ratio / r_ratio
+        operating_profit_margin / labor_rate`"]
+    end
+
+    subgraph PEACH_REV["V-PEACH マスタ（改定履歴・主系）"]
+        PE_STORE_REV["`**PE_STORE_SETTINGS_REVISIONS**
+        PK id bigserial
+        FK store_id / UK effective_from YYYYMM
+        fixed_rent / fixed_utilities
+        fixed_sundries / payment_fee_rate
+        fixed_salary_total / note
+        UQ(store_id, effective_from)`"]
+
+        PE_COMPANY_REV["`**PE_COMPANY_SETTINGS_REVISIONS**
+        PK id bigserial
+        UK effective_from YYYYMM
+        exec_remuneration / debt_repayment
+        ryo_hourly_rate / note`"]
+
+        PE_BENCH_REV["`**PE_BENCHMARKS_REVISIONS**
+        PK id bigserial
+        UK effective_from YYYYMM
+        f_ratio / l_ratio / r_ratio
+        operating_profit_margin / labor_rate / note`"]
+    end
+
+    subgraph PEACH_TXN["V-PEACH トランザクション（月次）"]
         PE_MONTHLY["`**PE_MONTHLY_RECORDS**
         PK id uuid
         FK store_id / period_key YYYYMM
         service_sales / merchandise_sales
-        labor_cost / created_at / updated_at
+        labor_cost（旧・フォールバック）
+        part_time_slots_6h / part_time_slots_7_5h
+        ryo_slots_6h / ryo_slots_7_5h
         UQ(store_id, period_key)`"]
 
-        PE_BENCH["`**PE_BENCHMARKS**
+        PE_MONTHLY_CO["`**PE_MONTHLY_COMPANY_RECORDS**
+        PK period_key YYYYMM
+        total_variable_payroll`"]
+    end
+
+    subgraph PEACH_CACHE["V-PEACH キャッシュ"]
+        PE_DAILY["`**PE_DAILY_SALES_CACHE**
         PK id uuid
-        FK store_id nullable
-        item_name / target_value
-        is_percentage
-        UQ NULLS NOT DISTINCT(store_id, item_name)`"]
+        FK store_id / sale_date date
+        discount_amount / gross_sales
+        customer_count / raw_payload jsonb
+        UQ(store_id, sale_date)`"]
+    end
+
+    subgraph HRMOS_MASTER["HRMOS マスタ・祝日"]
+        PE_STAFFS["`**PE_HRMOS_STAFFS**
+        PK hrmos_staff_id int
+        display_name / account_name
+        role: fixed_salary/part_time/owner_ryo
+        FK default_store_id（任意）
+        joined_on / left_on`"]
+
+        PE_SEGMENTS["`**PE_HRMOS_SEGMENTS**
+        PK hrmos_segment_id int
+        segment_name
+        FK store_id（任意）
+        shift_type: early/middle/late/allin/misc
+        default_hours / is_payroll_target`"]
+
+        PE_HOLIDAYS["`**PE_JP_HOLIDAYS**
+        PK holiday_date date
+        holiday_name`"]
+
+        PE_HOLIDAYS_META["`**PE_JP_HOLIDAYS_META**
+        PK id=1 CHECK
+        last_fetched_at / last_fetch_status
+        last_fetch_error`"]
     end
 
     subgraph VMINT["V-MINT 2.0（読み取り専用）"]
@@ -93,13 +157,13 @@ flowchart TD
         COST_REPORTS["`**COST_REPORTS**
         PK id / FK store_id
         period_key / charcoal_*_serve
-        price_* snapshot / UQ(store_id,period_key)`"]
+        UQ(store_id,period_key)`"]
 
-        FLAVOR_BRAND_SALES["`**FLAVOR_BRAND_SALES**
+        FLAVOR["`**FLAVOR_BRAND_SALES**
         PK id / FK report_id
-        FK brand_id / total_consumption_g
-        merch_count / merch_count_secondary
-        grams_per_pack`"]
+        FK brand_id
+        total_consumption_g
+        merch_count / merch_count_secondary`"]
 
         DRINK_ORDERS["`**DRINK_ORDERS**
         PK id / FK store_id
@@ -108,54 +172,87 @@ flowchart TD
         COST_PRICE["`**COST_PRICE_MASTERS**
         PK id / UK effective_from
         price_flavor_per_g
-        price_charcoal_per_kg / price_hookah_*`"]
+        price_charcoal_per_kg`"]
     end
 
-    STORES -->|1:1| PE_STORE
-    STORES -->|1:N| PE_MONTHLY
-    STORES -.->|store_id nullable| PE_BENCH
+    STORES -->|1:1 FK| PE_STORE
+    STORES -->|1:N FK| PE_STORE_REV
+    STORES -->|1:N FK| PE_MONTHLY
+    STORES -->|1:N FK| PE_DAILY
+    STORES -.->|任意FK| PE_STAFFS
+    STORES -.->|任意FK| PE_SEGMENTS
 
     STORES -->|1:N| COST_REPORTS
-    COST_REPORTS -->|1:N CASCADE| FLAVOR_BRAND_SALES
+    COST_REPORTS -->|1:N CASCADE| FLAVOR
     STORES -->|1:N| DRINK_ORDERS
+
+    PE_STORE_REV -.->|フォールバック先| PE_STORE
+    PE_COMPANY_REV -.->|フォールバック先| PE_COMPANY
+    PE_BENCH_REV -.->|フォールバック先| PE_BENCH
 
     PE_MONTHLY -.->|store_id+period_key| COST_REPORTS
     PE_MONTHLY -.->|period_key| COST_PRICE
-    COST_REPORTS -.->|report_id| FLAVOR_BRAND_SALES
     PE_MONTHLY -.->|store_id+period_key| DRINK_ORDERS
+    PE_MONTHLY -.->|period_key| PE_MONTHLY_CO
+
+    PE_HOLIDAYS_META -.->|管理| PE_HOLIDAYS
 ```
 
 ## テーブル詳細 Notes
 
-### pe_store_settings（店舗別固定費）
+### pe_store_settings（店舗別固定費・フォールバック）
 - `store_id` が PK かつ `stores.id` への FK。1 店舗 1 行。
 - `payment_fee_rate` は UI では % 入力（例: 2.5）、DB は小数（例: 0.025）。PL では `totalSalesAfterTax × rate` で決済手数料を算出。
-- Phase 5 で `fixed_payment_fee`（固定額）と `physical_profit_margin` を削除。決済手数料は売上連動、物販原価は 89% 固定計算に移行。
+- `fixed_salary_total`（2026-05-20 追加）: 固定給スタッフの月次合計。`pe_store_settings_revisions` に有効行がある場合はそちらを優先。
+- Phase 5 で `fixed_payment_fee`（固定額）と `physical_profit_margin` を削除。
 
-### pe_company_settings（全社共通費）
-- `id = 1` のみ許可（`CHECK` 制約）。初期行はマイグレーションで `INSERT ... ON CONFLICT DO NOTHING`。
-- `exec_remuneration`（役員報酬）・`debt_repayment`（借入返済）は **全店舗合計 PL** のみ表示。店舗別 PL には按分しない設計。
-
-### pe_monthly_records（月次実績）
-- `period_key` は `YYYYMM` 整数（例: `202605`）。
-- 人件費新方式では枠数4列（`part_time_slots_6h/7_5h`・`ryo_slots_6h/7_5h`）が主体。`labor_cost` は過去月フォールバック用。
-- Phase 5 で `total_sales` → `service_sales` リネーム、`merchandise_sales` 追加。`rent` / `payment_fee` / `utilities` / `sundries` は削除（設定値・計算値へ移行）。
-- upsert キー: `(store_id, period_key)`。
-
-### pe_monthly_company_records（全社月次変動人件費・2026-05-20追加）
-- `period_key` PK（YYYYMM）。この行の存在が「新方式で計算可能か」の判定キー。
-- `total_variable_payroll`：当月の全店バイト給与＋交通費の総額。店舗ごとの重みつき枠数比率で按分して各店舗の変動人件費を算出。
+### pe_company_settings（全社共通費・フォールバック）
+- `id = 1` のみ許可（`CHECK` 制約）。シングルトン。
+- `exec_remuneration`（役員報酬）・`debt_repayment`（借入返済）は **全店舗合計 PL** のみ表示。店舗別 PL には按分しない。
+- `ryo_hourly_rate`（2026-05-20 追加）: 社長代替勤務の換算時給。シフト枠数 × 時間 × 本値で社長代替人件費を算出。
 
 ### pe_benchmarks（目標値・フォールバック）
-- フラット・シングルトン形式（`id=1` 固定）。5指標（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）。
+- フラット・シングルトン形式（`id=1` 固定）。5指標：`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`。
+- Phase 7（2026-05-18）で旧 EAV 形式（`item_name` / `target_value` / `is_percentage`）からフラット形式に再設計。
 - 現在は `pe_benchmarks_revisions` が主系。`pe_benchmarks` は `effective_from` 以前の旧月用フォールバック。
 
 ### pe_store_settings_revisions / pe_company_settings_revisions / pe_benchmarks_revisions（改定履歴・主系）
 - Phase 5+ で追加。設定値を `effective_from`（YYYYMM 整数）付きで複数バージョン管理する。
 - PL 計算時は `getActiveStoreSettings` / `getActiveCompanySettings` / `getActiveBenchmarks` が `effective_from <= periodKey` の最新行を取得し、行がなければ旧テーブルにフォールバック。
-- `pe_benchmarks_revisions` は **5指標**（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）を1行にフラット管理。2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。
+- `pe_benchmarks_revisions` は 2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。
 - `pe_store_settings_revisions` は 2026-05-20 に `fixed_salary_total` 列を追加。`pe_company_settings_revisions` は同日 `ryo_hourly_rate` 列を追加。
-- 設定 UI では「現在適用中」（最新行）と「改定履歴」（過去行一覧）を別段表示。現在適用中は2件以上ある場合のみ削除可能。
+- 設定 UI では「現在適用中」（最新行）と「改定履歴」（過去行一覧）を別段表示。
+
+### pe_monthly_records（月次実績）
+- `period_key` は `YYYYMM` 整数（例: `202605`）。upsert キー: `(store_id, period_key)`。
+- **人件費新方式（2026-05-20 以降）**: `part_time_slots_6h` / `part_time_slots_7_5h` / `ryo_slots_6h` / `ryo_slots_7_5h` の4列が主体。フロントが `pe_monthly_company_records.total_variable_payroll` × 各店舗枠数比率で変動人件費を按分。
+- `labor_cost` は過去月フォールバック用として保持。新方式が優先。
+- Phase 5 で `total_sales` → `service_sales` リネーム、`merchandise_sales` 追加。`rent` / `payment_fee` / `utilities` / `sundries` は削除（設定値・計算値へ移行）。
+
+### pe_monthly_company_records（全社月次変動人件費・2026-05-20 追加）
+- `period_key` PK（YYYYMM）。この行の存在が「新方式で計算可能か」の判定キー。
+- `total_variable_payroll`：当月の全店バイト給与＋交通費の総額。店舗ごとの加重枠数比率で按分して各店舗の変動人件費を算出。
+
+### pe_daily_sales_cache（Airレジ日別売上キャッシュ・Phase 7-2）
+- `(store_id, sale_date)` が UK。事業月度計算（前月後半〜当月前半）のため前月分も保持。
+- `discount_amount`: Airレジの割引額（正値）。事業月度売上から差し引き。
+- `gross_sales` / `customer_count` / `raw_payload`: 監査・デバッグ用（任意列）。
+- 不要な古い行は `deleteOldDailySalesCache` で削除。常時 90 行前後に収まる設計。
+
+### pe_hrmos_staffs（HRMOS スタッフマスタ・2026-05-25 追加）
+- `hrmos_staff_id`（整数）が PK。HRMOS CSV の社員 ID をそのまま使用。
+- `role`: `fixed_salary`（固定給）/ `part_time`（バイト）/ `owner_ryo`（社長代替）の3区分。CSV 取込時は自動判定不可なケースがあり UI で手動上書き可能。
+- `default_store_id`: 参考用（シフト枠按分は `pe_hrmos_segments.store_id` を優先）。
+
+### pe_hrmos_segments（HRMOS 勤務区分マスタ・2026-05-25 追加）
+- `hrmos_segment_id`（整数）が PK。HRMOS CSV の勤務区分 ID をそのまま使用。
+- `shift_type`: `early`（早番 6h）/ `middle`（中番 7.5h）/ `late`（遅番 6h）/ `allin`（通し 11.5h）/ `misc`（特殊・按分対象外）。
+- `is_payroll_target = false` の行（倉庫・会議・特殊枠）は変動人件費按分から除外。
+- `store_id` が NULL の区分は全店またがる特殊枠として扱う。
+
+### pe_jp_holidays / pe_jp_holidays_meta（祝日キャッシュ・2026-05-25 追加）
+- `pe_jp_holidays`: holidays-jp API から取得した祝日を `holiday_date` PK でキャッシュ。
+- `pe_jp_holidays_meta`: シングルトン（`id=1`）。最終取得日時・ステータスを管理。UI の「祝日更新」ボタンが叩くエンドポイントで更新。
 
 ### V-MINT 参照の結合（アプリ層）
 
@@ -191,7 +288,7 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `getCompanySettings` / `upsertCompanySettings` | `pe_company_settings` | 全社共通費（フォールバック用） |
 | `getActiveCompanySettings` | `pe_company_settings_revisions` → `pe_company_settings` | 期間に有効な全社共通費（主系） |
 | `getCompanySettingsRevisions` / `addCompanySettingsRevision` / `deleteCompanySettingsRevision` | `pe_company_settings_revisions` | 改定履歴 CRUD |
-| `getBenchmarks` / `upsertBenchmark` / `deleteBenchmark` | `pe_benchmarks` | ベンチマーク（旧方式） |
+| `getBenchmarks` / `upsertBenchmark` | `pe_benchmarks` | ベンチマーク（旧方式・フォールバック） |
 | `getActiveBenchmarks` | `pe_benchmarks_revisions` | 期間に有効なベンチマーク（主系） |
 | `getBenchmarksRevisions` / `addBenchmarksRevision` / `deleteBenchmarksRevision` | `pe_benchmarks_revisions` | 改定履歴 CRUD |
 | `getCostReportForPE` | `cost_reports`, `flavor_brand_sales`, `drink_orders` | PL 変動費（読み取り） |
@@ -203,10 +300,10 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `getDailySalesInRange(storeId, startDate, endDate)` | `pe_daily_sales_cache` | 日次売上キャッシュ範囲取得（事業月度計算用） |
 | `upsertDailySalesCache(rows)` | `pe_daily_sales_cache` | 日次売上キャッシュ upsert |
 | `deleteOldDailySalesCache(storeId, beforeDate)` | `pe_daily_sales_cache` | 古いキャッシュ削除（start_date より前） |
-| `getHrmosStaffs / upsertHrmosStaffs / updateHrmosStaffRole` | `pe_hrmos_staffs` | HRMOS スタッフマスタ CRUD（CSV取込時バルク upsert・ロール手動上書き） |
-| `getHrmosSegments / upsertHrmosSegments / updateHrmosSegment` | `pe_hrmos_segments` | HRMOS 勤務区分マスタ CRUD（自動判定不可レコードの手動上書き対応） |
-| `getJpHolidays(yearOrRange) / upsertJpHolidays(rows)` | `pe_jp_holidays` | 祝日キャッシュ参照・バルク upsert |
-| `getJpHolidaysMeta / updateJpHolidaysMeta` | `pe_jp_holidays_meta` | 祝日 API 最終取得状況の参照・更新 |
+| `getHrmosStaffs` / `upsertHrmosStaffs` / `updateHrmosStaffRole` | `pe_hrmos_staffs` | HRMOS スタッフマスタ CRUD（CSV 取込時バルク upsert・ロール手動上書き） |
+| `getHrmosSegments` / `upsertHrmosSegments` / `updateHrmosSegment` | `pe_hrmos_segments` | HRMOS 勤務区分マスタ CRUD（自動判定不可レコードの手動上書き対応） |
+| `getJpHolidays(yearOrRange)` / `upsertJpHolidays(rows)` | `pe_jp_holidays` | 祝日キャッシュ参照・バルク upsert |
+| `getJpHolidaysMeta` / `updateJpHolidaysMeta` | `pe_jp_holidays_meta` | 祝日 API 最終取得状況の参照・更新 |
 
 ## store_key 対応（UI ↔ DB）
 
@@ -215,6 +312,15 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `baba` | `baba_main` | `api.js` の `normalizeStoreKey` で変換 |
 | `nakano` | `nakano` | |
 | `baba_2nd` | `baba_2nd` | |
+
+## Row Level Security（RLS）
+
+全 `pe_*` テーブルに RLS 有効化（anon 全許可ポリシー）。URL 非公開・信頼ユーザー前提の内部ツール。
+
+```sql
+-- 全テーブル共通ポリシー
+ALLOW ALL TO anon USING (true) WITH CHECK (true);
+```
 
 ## Migration 履歴
 
@@ -225,9 +331,9 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 | `supabase/DB_MIGRATION_versioned_settings.sql` | Phase 5+: `pe_store_settings_revisions` / `pe_company_settings_revisions` / `pe_benchmarks_revisions` 追加。既存設定を `effective_from=202501` で移行 |
 | `supabase/DB_MIGRATION_enable_rls_20260517.sql` | Phase 5+: 全 `pe_*` テーブルで RLS を有効化（anon 全許可ポリシー） |
 | `supabase/DB_MIGRATION_benchmarks_flr_20260518.sql` | Phase 7: `pe_benchmarks_revisions` に `f_ratio` / `l_ratio` / `r_ratio` を追加 |
-| `supabase/DB_MIGRATION_benchmarks_restructure_20260518.sql` | Phase 7: `pe_benchmarks` をフラット・シングルトン形式に再設計 |
+| `supabase/DB_MIGRATION_benchmarks_restructure_20260518.sql` | Phase 7: `pe_benchmarks` を旧 EAV 形式からフラット・シングルトン形式に再設計 |
 | `supabase/DB_MIGRATION_daily_sales_cache_20260518.sql` | Phase 7-2: `pe_daily_sales_cache` 作成 |
-| `supabase/DB_MIGRATION_labor_cost_20260520.sql` | 人件費新方式: `pe_monthly_records` に枠数4列追加・`pe_monthly_company_records` 新設・`pe_store_settings` に `fixed_salary_total` 追加・`pe_company_settings` に `ryo_hourly_rate` 追加 |
+| `supabase/DB_MIGRATION_labor_cost_20260520.sql` | 人件費新方式: `pe_monthly_records` に枠数4列追加・`pe_monthly_company_records` 新設・`pe_store_settings` に `fixed_salary_total` 追加・`pe_company_settings` と両 revisions に `ryo_hourly_rate` 追加 |
 | `supabase/DB_MIGRATION_hrmos_masters_20260525.sql` | HRMOS シフト CSV 取込基盤: `pe_hrmos_staffs` / `pe_hrmos_segments` / `pe_jp_holidays` / `pe_jp_holidays_meta` を新規作成、RLS 有効化 |
 | `supabase/SEED_store_settings_defaults.sql` | フォールバック用デフォルト値投入（`pe_store_settings_revisions` 未適用期間の 0 落ち防止） |
 | `supabase/SEED_benchmarks_defaults_20260518.sql` | ベンチマーク 5 指標の初期値投入（`pe_benchmarks` シングルトン） |

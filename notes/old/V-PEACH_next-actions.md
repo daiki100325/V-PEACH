@@ -1,7 +1,8 @@
 ---
-tags: [project/v-peach, type/todo]
+tags: [project/v-peach, type/todo, archived]
 parent: [[V-PEACH/notes/_index]]
 updated: 2026-05-25
+status: archived — 2026-05-25 時点のスナップショット。以降の実装変更による更新不要。参照専用。
 ---
 
 # V-PEACH — Next Actions

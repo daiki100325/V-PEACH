@@ -1,6 +1,7 @@
 ---
-tags: [project/v-peach, type/note]
+tags: [project/v-peach, type/note, archived]
 parent: [[V-PEACH/notes/_index]]
+status: archived — 実装完了（Phase 5 売上・原価体系改修）。以降の実装変更による更新不要。参照専用。
 ---
 
 # V-PEACH — 売上・原価体系 改修計画

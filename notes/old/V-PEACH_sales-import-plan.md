@@ -1,8 +1,8 @@
 ---
-tags: [project/v-peach, type/note, type/plan]
+tags: [project/v-peach, type/note, type/plan, archived]
 parent: [[V-PEACH/notes/_index]]
 updated: 2026-05-18
-status: Phase 7-4 実装完了（Phase 7-5 dev確認中）
+status: archived — 実装完了（2026-05-25）。以降の実装変更による更新不要。参照専用。
 ---
 
 # V-PEACH — 売上データ自動取り込み（Airメイト / Airレジ）検討資料

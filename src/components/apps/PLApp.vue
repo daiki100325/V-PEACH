@@ -119,122 +119,195 @@
                     </div>
                 </div>
 
-                <!-- 売上セクション -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="px-4 py-3 bg-teal-50 border-b border-teal-100">
-                        <span class="text-xs font-bold text-teal-700 uppercase tracking-wider">売上</span>
-                    </div>
-                    <div class="divide-y divide-slate-50">
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-600">税込み総売上</span>
-                            <span class="text-sm font-bold text-slate-800">{{ fmt(displayPL.totalSales) }}</span>
+                <!-- 売上・原価・販管費（モバイルは項目列sticky＋横スクロール / デスクトップは flex-1 で全幅利用） -->
+                <div :class="isAllStores ? 'overflow-x-auto md:overflow-x-visible' : ''">
+                    <div :class="['space-y-4', isAllStores && 'min-w-[500px] pr-4 md:pr-0 md:min-w-0']">
+
+                        <!-- 売上セクション -->
+                        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <div :class="[...plRowClass({ bg: 'bg-teal-50 border-b border-teal-100', rounded: 'rounded-t-2xl' })]">
+                                <span :class="[...plLabelClass({ bg: 'teal' }), 'text-xs font-bold text-teal-700 uppercase tracking-wider']">売上</span>
+                                <template v-if="isAllStores">
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs font-bold text-slate-500 truncate']">{{ col.label }}</span>
+                                </template>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass(), 'text-sm text-slate-600']">税込み総売上</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-800' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.totalSales) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 提供売上</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.serviceSales) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 物販売上</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.merchandiseSales) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass({ py: 'py-2' })">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-xs text-slate-400']">− 消費税（1/11）</span>
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs text-slate-400']">
+                                        {{ fmt(col.pl?.consumptionTax) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass({ bg: 'bg-teal-50/40', rounded: 'rounded-b-2xl' })">
+                                    <span :class="[...plLabelClass({ bg: 'teal' }), 'text-sm font-bold text-slate-700']">税引き後総売上</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-teal-700' : 'text-teal-600']">
+                                        {{ fmt(col.pl?.totalSalesAfterTax) }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 提供売上</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.serviceSales) }}</span>
+
+                        <!-- 原価セクション -->
+                        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <div :class="plRowClass({ bg: 'bg-amber-50 border-b border-amber-100', rounded: 'rounded-t-2xl' })">
+                                <span :class="[...plLabelClass({ bg: 'amber' }), 'text-xs font-bold text-amber-700 uppercase tracking-wider']">原価</span>
+                                <template v-if="isAllStores">
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs font-bold text-slate-500 truncate']">{{ col.label }}</span>
+                                </template>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 提供FL原価</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.flavorCost) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 炭原価</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.charcoalCost) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— ジュース原価</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.drinkCost) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 物販FL原価</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.merchandiseFlavorCost) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass({ bg: 'bg-slate-50', rounded: 'rounded-b-2xl' })">
+                                    <span :class="[...plLabelClass({ bg: 'slate' }), 'text-sm font-bold text-slate-600']">粗利</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', plProfitColor(col.pl?.grossProfit, ci)]">
+                                        {{ fmt(col.pl?.grossProfit) }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 物販売上</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.merchandiseSales) }}</span>
+
+                        <!-- 販管費セクション -->
+                        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                            <div :class="plRowClass({ bg: 'bg-rose-50 border-b border-rose-100', rounded: 'rounded-t-2xl' })">
+                                <span :class="[...plLabelClass({ bg: 'rose' }), 'text-xs font-bold text-rose-700 uppercase tracking-wider']">販管費</span>
+                                <template v-if="isAllStores">
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs font-bold text-slate-500 truncate']">{{ col.label }}</span>
+                                </template>
+                            </div>
+                            <div class="divide-y divide-slate-50">
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 家賃</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.rent) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 人件費</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.laborCost) }}
+                                    </span>
+                                </div>
+                                <!-- 新方式（枠数按分）時のみ内訳を表示 -->
+                                <div v-if="displayPL.laborFixed != null" :class="plRowClass({ py: 'py-1.5' })">
+                                    <span :class="[...plLabelClass({ indent: 2 }), 'text-xs text-slate-400']">├ 固定給</span>
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs text-slate-500']">
+                                        {{ fmt(col.pl?.laborFixed) }}
+                                    </span>
+                                </div>
+                                <div v-if="displayPL.laborVariable != null" :class="plRowClass({ py: 'py-1.5' })">
+                                    <span :class="[...plLabelClass({ indent: 2 }), 'text-xs text-slate-400']">└ 変動費按分</span>
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs text-slate-500']">
+                                        {{ fmt(col.pl?.laborVariable) }}
+                                    </span>
+                                </div>
+                                <div v-if="displayPL.ryoOpportunityCost != null && displayPL.ryoOpportunityCost > 0"
+                                    :class="plRowClass({ py: 'py-1.5', bg: 'bg-amber-50/40' })">
+                                    <span :class="[...plLabelClass({ indent: 2, bg: 'amber' }), 'text-xs text-amber-600']">※ 代替コスト</span>
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs font-bold text-amber-700']">
+                                        {{ fmt(col.pl?.ryoOpportunityCost) }}
+                                    </span>
+                                </div>
+                                <div v-if="displayPL.laborRate != null" :class="plRowClass({ py: 'py-2', bg: 'bg-rose-50/50' })">
+                                    <span :class="[...plLabelClass({ indent: 1, bg: 'rose' }), 'text-xs text-rose-600']">労働分配率</span>
+                                    <span v-for="col in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-xs font-bold text-rose-600']">
+                                        {{ fmtPct(col.pl?.laborRate) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 決済手数料</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.paymentFee) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 光熱費</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.utilities) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass()">
+                                    <span :class="[...plLabelClass({ indent: 1 }), 'text-sm text-slate-500']">— 雑費</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', ci === 0 ? 'text-slate-700' : 'text-slate-400']">
+                                        {{ fmt(col.pl?.sundries) }}
+                                    </span>
+                                </div>
+                                <div :class="plRowClass({ bg: 'bg-slate-50', rounded: 'rounded-b-2xl' })">
+                                    <span :class="[...plLabelClass({ bg: 'slate' }), 'text-sm font-bold text-slate-600']">営業利益</span>
+                                    <span v-for="(col, ci) in displayColumns" :key="col.key"
+                                        :class="[...plValueClass(), 'text-sm font-bold', plProfitColor(col.pl?.operatingProfit, ci)]">
+                                        {{ fmt(col.pl?.operatingProfit) }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex justify-between px-4 py-2">
-                            <span class="text-xs text-slate-400 pl-3">− 消費税（1/11）</span>
-                            <span class="text-xs text-slate-400">{{ fmt(displayPL.consumptionTax) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3 bg-teal-50/40">
-                            <span class="text-sm font-bold text-slate-700">税引き後総売上</span>
-                            <span class="text-sm font-bold text-teal-700">{{ fmt(displayPL.totalSalesAfterTax) }}</span>
-                        </div>
+
                     </div>
                 </div>
 
-                <!-- 原価セクション -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="px-4 py-3 bg-amber-50 border-b border-amber-100">
-                        <span class="text-xs font-bold text-amber-700 uppercase tracking-wider">原価</span>
-                    </div>
-                    <div class="divide-y divide-slate-50">
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 提供フレーバー原価</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.flavorCost) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 炭原価</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.charcoalCost) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— ジュース原価</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.drinkCost) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 物販フレーバー原価</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.merchandiseFlavorCost) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3 bg-slate-50">
-                            <span class="text-sm font-bold text-slate-600">粗利</span>
-                            <span class="text-sm font-bold"
-                                :class="!plHasData ? 'text-slate-400' : displayPL.grossProfit >= 0 ? 'text-teal-600' : 'text-red-500'">
-                                {{ fmt(displayPL.grossProfit) }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 販管費セクション -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="px-4 py-3 bg-rose-50 border-b border-rose-100">
-                        <span class="text-xs font-bold text-rose-700 uppercase tracking-wider">販管費</span>
-                    </div>
-                    <div class="divide-y divide-slate-50">
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 家賃</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.rent) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 人件費</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.laborCost) }}</span>
-                        </div>
-                        <!-- 新方式（枠数按分）時のみ内訳を表示 -->
-                        <div v-if="displayPL.laborFixed != null" class="flex justify-between px-4 py-1.5">
-                            <span class="text-xs text-slate-400 pl-6">├ 固定給</span>
-                            <span class="text-xs text-slate-500">{{ fmt(displayPL.laborFixed) }}</span>
-                        </div>
-                        <div v-if="displayPL.laborVariable != null" class="flex justify-between px-4 py-1.5">
-                            <span class="text-xs text-slate-400 pl-6">└ 変動費按分</span>
-                            <span class="text-xs text-slate-500">{{ fmt(displayPL.laborVariable) }}</span>
-                        </div>
-                        <div v-if="displayPL.ryoOpportunityCost != null && displayPL.ryoOpportunityCost > 0"
-                            class="flex justify-between px-4 py-1.5 bg-amber-50/40">
-                            <span class="text-xs text-amber-600 pl-6">※ りょーさん代替コスト（参考・PL非計上）</span>
-                            <span class="text-xs font-bold text-amber-700">{{ fmt(displayPL.ryoOpportunityCost) }}</span>
-                        </div>
-                        <div v-if="displayPL.laborRate != null" class="flex justify-between px-4 py-2 bg-rose-50/50">
-                            <span class="text-xs text-rose-600 pl-3">労働分配率</span>
-                            <span class="text-xs font-bold text-rose-600">{{ fmtPct(displayPL.laborRate) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 決済手数料</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.paymentFee) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 光熱費</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.utilities) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3">
-                            <span class="text-sm text-slate-500 pl-3">— 雑費</span>
-                            <span class="text-sm font-bold text-slate-700">{{ fmt(displayPL.sundries) }}</span>
-                        </div>
-                        <div class="flex justify-between px-4 py-3 bg-slate-50">
-                            <span class="text-sm font-bold text-slate-600">営業利益</span>
-                            <span class="text-sm font-bold"
-                                :class="!plHasData ? 'text-slate-400' : displayPL.operatingProfit >= 0 ? 'text-teal-600' : 'text-red-500'">
-                                {{ fmt(displayPL.operatingProfit) }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 全社調整セクション（全社のみ） -->
+                <!-- 全社調整セクション（全社のみ・スクロールエリア外） -->
                 <div v-if="selectedStoreKey === 'all'" class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="px-4 py-3 bg-slate-800 border-b border-slate-700">
                         <span class="text-xs font-bold text-slate-200 uppercase tracking-wider">全社調整</span>
@@ -307,13 +380,13 @@ import {
     getMonthlyRecord, getStoreSettings, getCompanySettings,
     getActiveStoreSettings, getActiveCompanySettings, getActiveBenchmarks,
     getCostReportForPE, getCostPriceForPeriod, getCostReportDates,
-    getMonthlyCompanyRecord
+    getMonthlyCompanyRecord, getLatestPeriodKey
 } from '../../api.js'
 import {
     calcPL, calcVariableCostFromCostReport,
     calcRolling3MonthAvg, calcAnnualSum, formatJPY, formatPct
 } from '../../utils/finance.js'
-import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getNPrevPeriodKeys, getYearPeriodKeys } from '../../utils/periods.js'
+import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getNPrevPeriodKeys, getYearPeriodKeys, parsePeriodKey } from '../../utils/periods.js'
 import PLTrendChart from '../PLTrendChart.vue'
 
 const BENCHMARK_DEFS = [
@@ -350,7 +423,8 @@ export default {
             costPeriodPreview: [],
             loadingPreview: false,
             years: buildYearOptions(),
-            months: buildMonthOptions()
+            months: buildMonthOptions(),
+            storePLs: []
         }
     },
     computed: {
@@ -403,6 +477,32 @@ export default {
             if (this.selectedPeriodMode === 'annual') return `年次推移（直近12年）`
             // 月次・3ヶ月平均どちらも選択年の1〜12月トレンド
             return `月次推移（${this.selectedYear}年）`
+        },
+        isAllStores() {
+            return this.selectedStoreKey === 'all'
+        },
+        displayColumns() {
+            if (!this.isAllStores) {
+                return [{ key: 'single', label: null, pl: this.displayPL }]
+            }
+            return [
+                { key: 'all', label: '全店舗', pl: this.displayPL },
+                ...this.stores.map((s, i) => ({ key: s.key, label: s.name, pl: this.storePLs[i] ?? null }))
+            ]
+        }
+    },
+    async created() {
+        try {
+            const latestPk = await getLatestPeriodKey()
+            if (latestPk) {
+                const parsed = parsePeriodKey(latestPk)
+                if (parsed) {
+                    this.selectedYear = String(parsed.year)
+                    this.selectedMonth = String(parsed.month)
+                }
+            }
+        } catch {
+            // フォールバック: 当月のまま
         }
     },
     watch: {
@@ -417,6 +517,45 @@ export default {
     methods: {
         fmt(v) { return v == null ? '—' : formatJPY(v) },
         fmtPct(v) { return formatPct(v) },
+        // モバイル時の sticky 項目列＋スクロール、デスクトップでは項目列が flex-1 で空白を埋める
+        plRowClass(opts = {}) {
+            const { py = 'py-3', bg = null, rounded = null } = opts
+            const arr = ['flex items-center', py]
+            if (bg) arr.push(bg)
+            if (rounded) arr.push(rounded)
+            arr.push(this.isAllStores ? 'md:px-4' : 'px-4')
+            return arr
+        },
+        plLabelClass({ indent = 0, bg = 'white' } = {}) {
+            if (!this.isAllStores) {
+                const indentClass = ['', 'pl-3', 'pl-6'][indent] || ''
+                return indentClass ? ['flex-1', indentClass] : ['flex-1']
+            }
+            const mobilePad = ['pl-4', 'pl-7', 'pl-10'][indent] || 'pl-4'
+            const mobileBg = ({
+                white: 'bg-white',
+                teal: 'bg-teal-50',
+                slate: 'bg-slate-50',
+                rose: 'bg-rose-50',
+                amber: 'bg-amber-50'
+            })[bg] || 'bg-white'
+            const desktopPad = ['md:pl-0', 'md:pl-3', 'md:pl-6'][indent] || 'md:pl-0'
+            return [
+                'sticky left-0 z-10 shrink-0 w-[120px] pr-1',
+                mobilePad, mobileBg,
+                'md:static md:bg-transparent md:flex-1 md:w-auto md:shrink md:pr-0',
+                desktopPad
+            ]
+        },
+        plValueClass() {
+            if (!this.isAllStores) return ['text-right']
+            return ['shrink-0 w-[88px] pr-1 md:w-24 md:pl-3 md:pr-0 text-right']
+        },
+        plProfitColor(value, ci) {
+            if (!this.plHasData || value == null) return 'text-slate-400'
+            if (value >= 0) return ci === 0 ? 'text-teal-600' : 'text-teal-500'
+            return ci === 0 ? 'text-red-500' : 'text-red-400'
+        },
         formatDate(dateStr) {
             if (!dateStr) return '—'
             return dateStr.replace(/-/g, '/')
@@ -445,6 +584,7 @@ export default {
             if (!this.canLoad) return
             this.plLoading = true
             this.plResult = null
+            this.storePLs = []
             this.trendMonthly = []
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', 'PLを集計中...')
@@ -461,14 +601,16 @@ export default {
                     // トレンドは選択年の1〜12月（選択月の単月PLも同じprefetchから取得）
                     const yearPeriodKeys = getYearPeriodKeys(this.selectedYear)
                     const prefetched = await this.prefetchPeriods(yearPeriodKeys)
-                    const pl = await this.loadMonthlyPLCore(
+                    const rawMain = await this.loadMonthlyPLCore(
                         this.selectedStoreKey, this.periodKey, companySettings,
-                        prefetched.byPeriod[this.periodKey]
+                        prefetched.byPeriod[this.periodKey],
+                        { includeStorePLs: this.isAllStores }
                     )
                     const pls = await Promise.all(
                         yearPeriodKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
                     )
-                    this.plResult = pl
+                    this.plResult = this.isAllStores ? rawMain?.pl ?? null : rawMain
+                    if (this.isAllStores && rawMain?.storePLs) this.storePLs = rawMain.storePLs
                     this.trendMonthly = yearPeriodKeys.map((pk, i) => ({
                         label: `${pk % 100}月`,
                         pl: pls[i]
@@ -481,10 +623,19 @@ export default {
                     const allKeys = [...new Set([...yearPeriodKeys, ...last3Keys].map(String))].map(Number)
                     const prefetched = await this.prefetchPeriods(allKeys)
                     // 3ヶ月平均のPL
-                    const plResults = await Promise.all(
-                        last3Keys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                    const rawResults3 = await Promise.all(
+                        last3Keys.map(pk => this.loadMonthlyPLCore(
+                            this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk],
+                            { includeStorePLs: this.isAllStores }
+                        ))
                     )
+                    const plResults = rawResults3.map(r => this.isAllStores ? r?.pl ?? null : r)
                     this.plResult = calcRolling3MonthAvg(plResults)
+                    if (this.isAllStores) {
+                        this.storePLs = this.stores.map((s, si) =>
+                            calcRolling3MonthAvg(rawResults3.map(r => r?.storePLs?.[si] ?? null))
+                        )
+                    }
                     // トレンドは選択年の1〜12月
                     const pls = await Promise.all(
                         yearPeriodKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
@@ -507,10 +658,19 @@ export default {
                     const prefetched = await this.prefetchPeriods(allPeriodKeys)
                     // 選択年のPL
                     const selectedYearKeys = getYearPeriodKeys(this.selectedYear)
-                    const selectedMonthlyPLs = await Promise.all(
-                        selectedYearKeys.map(pk => this.loadMonthlyPLCore(this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk]))
+                    const rawMonthlyResults = await Promise.all(
+                        selectedYearKeys.map(pk => this.loadMonthlyPLCore(
+                            this.selectedStoreKey, pk, companySettings, prefetched.byPeriod[pk],
+                            { includeStorePLs: this.isAllStores }
+                        ))
                     )
+                    const selectedMonthlyPLs = rawMonthlyResults.map(r => this.isAllStores ? r?.pl ?? null : r)
                     this.plResult = calcAnnualSum(selectedMonthlyPLs)
+                    if (this.isAllStores) {
+                        this.storePLs = this.stores.map((s, si) =>
+                            calcAnnualSum(rawMonthlyResults.map(r => r?.storePLs?.[si] ?? null))
+                        )
+                    }
                     // 年次トレンド: 各年の年次合計PL
                     const yearlyTrend = []
                     for (const year of trendYears) {
@@ -560,7 +720,8 @@ export default {
 
         // 内部コア処理：prefetched が必須（呼び出し元で prefetchPeriods 済み前提）
         // companySettings は上位の loadPL で1回だけ取得したものを使う
-        async loadMonthlyPLCore(storeKey, periodKey, companySettings, prefetched) {
+        async loadMonthlyPLCore(storeKey, periodKey, companySettings, prefetched, opts = {}) {
+            const { includeStorePLs = false } = opts
             const isAll = storeKey === 'all'
             const targetStores = isAll ? this.stores.map(s => s.key) : [storeKey]
             const { companyRec, allStoreRecords } = prefetched
@@ -635,6 +796,7 @@ export default {
             summed.fRatio = summed.totalSalesAfterTax > 0 ? summed.costTotal / summed.totalSalesAfterTax : null
             summed.lRatio = summed.totalSalesAfterTax > 0 ? summed.laborCost / summed.totalSalesAfterTax : null
             summed.rRatio = summed.totalSalesAfterTax > 0 ? summed.rent / summed.totalSalesAfterTax : null
+            if (includeStorePLs) return { pl: summed, storePLs: storeResults }
             return summed
         }
     }
