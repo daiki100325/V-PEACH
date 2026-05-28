@@ -1,5 +1,10 @@
 # CHANGELOG_DEV
 
+## 2026-05-28
+- What: `notes/V-PEACH_history.md` を更新。V-MINT 2.0 リリース後の主なアップデート（4.6 節）を追加（管理者画面拡張・単位原価マスタ参照型刷新・RLS 有効化・原価計算 UX 改善）し、移行ロードマップ全体像を 4.7 にリナンバー。Phase 番号が未付与だった 2026-05-21 以降の3項目（人件費新方式・CSV アップロード UI 統合・HRMOS シフト CSV 取込）を Phase 8 / 9 / 10 として整理し、タイムラインも揃えた
+- Why: V-MINT2.0 側の文書同期に合わせて V-PEACH 側でも整合を取り、V-PEACH 開発期間中に並行していた V-MINT 2.0 の改善も追跡できるようにするため。後半 Phase が無番号のままだと進捗の俯瞰がしにくかったため
+- Files: `notes/V-PEACH_history.md`
+
 ## 2026-05-26
 - What: 経営PL「全店舗合計」のレスポンシブ表示を全面刷新。`plRowClass`/`plLabelClass`/`plValueClass`/`plProfitColor` 共通メソッドに集約。カードの `overflow-hidden` を除去しヘッダー/最終行に個別 `rounded-t-2xl`/`rounded-b-2xl` を付与（sticky が親 `overflow-hidden` でブロックされる問題を解消）。モバイルは項目列 `w-[120px] sticky`＋拠点列 `w-[88px]`、デスクトップは `md:flex-1` で項目列が広がり右側を目一杯使用
 - Why: 1) stickyが効いていなかった 2) デスクトップで左側に空白ができていた 3) モバイルで列間が広すぎた
