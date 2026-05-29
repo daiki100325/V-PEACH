@@ -1044,10 +1044,14 @@ export default {
             this.holRefreshing = true
             try {
                 const result = await forceRefreshHolidays()
-                await this.reloadHolidays()
                 if (result.status === 'failed') {
                     alert(`祝日 API の取得に失敗しました: ${result.error}\nキャッシュは保持されます。`)
                 }
+                // reload もネットワーク断で失敗しうるので飲み込む（UI 表示は次回読込で更新）
+                await this.reloadHolidays().catch(() => { /* 無視 */ })
+            } catch (err) {
+                // 想定外の例外も最後の保険として alert
+                alert(`祝日 API の取得に失敗しました: ${err?.message || err}\nキャッシュは保持されます。`)
             } finally {
                 this.holRefreshing = false
             }

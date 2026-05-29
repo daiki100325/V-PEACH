@@ -31,8 +31,8 @@ PLは**上から下へ足し引きしながら利益に落ちていく入れ子*
 
 | # | 項目 | 演算 | 入力／自動 | 店舗 | 全社 |
 |:---:|------|-----:|------------|:---:|:---:|
-| ① | 提供売上（税込） | — | 月次手入力（必須） | ○ | ○ |
-| ② | 物販売上（税込） | — | 月次手入力（任意・空欄=0） | ○ | ○ |
+| ① | 提供売上（税込） | — | CSV インポート（Airメイト・割引後） | ○ | ○ |
+| ② | 物販売上（税込） | — | CSV インポート（Airメイト） | ○ | ○ |
 | ③ | 税込み総売上 | ① + ② | 自動 | ○ | ○ |
 | ④ | 消費税相当 | ③ ÷ 11 | 自動（控除） | ○ | ○ |
 | ⑤ | **税引き後総売上** | ③ − ④ | 自動 | ○ | ○ |
@@ -55,7 +55,7 @@ PLは**上から下へ足し引きしながら利益に落ちていく入れ子*
 | # | 項目 | 演算 | 入力／自動 | 店舗 | 全社 |
 |:---:|------|-----:|------------|:---:|:---:|
 | ⑫ | 家賃 | — | 店舗設定（固定） | ○ | ○ |
-| ⑬ | 人件費 | — | **HRMOS シフト CSV → 枠数自動算出**（画面A/B に反映）+ 給与総額（画面C 手入力）で算出。新方式未入力月はレガシー手入力値にフォールバック | ○ | ○ |
+| ⑬ | 人件費 | — | **HRMOS シフト CSV → 枠数自動算出**（画面A/B に反映）+ 給与総額（画面C 手入力）で算出 | ○ | ○ |
 | ⑭ | 決済手数料 | ⑤ × 設定料率 | 自動（売上連動） | ○ | ○ |
 | ⑮ | 光熱費 | — | 店舗設定（固定） | ○ | ○ |
 | ⑯ | 雑費 | — | 店舗設定（固定） | ○ | ○ |
@@ -245,7 +245,7 @@ PL中段に常時表示されるサマリー指標。すべて **税引き後総
 #### CSV インポートモード（通常運用）
 
 ```
-Step 0: 年・月選択 + モード切替（CSV / 手入力）
+Step 0: 年・月選択
 Step 1: Airメイト CSV + Airレジ CSV アップロード（3店舗 × 各1ボックス）
 Step 2: 売上プレビュー確認（割引前/後・物販・前月キャッシュ参照日数）
 Step 3: HRMOS シフト CSV アップロード【任意・通常ここで自動化】
@@ -257,17 +257,7 @@ Step 6（画面C）: 全店バイト給与＋交通費合計 手入力【月1マ
 Step 7: 確認・保存
 ```
 
-**シフト CSV を使わない場合**：Step 3 をスキップ → 画面A/B で手動入力（過去月修正・CSV 障害時のフォールバック）。
-
-#### 手入力モード（過去月修正・フォールバック）
-
-| 項目 | 必須/任意 |
-|------|----------|
-| 提供売上（税込） | 必須 |
-| 物販売上（税込） | 任意（空欄=0） |
-| バイト枠数 6h / 7.5h（画面A）| 必須 |
-| りょーさん枠数 6h / 7.5h（画面B）| 任意 |
-| バイト給与＋交通費総額（画面C）| 必須 |
+**シフト CSV を使わない場合**：Step 3 をスキップ → 画面A/B で直接手入力（既存値は保持）。
 
 #### 人件費の算出式
 
@@ -339,13 +329,12 @@ Step 7: 確認・保存
 
 | 数値 | 入力元 | 備考 |
 |------|--------|------|
-| `service_sales` | CSV インポートモード：Airメイト CSV から自動算出 / 手入力モード：月次手入力（必須） | 提供売上（税込） |
-| `merchandise_sales` | CSV インポートモード：Airメイト CSV から自動算出 / 手入力モード：月次手入力（任意） | 物販売上（税込）。空欄=0 |
+| `service_sales` | Airメイト CSV から自動算出（割引後） | 提供売上（税込） |
+| `merchandise_sales` | Airメイト CSV から自動算出 | 物販売上（税込）。空欄=0 |
 | `part_time_slots_6h/7_5h` | **HRMOS シフト CSV → `calcSlotsFromShifts` で自動算出 → 画面A で確認・修正** / シフト CSV 未使用時は画面A で直接手入力 | バイトが埋めた枠数（role='part_time'）。重みつき按分の分子 |
 | `ryo_slots_6h/7_5h` | **HRMOS シフト CSV → 「埋まっていない早/遅番」を自動算出 → 画面B で確認・修正** / シフト CSV 未使用時は画面B で直接手入力（任意） | 社長が埋めた枠数（推定）。機会費用参考用・PL非計上 |
 | `total_variable_payroll` | InputApp 画面C（月次手入力・必須）→ `pe_monthly_company_records` | 全店バイト給与＋交通費総額。HRMOS 給与画面の合計額を1マス入力 |
-| `labor_cost` | 過去月（新方式未入力）のレガシーフォールバック値 | `pe_monthly_company_records` 行なし月のみ参照 |
-| `fixed_salary_total` | `pe_store_settings_revisions`（設定値・各店舗固定給合計） | 人件費新方式の固定給按分元 |
+| `fixed_salary_total` | `pe_store_settings_revisions`（設定値・各店舗固定給合計） | 人件費按分の固定給元 |
 | `ryo_hourly_rate` | `pe_company_settings_revisions`（設定値・社長代替時給） | 既定 ¥1,300/h |
 | `fixed_rent` | `pe_store_settings`（設定値固定） | 月次入力なし |
 | `fixed_utilities` | `pe_store_settings`（設定値固定） | 月次入力なし |
@@ -378,17 +367,14 @@ Step 7: 確認・保存
 【粗利】
   grossProfit          = totalSalesAfterTax - costTotal
 
-【人件費（新方式 / レガシーフォールバック）】
-  if pe_monthly_company_records の period_key 行あり（新方式）:
-    storeWeightedSlots = 6.0 × part_time_slots_6h + 7.5 × part_time_slots_7_5h
-    totalWeightedSlots = 全店舗の storeWeightedSlots 合計
-    laborFixed         = fixed_salary_total                （店舗設定・担当メンバー固定給）
-    laborVariable      = totalVariablePayroll × storeWeightedSlots / totalWeightedSlots
-    laborCost          = laborFixed + laborVariable
-    ryoOpportunityCost = ryoHourlyRate × (6.0 × ryo_slots_6h + 7.5 × ryo_slots_7_5h)  （参考・PL非計上）
-  else（レガシー）:
-    laborCost          = pe_monthly_records.labor_cost
-    laborFixed = laborVariable = ryoOpportunityCost = null
+【人件費（全社共通変動費 × 店舗枠数按分 + 固定給）】
+  pe_monthly_company_records の period_key 行がない月は PL 計算対象外（データなし扱い）
+  storeWeightedSlots = 6.0 × part_time_slots_6h + 7.5 × part_time_slots_7_5h
+  totalWeightedSlots = 全店舗の storeWeightedSlots 合計
+  laborFixed         = fixed_salary_total                （店舗設定・担当メンバー固定給）
+  laborVariable      = totalVariablePayroll × storeWeightedSlots / totalWeightedSlots
+  laborCost          = laborFixed + laborVariable
+  ryoOpportunityCost = ryoHourlyRate × (6.0 × ryo_slots_6h + 7.5 × ryo_slots_7_5h)  （参考・PL非計上）
 
 【販管費（店舗帰属コストのみ）】
   rent                 = pe_store_settings.fixed_rent

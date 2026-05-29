@@ -726,21 +726,19 @@ export default {
             const targetStores = isAll ? this.stores.map(s => s.key) : [storeKey]
             const { companyRec, allStoreRecords } = prefetched
 
-            // 新方式人件費パラメータ：pe_monthly_company_records の当月行があれば構築、なければ
-            // laborParams=null として record.labor_cost にフォールバック（過去月互換）
-            let laborParams = null
-            if (companyRec) {
-                const totalWeightedSlots = allStoreRecords.reduce((sum, r) => {
-                    if (!r) return sum
-                    return sum
-                        + 6.0 * Number(r.part_time_slots_6h || 0)
-                        + 7.5 * Number(r.part_time_slots_7_5h || 0)
-                }, 0)
-                laborParams = {
-                    totalVariablePayroll: Number(companyRec.total_variable_payroll) || 0,
-                    totalWeightedSlots,
-                    ryoHourlyRate: Number(companySettings?.ryo_hourly_rate) || 1300
-                }
+            // pe_monthly_company_records がない月はデータなしとして扱う
+            if (!companyRec) return null
+
+            const totalWeightedSlots = allStoreRecords.reduce((sum, r) => {
+                if (!r) return sum
+                return sum
+                    + 6.0 * Number(r.part_time_slots_6h || 0)
+                    + 7.5 * Number(r.part_time_slots_7_5h || 0)
+            }, 0)
+            const laborParams = {
+                totalVariablePayroll: Number(companyRec.total_variable_payroll) || 0,
+                totalWeightedSlots,
+                ryoHourlyRate: Number(companySettings?.ryo_hourly_rate) || 1300
             }
 
             // 早期 return：対象店舗のレコードがなければ計算しない（CostReport/Settings 取得もスキップ）

@@ -81,7 +81,7 @@ parent: [[V-PEACH/notes/_index]]
 - `DB_MIGRATION_daily_sales_cache_20260518.sql`・`SEED_daily_sales_cache_202512.sql` を Supabase に投入
 
 ### ✅ Phase 7-3 / 7-4：フロント実装・Supabase 連携（2026-05-18 完了）
-- `InputApp.vue` に CSV/手入力タブ切替を追加（デフォルト = CSV）
+- `InputApp.vue` に CSV インポートモードを追加（手入力モードは後に廃止 → 2026-05-30）
 - `csvImporter.js`（Airメイト・Airレジ CSV パーサ・ヘッダー内容で種別自動判定）
 - プレビュー画面（割引前/後・割引総額・前月キャッシュ参照日数）
 - `pe_daily_sales_cache` upsert + `upsertMonthlyRecord` + 古いキャッシュ削除のフローが通る
@@ -94,8 +94,8 @@ parent: [[V-PEACH/notes/_index]]
 - `DB_MIGRATION_labor_cost_20260520.sql` 適用済み（`pe_monthly_records` 枠数4列・`pe_monthly_company_records` 新設・`fixed_salary_total` / `ryo_hourly_rate` 追加）
 - `finance.js`：`calcWeightedSlots` / `calcStoreLaborCost` / `calcRyoOpportunityCost` を追加。`calcPL` に `laborParams` 引数を追加し新方式／レガシーフォールバックを切り替え
 - `SettingsApp.vue`：店舗別固定費に「所属固定給月報酬」・全社共通費に「社長代替時給」入力欄を追加
-- `InputApp.vue`：手入力／CSV 両モードで人件費3画面（A：バイト枠数・B：りょーさん枠数・C：給与+交通費総額）を追加。旧 `labor_cost` 直接入力を撤去
-- `PLApp.vue`：⑬人件費に「固定給／変動費按分」サブ行 + 「りょーさん代替コスト（参考）」表示。新方式未入力月はレガシー表示でフォールバック
+- `InputApp.vue`：人件費3画面（A：バイト枠数・B：りょーさん枠数・C：給与+交通費総額）を追加。旧 `labor_cost` 直接入力を撤去
+- `PLApp.vue`：⑬人件費に「固定給／変動費按分」サブ行 + 「りょーさん代替コスト（参考）」表示
 
 ### ✅ PLApp N+1 削減（2026-05-21 完了）
 - `prefetchPeriods(periodKeys)` を新設し `pe_monthly_company_records` と全店 `pe_monthly_records` をバッチ取得

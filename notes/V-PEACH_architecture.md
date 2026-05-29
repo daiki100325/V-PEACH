@@ -48,7 +48,7 @@ V-PEACH/
 │       ├── PLTrendChart.vue # 月次推移チャート（カテゴリー別トグル・二重Y軸）
 │       └── apps/
 │           ├── PLApp.vue        # (1) PLモード（シングルページ・FLR比サマリー・人件費内訳表示・prefetchPeriods N+1削減）
-│           ├── InputApp.vue     # (2) 月次入力モード（CSV/手入力タブ・人件費3画面A/B/C・Step 0 プレビュー付き）
+│           ├── InputApp.vue     # (2) 月次入力モード（CSV インポート 6 ステップ・人件費プレビュー統合・既存月再編集モード）
 │           └── SettingsApp.vue  # (3) 設定モード（バージョン管理・改定履歴・固定給月報酬/社長時給設定）
 ├── supabase/
 │   ├── DB_MIGRATION.sql                            # Phase 1: pe_* 4テーブル作成
@@ -100,15 +100,14 @@ CREATE TABLE pe_monthly_records (
   period_key integer NOT NULL,              -- YYYYMM
   service_sales numeric DEFAULT 0,          -- 提供売上（税込）
   merchandise_sales numeric DEFAULT 0,      -- 物販売上（税込）
-  labor_cost numeric DEFAULT 0,             -- レガシー人件費（新方式の過去月フォールバック用）
-  part_time_slots_6h numeric DEFAULT 0,     -- バイトが埋めた 6h 枠数（人件費新方式）
+  part_time_slots_6h numeric DEFAULT 0,     -- バイトが埋めた 6h 枠数（人件費按分）
   part_time_slots_7_5h numeric DEFAULT 0,   -- バイトが埋めた 7.5h 枠数（人件費新方式）
   ryo_slots_6h numeric DEFAULT 0,           -- 社長が埋めた 6h 枠数（機会費用参考用）
   ryo_slots_7_5h numeric DEFAULT 0,         -- 社長が埋めた 7.5h 枠数（機会費用参考用）
   UNIQUE(store_id, period_key)
 );
 ```
-> 旧 `total_sales` は `service_sales` にリネーム。`rent` / `payment_fee` / `utilities` / `sundries` は廃止（設定値・計算値に移行）。`labor_cost` は過去月参照用として残存。新方式では `pe_monthly_company_records` の `total_variable_payroll` と枠数列から計算。
+> 旧 `total_sales` は `service_sales` にリネーム。`rent` / `payment_fee` / `utilities` / `sundries` / `labor_cost` は廃止（設定値・計算値に移行）。人件費は `pe_monthly_company_records` の `total_variable_payroll` と枠数列から常に計算。
 
 ### pe_monthly_company_records（全社月次変動人件費・2026-05-20追加）
 ```sql
@@ -117,7 +116,7 @@ CREATE TABLE pe_monthly_company_records (
   total_variable_payroll numeric DEFAULT 0  -- 当月の全店バイト給与＋交通費の総額
 );
 ```
-> `pe_monthly_records` は店舗×月の粒度。全社単位の月次変動人件費総額（按分の分母に使う）は本テーブルに分離。`period_key` の行が存在するかで新方式／レガシーフォールバックを切り替える。
+> `pe_monthly_records` は店舗×月の粒度。全社単位の月次変動人件費総額（按分の分母に使う）は本テーブルに分離。`period_key` 行が存在しない月は PL 計算対象外（データなし）として扱う。
 
 ### pe_daily_sales_cache（日次売上キャッシュ・Phase 7-2追加）
 ```sql
@@ -196,7 +195,6 @@ CREATE TABLE pe_benchmarks_revisions (
 | **人件費（新方式）** | `fixed_salary_total + totalVariablePayroll × storeWeightedSlots / allWeightedSlots` |
 | **重みつき枠数** | `6.0 × slots6h + 7.5 × slots7_5h` |
 | **社長代替コスト（参考）** | `ryoHourlyRate × (6.0 × ryoSlots6h + 7.5 × ryoSlots7_5h)` |
-| 人件費（レガシー） | `record.labor_cost`（`pe_monthly_company_records` 行なし月のフォールバック） |
 | 販管費合計 | `rent + laborCost + paymentFee + utilities + sundries`（全社のみ役員報酬を後段に別出し）|
 | 営業利益 | `grossProfit − sgaTotal` |
 | 純現金収支 | `operatingProfit − execRemuneration − debtRepayment`（全社のみ）|
@@ -206,7 +204,7 @@ CREATE TABLE pe_benchmarks_revisions (
 | **R比** | `rent / totalSalesAfterTax` |
 
 ### 主要関数
-- `calcPL(record, settings, variableCosts, companySettings, laborParams)` — PL計算メイン。`laborParams` が `null` のとき `record.labor_cost` にフォールバック
+- `calcPL(record, settings, variableCosts, companySettings, laborParams)` — PL計算メイン。`laborParams` 必須（`pe_monthly_company_records` 行がない月は呼び出し元で null return する）
 - `calcWeightedSlots({ slots6h, slots7_5h })` — 重みつき枠数
 - `calcStoreLaborCost({ fixedSalaryTotal, storeWeightedSlots, totalWeightedSlots, totalVariablePayroll })` — 店舗人件費
 - `calcRyoOpportunityCost({ ryoSlots6h, ryoSlots7_5h, ryoHourlyRate })` — 社長代替コスト（参考値）

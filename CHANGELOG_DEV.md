@@ -1,5 +1,28 @@
 # CHANGELOG_DEV
 
+## 2026-05-30
+- What: 月次入力の人件費フローを CSV 専用化。シフト CSV 取込を必須化し、画面A（バイト枠）・画面B（りょーさん枠）の手入力を廃止して 1 枚の読み取り専用「人件費プレビュー」に統合。Step 構成を 7 → 6 ステップに削減（売上CSV → 売上プレビュー → シフトCSV → 人件費プレビュー → 総額入力 → 確認）。当月の人件費＋交通費総額のみ現行通り手入力を維持
+- What: 売上・シフトとも「既存月の再編集モード」を追加。全店の `pe_monthly_records` が揃った月を選ぶと自動認識し、CSV 未アップロードでも DB 既存値で進行可能に。各 CSV ステップに「DB既存値を使用中」インラインバナーを表示。新規月は CSV 必須を維持
+- What: `submitCsv()` を DB 値フォールバック対応に変更。CSV 未アップロード店舗は `pe_daily_sales_cache` の upsert と古いキャッシュ削除をスキップ
+- Why: 売上は CSV 一本化済みだったが、人件費枠数は手入力のままで HRMOS シフト CSV は任意扱い。実運用では毎月 CSV 取込しているため任意性は不要で、誤入力リスクを減らすために読み取り専用プレビューに統合。再編集時は CSV を持っていないケースが多いため、既存月のみ DB 値で進行できる救済策を追加
+- Files: `src/components/apps/InputApp.vue`, `notes/V-PEACH_requirements.md`, `notes/V-PEACH_history.md`, `notes/V-PEACH_release-plan.md`, `notes/V-PEACH_how-to-use.md`, `notes/V-PEACH_test-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## 2026-05-30
+- What: 月次入力の手入力モードを完全廃止。売上入力を CSV インポートに一本化。`InputApp.vue` から `startManualEntry()`・`submitManual()`・`inputMode` ウォッチャー・手入力 UI・`storeData` を削除。テスト計画の INP 項目を整理（手入力専用 INP-01〜05/07 を削除、残存 INP は Step 0 と人件費画面のみ）。設計ドキュメント（finance-spec・requirements・architecture・history・release-plan・supabase-er-diagram）の手入力モード記述を一掃
+- Why: 売上データは Airメイト/Airレジ CSV から取得する運用に統一したため。手入力は手順が多くエラーリスクが高く、今後使用しない
+- Files: `src/components/apps/InputApp.vue`, `notes/V-PEACH_test-plan.md`, `notes/V-PEACH_finance-spec.md`, `notes/V-PEACH_requirements.md`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_history.md`, `notes/V-PEACH_release-plan.md`, `notes/V-PEACH_supabase-er-diagram.md`
+
+- What: 祝日マスタ「いま再取得する」のネットワーク断耐性を3段階で修正。①10秒タイムアウト ②catch 内のメタ更新失敗を飲み込み ③`onRefreshHolidays()` で alert を `reloadHolidays()` より前に移動し reload 失敗も飲み込み
+- Why: 断時に複数の Supabase 呼び出しが連鎖失敗し alert に到達しなかった（SET-15 で発見）
+- Files: `src/utils/jpHolidaysClient.js`, `src/components/apps/SettingsApp.vue`, `TROUBLESHOOTING.md`
+
+## 2026-05-29
+- What: `labor_cost` フォールバック方式を廃止。`pe_monthly_company_records` 行がない月は PL 計算対象外（データなし）として扱うよう変更
+- Why: 全月 `pe_monthly_company_records` を必須入力する運用方針に統一したため。レガシーフォールバックはコードの分岐を増やすだけで今後使われない
+- Files: `src/utils/finance.js`, `src/components/apps/PLApp.vue`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_finance-spec.md`, `notes/V-PEACH_test-plan.md`
+- Related: [[V-PEACH/DECISIONS]]
+
 ## 2026-05-28
 - What: `notes/V-PEACH_history.md` を更新。V-MINT 2.0 リリース後の主なアップデート（4.6 節）を追加（管理者画面拡張・単位原価マスタ参照型刷新・RLS 有効化・原価計算 UX 改善）し、移行ロードマップ全体像を 4.7 にリナンバー。Phase 番号が未付与だった 2026-05-21 以降の3項目（人件費新方式・CSV アップロード UI 統合・HRMOS シフト CSV 取込）を Phase 8 / 9 / 10 として整理し、タイムラインも揃えた
 - Why: V-MINT2.0 側の文書同期に合わせて V-PEACH 側でも整合を取り、V-PEACH 開発期間中に並行していた V-MINT 2.0 の改善も追跡できるようにするため。後半 Phase が無番号のままだと進捗の俯瞰がしにくかったため

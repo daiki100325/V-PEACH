@@ -67,15 +67,14 @@ export function calcVariableCostFromCostReport(costReport, priceFlavorPerG, pric
 
 /**
  * PL計算メイン関数
- * @param {Object} record - pe_monthly_records行 {service_sales, merchandise_sales, labor_cost, part_time_slots_6h, ...}
+ * @param {Object} record - pe_monthly_records行 {service_sales, merchandise_sales, part_time_slots_6h, ...}
  * @param {Object} settings - pe_store_settings行 {fixed_rent, fixed_utilities, fixed_sundries, payment_fee_rate, fixed_salary_total}
  * @param {Object} variableCosts - {flavorCost, charcoalCost, drinkCost}
  * @param {Object|null} companySettings - {exec_remuneration, debt_repayment, ryo_hourly_rate}（全社集計時のみ）
- * @param {Object|null} laborParams - 新方式人件費パラメータ {totalVariablePayroll, totalWeightedSlots, ryoHourlyRate?}
- *   laborParams が null のとき record.labor_cost にフォールバック（過去月互換）
- *   ryoHourlyRate を laborParams で渡せば、companySettings を渡さない店舗別calcPLでも社長代替コストを算出できる
+ * @param {Object} laborParams - 人件費パラメータ {totalVariablePayroll, totalWeightedSlots, ryoHourlyRate?}
+ *   ryoHourlyRate を渡せば、companySettings を渡さない店舗別calcPLでも社長代替コストを算出できる
  */
-export function calcPL(record, settings, variableCosts, companySettings = null, laborParams = null) {
+export function calcPL(record, settings, variableCosts, companySettings = null, laborParams) {
   const n = (v) => Number(v) || 0
 
   // 売上
@@ -95,34 +94,26 @@ export function calcPL(record, settings, variableCosts, companySettings = null, 
   // 粗利
   const grossProfit = totalSalesAfterTax - costTotal
 
-  // 人件費（新方式: 枠数按分 or レガシー: 直接入力フォールバック）
-  let laborCost, laborFixed, laborVariable, ryoOpportunityCost
-  if (laborParams) {
-    const storeSlots = calcWeightedSlots({
-      slots6h: record?.part_time_slots_6h,
-      slots7_5h: record?.part_time_slots_7_5h
-    })
-    const lc = calcStoreLaborCost({
-      fixedSalaryTotal: settings?.fixed_salary_total,
-      storeWeightedSlots: storeSlots,
-      totalWeightedSlots: laborParams.totalWeightedSlots,
-      totalVariablePayroll: laborParams.totalVariablePayroll
-    })
-    laborFixed = lc.fixed
-    laborVariable = lc.variable
-    laborCost = lc.total
-    const ryoRate = laborParams.ryoHourlyRate ?? companySettings?.ryo_hourly_rate ?? 1300
-    ryoOpportunityCost = calcRyoOpportunityCost({
-      ryoSlots6h: record?.ryo_slots_6h,
-      ryoSlots7_5h: record?.ryo_slots_7_5h,
-      ryoHourlyRate: ryoRate
-    })
-  } else {
-    laborCost = n(record?.labor_cost)
-    laborFixed = null
-    laborVariable = null
-    ryoOpportunityCost = null
-  }
+  // 人件費（全社共通変動費 × 店舗枠数按分 + 固定給）
+  const storeSlots = calcWeightedSlots({
+    slots6h: record?.part_time_slots_6h,
+    slots7_5h: record?.part_time_slots_7_5h
+  })
+  const lc = calcStoreLaborCost({
+    fixedSalaryTotal: settings?.fixed_salary_total,
+    storeWeightedSlots: storeSlots,
+    totalWeightedSlots: laborParams.totalWeightedSlots,
+    totalVariablePayroll: laborParams.totalVariablePayroll
+  })
+  const laborFixed = lc.fixed
+  const laborVariable = lc.variable
+  const laborCost = lc.total
+  const ryoRate = laborParams.ryoHourlyRate ?? companySettings?.ryo_hourly_rate ?? 1300
+  const ryoOpportunityCost = calcRyoOpportunityCost({
+    ryoSlots6h: record?.ryo_slots_6h,
+    ryoSlots7_5h: record?.ryo_slots_7_5h,
+    ryoHourlyRate: ryoRate
+  })
 
   // 販管費（家賃・光熱費・雑費は設定値。決済手数料は売上連動）
   const rent = n(settings?.fixed_rent)

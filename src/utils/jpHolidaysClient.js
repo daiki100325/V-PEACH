@@ -22,13 +22,19 @@ const STALE_MS = 30 * 24 * 60 * 60 * 1000
  * @returns [{ holiday_date: '2026-01-01', holiday_name: '元日' }, ...]
  */
 export async function fetchHolidaysFromApi() {
-  const res = await fetch(HOLIDAYS_API, { cache: 'no-cache' })
-  if (!res.ok) throw new Error(`祝日API HTTP ${res.status}`)
-  const json = await res.json()
-  return Object.entries(json).map(([date, name]) => ({
-    holiday_date: date,
-    holiday_name: name
-  }))
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 10000)
+  try {
+    const res = await fetch(HOLIDAYS_API, { cache: 'no-cache', signal: controller.signal })
+    if (!res.ok) throw new Error(`祝日API HTTP ${res.status}`)
+    const json = await res.json()
+    return Object.entries(json).map(([date, name]) => ({
+      holiday_date: date,
+      holiday_name: name
+    }))
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -65,11 +71,13 @@ export async function refreshHolidaysIfStale(targetPeriodKey) {
     })
     return { fetched: true, status: 'success' }
   } catch (err) {
-    await updateJpHolidaysMeta({
-      last_fetched_at: new Date().toISOString(),
-      last_fetch_status: 'failed',
-      last_fetch_error: String(err?.message || err)
-    })
+    try {
+      await updateJpHolidaysMeta({
+        last_fetched_at: new Date().toISOString(),
+        last_fetch_status: 'failed',
+        last_fetch_error: String(err?.message || err)
+      })
+    } catch { /* 無視 */ }
     // 対象年のキャッシュが完全に空ならエラーを再 throw（運用継続不能）
     if (mustFetch) throw err
     return { fetched: false, status: 'failed', error: String(err?.message || err) }
@@ -91,11 +99,14 @@ export async function forceRefreshHolidays() {
     })
     return { status: 'success' }
   } catch (err) {
-    await updateJpHolidaysMeta({
-      last_fetched_at: new Date().toISOString(),
-      last_fetch_status: 'failed',
-      last_fetch_error: String(err?.message || err)
-    })
+    // メタ更新もネットワーク断で失敗しうるため、ここの例外は飲み込む
+    try {
+      await updateJpHolidaysMeta({
+        last_fetched_at: new Date().toISOString(),
+        last_fetch_status: 'failed',
+        last_fetch_error: String(err?.message || err)
+      })
+    } catch { /* 無視 */ }
     return { status: 'failed', error: String(err?.message || err) }
   }
 }

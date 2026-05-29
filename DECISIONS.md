@@ -1,5 +1,31 @@
 # DECISIONS
 
+## ADR-20260529-01: `labor_cost` フォールバック廃止・`pe_monthly_company_records` 必須化
+- Status: Accepted
+- Date: 2026-05-29
+- Owners: daiki100325
+
+### Context
+- 人件費新方式（全社共通変動費 × 枠数按分 + 固定給）の導入時、`pe_monthly_company_records` 行がない旧月向けに `pe_monthly_records.labor_cost` をフォールバックとして残していた
+- 202601〜202603 の全月データ投入完了後、フォールバックが実際には一度も発動しないことが判明
+
+### Decision
+- `pe_monthly_records.labor_cost` カラムを DROP
+- `calcPL` の `else` 分岐（`record.labor_cost` 直接参照）を除去
+- `PLApp.vue` で `companyRec` が null の月は `return null`（データなし扱い）
+- テスト計画・仕様書からレガシーフォールバック記述を削除
+
+### Alternatives
+- フォールバック維持: 旧月参照を保険として残す案。しかし運用上 `pe_monthly_company_records` を毎月必須入力するため、フォールバックが発動するケースが存在しない。コード分岐だけ増えるデメリットが上回ると判断
+
+### Consequences
+- Positive: コードパスが1本化。`laborParams` が常に non-null なため型安全性向上
+- Negative: `pe_monthly_company_records` のない月は PL 計算不可（運用上の問題なし）
+- DB: `ALTER TABLE pe_monthly_records DROP COLUMN labor_cost;` を Supabase で実行要
+
+### Links
+- Migration: 下記 SQL を Supabase SQL Editor で実行
+
 ## ADR-20260525-01: HRMOS シフト CSV 取込で画面A/B を自動化
 - Status: Accepted
 - Date: 2026-05-25

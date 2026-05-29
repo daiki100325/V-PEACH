@@ -1,5 +1,28 @@
 # TROUBLESHOOTING
 
+## Case: 祝日マスタ「いま再取得する」がネットワーク切断時に「取得中...」で止まる
+- Date: 2026-05-30
+- Severity: Medium
+- Owner: daiki
+
+### Symptoms
+- 設定 → 祝日マスタ → 「いま再取得する」をネットワーク切断状態で押すと、ボタンが「取得中...」のまま無限に止まり、失敗表示が出ない
+
+### Cause
+- `fetchHolidaysFromApi()` の `fetch()` にタイムアウトがなく、ネットワーク切断時は OS の TCP タイムアウト（数分〜無限）まで待ち続けるため `finally` ブロックに到達しない
+
+### Root cause (deeper)
+ネットワーク断時に複数の場所で連鎖的に例外が発生していた:
+1. `fetchHolidaysFromApi()` がタイムアウトなく無限待機
+2. `forceRefreshHolidays()` の catch 内で `updateJpHolidaysMeta()`（Supabase）が断で失敗 → 例外が外へ
+3. `onRefreshHolidays()` で `reloadHolidays()`（Supabase 再読込）が alert 判定より前に走り、これも断で失敗 → alert に到達せず
+
+### Fix
+1. `fetchHolidaysFromApi()` に `AbortController` + 10秒タイムアウト
+2. `forceRefreshHolidays()` / `refreshHolidaysIfStale()` の catch 内の `updateJpHolidaysMeta()` を try/catch で囲み失敗を飲み込む
+3. `onRefreshHolidays()` で alert を `reloadHolidays()` より前に移動し、reload 失敗も `.catch(() => {})` で飲み込む。さらに想定外例外用の保険として外側 catch も追加
+- Files: `src/utils/jpHolidaysClient.js`, `src/components/apps/SettingsApp.vue`
+
 ## Case: 月次入力「開始する」を押しても画面遷移しない
 - Date: 2026-05-21
 - Severity: High

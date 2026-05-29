@@ -105,7 +105,6 @@ flowchart TD
         PK id uuid
         FK store_id / period_key YYYYMM
         service_sales / merchandise_sales
-        labor_cost（旧・フォールバック）
         part_time_slots_6h / part_time_slots_7_5h
         ryo_slots_6h / ryo_slots_7_5h
         UQ(store_id, period_key)`"]
@@ -226,7 +225,7 @@ flowchart TD
 ### pe_monthly_records（月次実績）
 - `period_key` は `YYYYMM` 整数（例: `202605`）。upsert キー: `(store_id, period_key)`。
 - **人件費新方式（2026-05-20 以降）**: `part_time_slots_6h` / `part_time_slots_7_5h` / `ryo_slots_6h` / `ryo_slots_7_5h` の4列が主体。フロントが `pe_monthly_company_records.total_variable_payroll` × 各店舗枠数比率で変動人件費を按分。
-- `labor_cost` は過去月フォールバック用として保持。新方式が優先。
+- `labor_cost` カラムは 2026-05-29 に DROP。新方式（枠数按分）のみ有効。
 - Phase 5 で `total_sales` → `service_sales` リネーム、`merchandise_sales` 追加。`rent` / `payment_fee` / `utilities` / `sundries` は削除（設定値・計算値へ移行）。
 
 ### pe_monthly_company_records（全社月次変動人件費・2026-05-20 追加）
