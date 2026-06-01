@@ -341,6 +341,6 @@ ALLOW ALL TO anon USING (true) WITH CHECK (true);
 ## Related
 - [[V-PEACH/notes/V-PEACH_architecture]]
 - [[V-PEACH/notes/V-PEACH_finance-spec]]
-- [[V-PEACH/notes/V-PEACH_test-plan]]
+- [[V-PEACH_test-plan]]
 - [[V-MINT2.0/notes/V-MINT2.0_supabase-er-diagram]]
 - [[V-PEACH/CHANGELOG_DEV]]

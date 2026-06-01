@@ -152,12 +152,18 @@ parent: [[V-PEACH/notes/_index]]
 - `PLTrendChart.vue`：カテゴリ展開エリアの `:style` に残っていた `.has()` を `.includes()` に修正（展開描画時の `TypeError` 解消）
 - `PLTrendChart.vue`：Chart.js インスタンスを `markRaw()` でラップし、リアクティブ Proxy による `chart.update()` 不発を解消（トグルがチャートに反映されない不具合）
 
-## 現在のステータス
+## 現在のステータス — 🎉 正式リリース済み（2026-06-01）
+
+**Phase 0〜12 を全完了し、V-PEACH は 2026-06-01 に正式リリース・本番稼働を開始した。**
+
 - 機能実装は Phase 12（UI/UX 最終調整）まで完了
-- **正式リリース前テスト完了（2026-06-01）**：[[V-PEACH/notes/V-PEACH_test-plan]] の機能テストを一巡クリア + finance-spec サンプル検証 + 本番スモックまで done。スキップは SET-15 / PLT-02 / EDG-02（既知・環境都合・仕様）
+- **正式リリース前テスト完了（2026-06-01）**：[[V-PEACH_test-plan]] の機能テストを一巡クリア + finance-spec サンプル検証 + 本番スモークまで done。スキップは SET-15 / PLT-02 / EDG-02（既知・環境都合・仕様）
 - 固定給初期値 SEED（`SEED_fixed_salaries_20260520.sql`）: ✅ 投入済み
 - ベンチマーク目標値: ✅ Supabase 登録済み
-- → 本番 Cloudflare Pages へデプロイ（`git subtree push`）
+- **本番デプロイ完了**：`git subtree push --prefix=V-PEACH V-PEACH main` → Cloudflare Pages 本番反映済み
+
+## 今後のロードマップ
+- **Phase 13: 店舗増減の GUI 対応（多店舗スケール対応）** — 計画確定済み・実装は 2026-06-02 以降。詳細・進捗は [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] を正本とする。大規模改修につき保険ブランチ（V-MINT=`v3` / V-PEACH=`v2`）で進め、検証後に本番へマージ
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_history]] — Phase 番号体系の正史

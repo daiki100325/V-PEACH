@@ -446,6 +446,6 @@ export function calcRyoOpportunityCost({
 - [[V-PEACH/notes/V-PEACH_finance-spec]] — PL 各項目の現行仕様（⑬ 人件費の章を本計画完了時に更新）
 - [[V-PEACH/notes/V-PEACH_architecture]] — `pe_*` テーブル設計（マイグレーション後に更新）
 - [[V-PEACH/notes/V-PEACH_supabase-er-diagram]] — ER 図（同上）
-- [[V-PEACH/notes/V-PEACH_test-plan]] — テストデータ投入手順（§2.4 例を検証ケースに追加）
+- [[V-PEACH_test-plan]] — テストデータ投入手順（§2.4 例を検証ケースに追加）
 - [[V-PEACH/notes/V-PEACH_next-actions]] — タスク全体
 - [[V-PEACH/DECISIONS]] — 「人件費を重みつき枠按分方式に移行」を ADR として追記予定

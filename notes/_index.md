@@ -11,6 +11,7 @@ tags: [project/v-peach, type/hub]
 - Repo: [daiki100325/V-PEACH](https://github.com/daiki100325/V-PEACH)
 
 ## 現在のステータス（2026-06-01）
+> 🎉 **Phase 0〜12 を全完了し、2026-06-01 に正式リリース・本番稼働開始。** 次は Phase 13（多店舗スケール対応・計画確定／実装は 6/2 以降）。
 - Phase 0（セットアップ）: ✅ 完了
 - Phase 1（DBマイグレーション）: ✅ 完了（2026-05-16）
 - Phase 2（月次入力・設定モード）: ✅ 完了
@@ -23,7 +24,7 @@ tags: [project/v-peach, type/hub]
 - Phase 9（CSV アップロード UI 統合・6→3ボックス・ヘッダー自動判定）: ✅ 完了（2026-05-22）
 - Phase 10（HRMOS シフト CSV 取込・祝日マスタ・PortalMenu バナー・トレンドチャート仕様改修）: ✅ 完了（2026-05-25）
 - Phase 11（月次入力フロー CSV 専用化・再編集モード・labor_cost フォールバック廃止）: ✅ 完了（2026-05-30）
-- Phase 12（UI/UX 最終調整・リリース前テスト）: ✅ 完了（2026-06-01）
+- Phase 12（UI/UX 最終調整・リリース前テスト）: ✅ 完了 → 🎉 正式リリース（2026-06-01）
   - 売上 CSV 一括アップロード（6ファイル同時・ファイル名で店舗自動判定）✅
   - シフト CSV UI を Step 1 と統一・削除ボタン追加 ✅
   - 人件費プレビュー Step 4 りょーさん全店合計・代替コスト総計フッター追加 ✅
@@ -42,9 +43,10 @@ tags: [project/v-peach, type/hub]
 - [[V-PEACH/notes/V-PEACH_architecture]] — スタック・DB設計・財務ロジック・デプロイフロー
 - [[V-PEACH/notes/V-PEACH_supabase-er-diagram]] — Supabase ER 図（pe_* + V-MINT 参照）
 - [[V-PEACH/notes/V-PEACH_finance-spec]] — 財務計算仕様詳細
-- [[V-PEACH/notes/V-PEACH_test-plan]] — テスト計画・テストデータ投入手順
+- [[V-PEACH_test-plan]] — テスト計画・テストデータ投入手順
 - [[V-PEACH/notes/V-PEACH_release-plan]] — リリース・検証手順
 - [[V-PEACH/notes/V-PEACH_how-to-use]] — 操作マニュアル（月次作業・随時作業の手順）
+- [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] — 店舗増減の GUI 対応 **実装計画**（V-MINT/V-PEACH 共通・確定/着手前・保険ブランチ v3/v2）
 
 ## Notes（アーカイブ・`old/` 配下）
 

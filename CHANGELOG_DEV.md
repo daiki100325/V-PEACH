@@ -1,16 +1,59 @@
 # CHANGELOG_DEV
 
 ## 2026-06-01
+- What: Phase 0〜12 完了・**正式リリース（本番稼働開始）を各帳票に明記**。`notes/V-PEACH_history.md`（概要に現況バナー・Phase 12 見出しを「正式リリース」化・🎉正式リリース小節追加・タイムライン更新）、`notes/V-PEACH_release-plan.md`（現在のステータスを「正式リリース済み」に・本番デプロイ完了明記・今後のロードマップに Phase 13 追加）、`notes/_index.md`（現在のステータスに正式リリースバナー・Phase 12 行に🎉追記）を更新
+- Why: Phase 12 までの完了と正式リリース済みであることを開発史・リリース計画・ハブの各帳票で明確にするため
+- Files: `notes/V-PEACH_history.md`, `notes/V-PEACH_release-plan.md`, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_history]], [[V-PEACH/notes/V-PEACH_release-plan]]
+
+## 2026-06-01
+- What: `notes/V-PEACH_history.md` に「§8-2 今後の発展計画」を新設し、店舗増減 GUI 対応を **Phase 13（計画中・実装は 2026-06-02 以降）** として記録。背景課題（3層ハードコード・二重保守）・確定設計（DB/RPC/フロント/GUI）・運用方針（論理削除・保険ブランチ v3/v2）を要約し正本へリンク。タイムライン（§13）にも 2026-06-01 Phase 13 計画確定エントリを追加
+- Why: この大規模改修を開発史の「今後の発展計画」として残し、多店舗スケール対応の位置づけ（V-MINT/V-PEACH 共用 Supabase の強みをスケール要件に活かす）を明文化するため
+- Files: `notes/V-PEACH_history.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-01
+- What: `notes/V-PEACH_multi-store-scaling-plan.md` を**進捗追跡帳票化**。§5 実装フェーズ表に「状態（⬜/🟡/✅/⏸️）・完了日」列と凡例を追加し、§5-1 にフェーズ内タスクのチェックリストを新設。さらに**レガシー除去フェーズ P7（§5-2）を追加** — 別名並走で残した旧ピボット RPC・移行シム・キー正規化・不要カラムを go-live 後に破壊的撤去。共有 DB ゆえ「P7 は必ず P6（go-live）後」の順序根拠を明記。P0 は A 案（事前作成せず初回 push で v3/v2 自動生成）に更新。§8-1 決定ログに 6（レガシー除去）・7（進捗帳票化）を追記
+- Why: 本書をそのまま実装の進捗管理に使えるようにするため。後方互換で残す要素を確実に最後に掃除する工程を計画に組み込み、消し忘れ・本番破壊を防ぐ
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-01
+- What: `notes/V-PEACH_multi-store-scaling-plan.md` を「方向性比較」から**実装計画書**に全面リライト。選択肢比較を畳んで採用アーキテクチャ（§4: DB/RPC/フロント/GUI 確定設計）を本文化し、実装フェーズを P0〜P6 に再編。**Git デプロイ保険ブランチ戦略（§6）を新設**: 本改修は V-MINT を `v3`・V-PEACH を `v2` ブランチに subtree push し、本番ブランチ（V-MINT=v2 / V-PEACH=main）= Cloudflare 本番ビルドから切り離してユーザー即時展開を回避。go-live は v3→v2 / v2→main マージ。却下案は §8-2 付録に退避
+- What: ⚠️ Supabase はプレビュー・本番で同一プロジェクト共有のため DB マイグレーション（P1）は本番にも即時反映される点を最重要リスクとして明記。P1 は additive 限定・RPC（P2）は別名並走で後方互換を死守する方針を本文化
+- Why: 方針が全確定し、このドキュメントをそのまま実装の正本として使うため。大規模改修につき本番への即時反映を避ける運用上の保険が必要
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-MINT2.0/notes/V-MINT2.0_supabase-er-diagram]]
+
+## 2026-06-01
+- What: 店舗増減の GUI 対応の方向性を検討し `notes/V-PEACH_multi-store-scaling-plan.md` を新規作成（コード未着手・検討段階）。現状の店舗ハードコードを DB/RPC/フロントの3層で棚卸しし、評価軸（実装容易さ・GUI完結度）で複数案を比較・推奨案とフェーズ案を提示
+- Why: 新店舗オープン時に Supabase RPC のピボット定義からフロントの店舗キー直アクセスまで広範囲改修が必要で、店舗事業のスケールに追従できないため。閉店は論理削除（休止フラグ）+ 休止店舗表示トグル方針を確定（ヒアリング 2026-06-01）
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-MINT2.0/notes/V-MINT2.0_supabase-er-diagram]]
+
+## 2026-06-01
+- What: 店舗増減 GUI 対応の残課題を全確定（§8 を決定事項化）。①休止トグル状態は DB 共有（`app_ui_settings` 中立シングルトン・両アプリ連動）②`pe_store_shift_rules` は `effective_from` 改定履歴付き③閉店店舗は `closed_at` 以降を集計・按分から明示除外④追加フローは一発確定のみ（下書きなし・理想は `create_store_atomic` RPC で一括 insert）。DDL 案・フェーズ P1〜P5・リスク欄も追従更新
+- Why: 実装フェーズ（P1 DB マイグレーション）へ進める状態にするため。ヒアリング最終回答を仕様へ反映
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-01
+- What: 店舗増減 GUI 対応の方向性を確定（推奨案を全採用）。ドキュメントに R5〜R8 と確定事項を追記。①店舗マスタの単一情報源を **V-PEACH に集約**（`stores` 共有のためアプリ間同期コード不要・店舗管理 GUI は V-PEACH `SettingsApp`）②`store_key` 手入力＋作成時ロック ③シフト枠時間ルールを `pe_store_shift_rules`（店舗×シフト種別×日種別で6h/7.5h）として一般化し馬場2号店ハードコードを撤廃 ④新店舗の初期設定（固定費・シフトルール）を追加ウィザードで必須化 ⑤休止店舗トグルは全社一括。`office` は `store_type` でシステム行として分離
+- Why: V-MINT/V-PEACH で店舗設定を二重に持つ負担を解消するため。各店固有情報を多く持つ V-PEACH を正とし、片側登録で両アプリ反映できる構成に整理（ヒアリング回答反映）
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-01
 - What: PLTrendChart で指標トグルがチャートに反映されない不具合を修正。Chart.js インスタンスを `markRaw()` でラップしてリアクティブ化を防止
 - Why: `chart` を `data()` に宣言していたため Chart.js インスタンスが Vue の Proxy に包まれ、`chart.update()` 時の内部参照同一性比較（`===`）が壊れてデータセット変更が再描画に反映されなかった。マウント時の初回描画（コンストラクタ）は動くため「デフォルト指標は出るがトグルが効かない」状態だった（トグル機能導入の `fe77e7d` から潜在。先行の `Set`→`Array` 修正は別問題で根本原因ではなかった）
 - Files: `src/components/PLTrendChart.vue`
-- Related: [[V-PEACH/notes/V-PEACH_test-plan]], [[V-PEACH/TROUBLESHOOTING]]
+- Related: [[V-PEACH_test-plan]], [[V-PEACH/TROUBLESHOOTING]]
 
 ## 2026-06-01
 - What: PLTrendChart のカテゴリトグルが反応しない不具合を修正（`Set`→`Array` 移行の取りこぼし）。展開エリアの指標ボタン `:style` に残っていた `visibleMetrics.has(m.key)` を `visibleMetrics.includes(m.key)` に置換
 - Why: `visibleMetrics` は Array 化済みだが34行目だけ Set メソッド `.has()` が残存。「売上」等のカテゴリボタンを押して展開エリアを描画する瞬間に `TypeError: visibleMetrics.has is not a function` が発生し、Vue の再レンダリングが失敗してボタンが無反応に見えていた（PLT-05 回帰）
 - Files: `src/components/PLTrendChart.vue`
-- Related: [[V-PEACH/notes/V-PEACH_test-plan]], [[V-PEACH/TROUBLESHOOTING]]
+- Related: [[V-PEACH_test-plan]], [[V-PEACH/TROUBLESHOOTING]]
 
 ## 2026-06-01
 - What: PLTrendChart のカテゴリトグル不具合修正 — `visibleMetrics` を `Set` から `Array` に変更し Vue 3 リアクティビティを確保
@@ -34,7 +77,7 @@
 - What: 人件費プレビュー（Step 4）りょーさん枠テーブルに全店合計フッターを追加。「全店合計: XXX.X h ／ 代替コスト: ¥YYYY（¥1,300/h）」を表示。時給は `pe_company_settings.ryo_hourly_rate` をstartCsvEntry時に取得して使用。各店舗行の「代替コスト参考: X h」表記を「重みつき枠数 = X h」に修正（バイト行と統一）
 - Why: バイト枠には全店合計フッターがあるのにりょーさん枠には合計も代替コスト総計もなく、参考情報として不十分だった
 - Files: `src/components/apps/InputApp.vue`
-- Related: [[V-PEACH/notes/V-PEACH_test-plan]]
+- Related: [[V-PEACH_test-plan]]
 
 ## 2026-06-01
 - What: シフトCSVアップロード（Step 3）のUIを売上CSV（Step 1）に統一。ボタンをヘッダーカード内の全幅スタイルに変更、ボタンテキストを「シフトCSVを選択」に統一、ファイル名をボタン直下に表示、状態表示を独立したステータスカードに分離。シフトCSVに削除ボタンを追加（`clearShiftsCsv` メソッド新設）。再編集モードの「DB既存値を使用中」バナーに全店舗の枠数サマリー（バイト/りょーさん × 6h/7.5h）を追加
@@ -46,13 +89,13 @@
 - What: 売上CSVアップロードを「店舗別ボックス」から「6ファイル一括選択」に変更。ファイル名に「馬場本店」「中野店」「馬場2号店」を含めると店舗が自動判定され、ヘッダー構造との組み合わせでAirメイト/Airレジを6帳票まとめて振り分け可能に
 - Why: 毎月6ファイルを店舗ごとに3往復アップロードするのが繁雑。ファイル名で店舗名を管理すれば1操作で完結できる
 - Files: `src/utils/csvImporter.js`（detectStoreKeyFromFilename日本語対応）, `src/components/StoreCsvUpload.vue`（表示専用化）, `src/components/apps/InputApp.vue`（一括アップロードボタン・handleBulkFilesUpload追加）
-- Related: [[V-PEACH/notes/V-PEACH_test-plan]]
+- Related: [[V-PEACH_test-plan]]
 
 ## 2026-05-30
 - What: テスト計画の §5.2 / §5.2b を「§5.2 月次入力モード（Step 0〜6）」に統合。INP-11（給与総額入力）を CSV-08 に集約し、重複テスト項目を除去。セクション6チェックリスト・セクション8完了基準も同期更新
 - Why: 手入力モード廃止により INP-11 と CSV-08 が同一 Step 5 を二重テストしていたため整理
 - Files: `notes/V-PEACH_test-plan.md`
-- Related: [[V-PEACH/notes/V-PEACH_test-plan]]
+- Related: [[V-PEACH_test-plan]]
 
 ## 2026-05-30
 - What: 月次入力の人件費フローを CSV 専用化。シフト CSV 取込を必須化し、画面A（バイト枠）・画面B（りょーさん枠）の手入力を廃止して 1 枚の読み取り専用「人件費プレビュー」に統合。Step 構成を 7 → 6 ステップに削減（売上CSV → 売上プレビュー → シフトCSV → 人件費プレビュー → 総額入力 → 確認）。当月の人件費＋交通費総額のみ現行通り手入力を維持
@@ -366,7 +409,7 @@
 - What: `V-PEACH_test-plan.md` — 空 DB 向けテスト計画（マスタ/月次の SQL 投入・期待値・テストケース一覧）
 - Why: Phase 0〜5 完了後の一通り動作確認手順を文書化するため
 - Files: `notes/V-PEACH_test-plan.md`, `notes/_index.md`
-- Related: [[V-PEACH/notes/V-PEACH_test-plan]]
+- Related: [[V-PEACH_test-plan]]
 
 ## 2026-05-17
 - What: `V-PEACH_finance-spec.md` — §1 Mermaid削除・番号振り直し、数値セル列を右揃えに統一

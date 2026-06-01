@@ -24,7 +24,7 @@ status: archived — 2026-05-25 時点のスナップショット。以降の実
 
 ## 1. テストデータ投入・動作確認
 
-[[V-PEACH/notes/V-PEACH_test-plan]] の手順に沿って実施。
+[[V-PEACH_test-plan]] の手順に沿って実施。
 
 **投入順序**：Phase A（店舗固定費）→ B（全社共通費）→ C（ベンチマーク）→ D（月次実績）
 
@@ -191,7 +191,7 @@ status: archived — 2026-05-25 時点のスナップショット。以降の実
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_requirements]]
-- [[V-PEACH/notes/V-PEACH_test-plan]]
+- [[V-PEACH_test-plan]]
 - [[V-PEACH/notes/V-PEACH_sales-import-plan]]
 - [[V-PEACH/notes/V-PEACH_finance-spec]]
 - [[V-PEACH/DECISIONS]]
