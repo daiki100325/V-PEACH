@@ -150,18 +150,26 @@ export function parseAirregiCsv(text) {
 }
 
 // ─── ファイル名から店舗キー / 期間を抽出 ─────────────────────────────────
-// 例: airmate_baba-main_20251225-20260129.csv
-//     売上集計_baba-2nd_20251201-20251231.csv
-const STORE_KEY_FROM_FILENAME = {
-  'baba-main': 'baba_main',
+// 日本語店舗名（優先）または英語キーでマッチ。
+// 戻り値は InputApp の csvFiles キー（baba / nakano / baba_2nd）
+const STORE_NAME_JP = [
+  ['馬場2号店', 'baba_2nd'],  // 「馬場本店」より先にチェック
+  ['馬場本店',  'baba'],
+  ['中野店',    'nakano'],
+]
+const STORE_KEY_FROM_FILENAME_EN = {
+  'baba-main': 'baba',
   'baba-2nd':  'baba_2nd',
   'nakano':    'nakano'
 }
 
 export function detectStoreKeyFromFilename(filename) {
   const base = filename.replace(/\.csv$/i, '')
-  for (const k of Object.keys(STORE_KEY_FROM_FILENAME)) {
-    if (base.includes(k)) return STORE_KEY_FROM_FILENAME[k]
+  for (const [name, key] of STORE_NAME_JP) {
+    if (base.includes(name)) return key
+  }
+  for (const [k, key] of Object.entries(STORE_KEY_FROM_FILENAME_EN)) {
+    if (base.includes(k)) return key
   }
   return null
 }

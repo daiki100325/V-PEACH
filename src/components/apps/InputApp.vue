@@ -148,14 +148,28 @@
                 </div>
                 <p class="text-base font-bold text-slate-800">{{ periodLabel }}</p>
                 <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                    各店舗のボックスに<strong>商品別売上CSV（Airメイト）</strong>と<strong>日別売上CSV（Airレジ）</strong>を<strong>まとめて選択</strong>してください（順不同・1ファイルずつでも可）。
-                    Airレジ CSV は当月暦月全体を指定（前月分はDBキャッシュから自動取得）。
+                    ファイル名には<strong>「馬場本店」「中野店」「馬場2号店」</strong>のいずれかを含めてください。
+                    Airレジ CSV は当月暦月を指定、Airメイト CSV は各店舗の集計期間を指定してください。
                 </p>
+
+                <!-- 一括アップロードボタン -->
+                <label class="mt-4 flex items-center justify-center gap-2 bg-brand-50 border border-brand-200 rounded-xl py-3 px-4 cursor-pointer hover:bg-brand-100 transition-colors">
+                    <input type="file" accept=".csv,text/csv" multiple class="hidden" ref="bulkCsvInput" @change="onBulkCsvChange" />
+                    <span class="text-sm font-bold text-brand-700">CSVファイルをまとめて選択（最大6ファイル）</span>
+                </label>
+
                 <div v-if="isExistingMonth" class="mt-3 bg-teal-50 border border-teal-100 rounded-xl px-3 py-2 text-xs text-teal-700">
                     <span class="font-bold">再編集モード:</span> 全店の月次レコードが揃っているため、CSV 未アップロードの店舗は DB 既存値をそのまま使用します。
                 </div>
+
+                <!-- グローバル警告（店舗名未検出など） -->
+                <ul v-if="globalCsvWarnings.length" class="mt-3 space-y-1">
+                    <li v-for="(w, i) in globalCsvWarnings" :key="i"
+                        class="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">⚠ {{ w }}</li>
+                </ul>
             </div>
 
+            <!-- 店舗別ステータス表示 -->
             <div v-for="store in stores" :key="store.key"
                 class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -179,7 +193,6 @@
                     :airmate-info="airmateInfoLine(store.key)"
                     :airregi-info="airregiInfoLine(store.key)"
                     :warnings="csvFiles[store.key]?.warnings || []"
-                    @files="(files) => handleFilesUpload(store.key, files)"
                     @clear="(kind) => handleClearSlot(store.key, kind)" />
             </div>
 
@@ -199,6 +212,20 @@
                 <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
                     HRMOS から書き出した <code class="bg-slate-100 px-1 rounded">vangvieng_shifts_YYYYMM.csv</code> をアップロードすると、各店舗の枠数（バイト・りょーさん）を自動算出します。
                 </p>
+
+                <!-- ファイル選択ボタン -->
+                <label class="mt-4 flex items-center justify-center gap-2 bg-brand-50 border border-brand-200 rounded-xl py-3 px-4 cursor-pointer hover:bg-brand-100 transition-colors">
+                    <input type="file" accept=".csv" @change="onUploadShiftsCsv($event)"
+                        ref="shiftFileInput" class="hidden" />
+                    <span class="text-sm font-bold text-brand-700">シフトCSVを選択</span>
+                </label>
+                <div v-if="shiftsCsvFileName" class="mt-2 flex items-center justify-center gap-2">
+                    <span class="text-xs text-slate-500">{{ shiftsCsvFileName }}</span>
+                    <button type="button" @click="clearShiftsCsv"
+                        class="text-xs text-slate-400 hover:text-red-500 font-bold px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+                        aria-label="シフトCSVを削除">削除</button>
+                </div>
+
                 <div v-if="isExistingMonth" class="mt-3 bg-teal-50 border border-teal-100 rounded-xl px-3 py-2 text-xs text-teal-700">
                     <span class="font-bold">再編集モード:</span> CSV 未アップロードのままなら DB 既存値をそのまま使用します。
                 </div>
@@ -207,15 +234,8 @@
                 </div>
             </div>
 
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                <div class="flex items-center gap-3">
-                    <label class="inline-flex items-center cursor-pointer">
-                        <span class="py-2 px-3 rounded-xl text-xs font-bold bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors">ファイルを選択</span>
-                        <input type="file" accept=".csv" @change="onUploadShiftsCsv($event)"
-                            ref="shiftFileInput" class="sr-only" />
-                    </label>
-                    <span class="text-xs text-slate-500">{{ shiftsCsvFileName || '選択されていません' }}</span>
-                </div>
+            <!-- ステータスカード -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-2">
                 <p v-if="shiftsCsvProcessing" class="text-xs text-slate-500">処理中...</p>
                 <p v-else-if="shiftsCsvError" class="text-xs text-red-500">{{ shiftsCsvError }}</p>
                 <div v-else-if="shiftsCsvResult" class="space-y-2">
@@ -239,8 +259,12 @@
                         </ul>
                     </div>
                 </div>
-                <div v-else-if="isExistingMonth" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                    <span class="font-bold">DB既存値を使用中。</span>上書きしたい場合のみ CSV をアップロードしてください。
+                <div v-else-if="isExistingMonth" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 space-y-1.5">
+                    <p><span class="font-bold">DB既存値を使用中。</span>上書きしたい場合のみ CSV をアップロードしてください。</p>
+                    <div v-for="s in stores" :key="s.key" class="text-amber-600">
+                        <span class="font-bold">{{ s.name }}:</span>
+                        バイト 6h×{{ laborSlots[s.key]?.pt6h ?? 0 }} / 7.5h×{{ laborSlots[s.key]?.pt7_5h ?? 0 }}、りょーさん 6h×{{ laborSlots[s.key]?.ryo6h ?? 0 }} / 7.5h×{{ laborSlots[s.key]?.ryo7_5h ?? 0 }}
+                    </div>
                 </div>
                 <p v-else class="text-xs text-red-500">未アップロード（次へ進むには CSV が必要です）</p>
             </div>
@@ -354,7 +378,8 @@ import {
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getNextPeriodKey, parsePeriodKey } from '../../utils/periods.js'
 import {
     readShiftJisFile, parseAirmateCsv, parseAirregiCsv,
-    detectDateRangeFromFilename, calcDiscountTotalInPeriod, detectCsvKindFromHeader
+    detectDateRangeFromFilename, calcDiscountTotalInPeriod, detectCsvKindFromHeader,
+    detectStoreKeyFromFilename
 } from '../../utils/csvImporter.js'
 import { calcShiftsFromFile } from '../../utils/shiftImporter.js'
 import { fetchJpHolidaysCached } from '../../utils/jpHolidaysClient.js'
@@ -393,7 +418,8 @@ export default {
             shiftsCsvResult: null,    // calcShiftsFromFile の戻り値
             shiftsCsvError: null,
             shiftsCsvProcessing: false,
-            shiftsCsvFileName: null
+            shiftsCsvFileName: null,
+            globalCsvWarnings: []     // 店舗名未検出ファイル等のまとめアップロード警告
         }
     },
     computed: {
@@ -576,31 +602,57 @@ export default {
             this.csvFiles[storeKey].warnings = []
             this.$emit('update:canNext', this.canNext)
         },
-        async handleFilesUpload(storeKey, files) {
+        onBulkCsvChange(e) {
+            const files = Array.from(e.target.files || [])
+            if (files.length > 0) this.handleBulkFilesUpload(files)
+            e.target.value = ''
+        },
+        async handleBulkFilesUpload(files) {
             if (!files || files.length === 0) return
-            // 新しい選択ごとに警告はリセット（追加マージ方針なので既存スロットは温存）
-            const warnings = []
-            const seen = { airmate: null, airregi: null }
+            const globalWarnings = []
+            // 今回のバッチで触れた店舗の per-store warnings をリセット
+            const touchedStores = new Set()
+            // 店舗×種別の後勝ち検出用
+            const seenPerStore = {}  // { storeKey: { airmate: filename, airregi: filename } }
+
             for (const file of files) {
                 let text
                 try {
                     text = await readShiftJisFile(file)
                 } catch (e) {
-                    warnings.push(`${file.name}: 読み込み失敗（${e.message || 'エラー'}）`)
+                    globalWarnings.push(`${file.name}: 読み込み失敗（${e.message || 'エラー'}）`)
                     continue
                 }
+
+                const storeKey = detectStoreKeyFromFilename(file.name)
+                if (!storeKey || !this.csvFiles[storeKey]) {
+                    globalWarnings.push(`${file.name}: ファイル名に店舗名（馬場本店・中野店・馬場2号店）が含まれていません`)
+                    continue
+                }
+
+                if (!touchedStores.has(storeKey)) {
+                    this.csvFiles[storeKey].warnings = []
+                    touchedStores.add(storeKey)
+                }
+
                 const kind = detectCsvKindFromHeader(text)
-                if (!kind) {
-                    warnings.push(`${file.name}: 種別不明（Airメイト / Airレジ いずれのヘッダーにも一致しません）`)
+                if (!kind || !['airmate', 'airregi'].includes(kind)) {
+                    this.csvFiles[storeKey].warnings.push(
+                        `${file.name}: 種別不明（Airメイト / Airレジ いずれのヘッダーにも一致しません）`
+                    )
                     continue
                 }
+
+                const storeName = this.stores.find(s => s.key === storeKey)?.name || storeKey
                 const kindLabel = kind === 'airmate' ? '商品別売上' : '日別売上'
-                // 今回の選択内に同種が複数あれば後勝ち警告
-                if (seen[kind]) {
-                    warnings.push(`${kindLabel}CSV が複数選択されました。最後の「${file.name}」を採用します`)
+                if (!seenPerStore[storeKey]) seenPerStore[storeKey] = {}
+                if (seenPerStore[storeKey][kind]) {
+                    this.csvFiles[storeKey].warnings.push(
+                        `${storeName} の ${kindLabel}CSV が複数あります。「${file.name}」を採用します`
+                    )
                 }
-                seen[kind] = file.name
-                // パース
+                seenPerStore[storeKey][kind] = file.name
+
                 try {
                     const dateRange = detectDateRangeFromFilename(file.name)
                     let parsed
@@ -616,7 +668,8 @@ export default {
                     this.csvFiles[storeKey][kind] = { file, parsed: null, error: e.message || 'パースエラー' }
                 }
             }
-            this.csvFiles[storeKey].warnings = warnings
+
+            this.globalCsvWarnings = globalWarnings
             this.$emit('update:canNext', this.canNext)
         },
         airmateInfoLine(storeKey) {
@@ -783,6 +836,13 @@ export default {
         },
         calcWeightedH(slots6h, slots7_5h) {
             return 6.0 * Number(slots6h || 0) + 7.5 * Number(slots7_5h || 0)
+        },
+        clearShiftsCsv() {
+            this.shiftsCsvFile = null
+            this.shiftsCsvFileName = null
+            this.shiftsCsvResult = null
+            this.shiftsCsvError = null
+            this.$emit('update:canNext', this.canNext)
         },
         // シフト CSV 取込（CSV モード Step 2）
         async onUploadShiftsCsv(event) {

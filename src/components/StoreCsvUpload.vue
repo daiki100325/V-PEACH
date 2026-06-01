@@ -1,16 +1,6 @@
 <template>
     <div class="space-y-1.5">
-        <label class="block bg-slate-50 border border-dashed border-slate-300 rounded-xl px-3 py-2.5 cursor-pointer hover:border-brand-400 transition-colors">
-            <input type="file" accept=".csv,text/csv" multiple class="hidden" @change="onChange" />
-            <div class="flex items-center justify-between gap-2">
-                <span class="text-xs font-bold" :class="hasAny ? 'text-slate-700' : 'text-slate-400'">
-                    {{ hasAny ? '追加で選択（複数可）' : 'CSVファイルを選択（複数可・順不同）' }}
-                </span>
-                <span class="text-xs text-brand-600 font-bold shrink-0">{{ hasAny ? '追加' : '選択' }}</span>
-            </div>
-        </label>
-
-        <!-- 種別ごとに2行表示 -->
+        <!-- 種別ごとに2行表示（表示専用） -->
         <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
             <!-- 商品別売上（Airメイト） -->
             <div class="px-3 py-2">
@@ -72,19 +62,6 @@ export default {
         airregiInfo: { type: String, default: null },
         warnings: { type: Array, default: () => [] }
     },
-    emits: ['files', 'clear'],
-    computed: {
-        hasAny() {
-            return !!(this.airmate?.file || this.airregi?.file)
-        }
-    },
-    methods: {
-        onChange(e) {
-            const files = Array.from(e.target.files || [])
-            if (files.length > 0) this.$emit('files', files)
-            // 同じファイルを再選択できるようにリセット
-            e.target.value = ''
-        }
-    }
+    emits: ['clear']
 }
 </script>

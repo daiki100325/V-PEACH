@@ -1,5 +1,17 @@
 # CHANGELOG_DEV
 
+## 2026-06-01
+- What: シフトCSVアップロード（Step 3）のUIを売上CSV（Step 1）に統一。ボタンをヘッダーカード内の全幅スタイルに変更、ボタンテキストを「シフトCSVを選択」に統一、ファイル名をボタン直下に表示、状態表示を独立したステータスカードに分離。シフトCSVに削除ボタンを追加（`clearShiftsCsv` メソッド新設）。再編集モードの「DB既存値を使用中」バナーに全店舗の枠数サマリー（バイト/りょーさん × 6h/7.5h）を追加
+- Why: Step 1 と Step 3 のUIが異なることがノイズになっていた。削除ボタン・既存値サマリーは売上CSVとの操作感を揃えるため
+- Files: `src/components/apps/InputApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## 2026-06-01
+- What: 売上CSVアップロードを「店舗別ボックス」から「6ファイル一括選択」に変更。ファイル名に「馬場本店」「中野店」「馬場2号店」を含めると店舗が自動判定され、ヘッダー構造との組み合わせでAirメイト/Airレジを6帳票まとめて振り分け可能に
+- Why: 毎月6ファイルを店舗ごとに3往復アップロードするのが繁雑。ファイル名で店舗名を管理すれば1操作で完結できる
+- Files: `src/utils/csvImporter.js`（detectStoreKeyFromFilename日本語対応）, `src/components/StoreCsvUpload.vue`（表示専用化）, `src/components/apps/InputApp.vue`（一括アップロードボタン・handleBulkFilesUpload追加）
+- Related: [[V-PEACH/notes/V-PEACH_test-plan]]
+
 ## 2026-05-30
 - What: テスト計画の §5.2 / §5.2b を「§5.2 月次入力モード（Step 0〜6）」に統合。INP-11（給与総額入力）を CSV-08 に集約し、重複テスト項目を除去。セクション6チェックリスト・セクション8完了基準も同期更新
 - Why: 手入力モード廃止により INP-11 と CSV-08 が同一 Step 5 を二重テストしていたため整理
