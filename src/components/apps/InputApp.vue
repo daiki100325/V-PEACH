@@ -112,8 +112,11 @@
                     <div class="px-3 py-3 text-sm text-slate-700 text-center">{{ laborSlots[s.key]?.ryo6h ?? 0 }}</div>
                     <div class="px-3 py-3 text-sm text-slate-700 text-center">{{ laborSlots[s.key]?.ryo7_5h ?? 0 }}</div>
                     <div class="col-span-3 px-4 pb-2.5 text-xs text-amber-600">
-                        代替コスト参考: {{ calcWeightedH(laborSlots[s.key]?.ryo6h, laborSlots[s.key]?.ryo7_5h).toFixed(1) }} h
+                        重みつき枠数 = {{ calcWeightedH(laborSlots[s.key]?.ryo6h, laborSlots[s.key]?.ryo7_5h).toFixed(1) }} h
                     </div>
+                </div>
+                <div class="px-4 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700 font-bold">
+                    全店合計: {{ ryoTotalWeightedH.toFixed(1) }} h &nbsp;／&nbsp; 代替コスト: ¥{{ Math.round(ryoTotalWeightedH * ryoHourlyRate).toLocaleString() }}（¥{{ ryoHourlyRate.toLocaleString() }}/h）
                 </div>
             </div>
         </div>
@@ -373,7 +376,8 @@
 import {
     getMonthlyRecord, upsertMonthlyRecord, getCostReportDates,
     getDailySalesInRange, upsertDailySalesCache, deleteOldDailySalesCache,
-    getMonthlyCompanyRecord, upsertMonthlyCompanyRecord, getLatestPeriodKey
+    getMonthlyCompanyRecord, upsertMonthlyCompanyRecord, getLatestPeriodKey,
+    getCompanySettings
 } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getNextPeriodKey, parsePeriodKey } from '../../utils/periods.js'
 import {
@@ -419,7 +423,8 @@ export default {
             shiftsCsvError: null,
             shiftsCsvProcessing: false,
             shiftsCsvFileName: null,
-            globalCsvWarnings: []     // 店舗名未検出ファイル等のまとめアップロード警告
+            globalCsvWarnings: [],    // 店舗名未検出ファイル等のまとめアップロード警告
+            ryoHourlyRate: 1300
         }
     },
     computed: {
@@ -480,6 +485,10 @@ export default {
         },
         isLastStep() {
             return this.step === this.confirmStep
+        },
+        ryoTotalWeightedH() {
+            return this.stores.reduce((sum, s) =>
+                sum + this.calcWeightedH(this.laborSlots[s.key]?.ryo6h, this.laborSlots[s.key]?.ryo7_5h), 0)
         }
     },
     watch: {
@@ -550,8 +559,9 @@ export default {
             this.$emit('update:loading', true)
             this.$emit('update:loadingMessage', '集計期間を取得中...')
             try {
-                const [companyRec, ...storeResults] = await Promise.all([
+                const [companyRec, companySetting, ...storeResults] = await Promise.all([
                     getMonthlyCompanyRecord(this.periodKey),
+                    getCompanySettings(),
                     ...this.stores.map(async (s) => {
                         const [costReport, existing] = await Promise.all([
                             getCostReportDates(s.key, this.periodKey),
@@ -586,6 +596,7 @@ export default {
                 this.laborSlots = slots
                 // シフトCSV未アップ時は DB 値（または新規ゼロ）扱い
                 this.laborSlotsSource = 'db'
+                this.ryoHourlyRate = Number(companySetting?.ryo_hourly_rate) || 1300
                 this.totalVariablePayroll = companyRec?.total_variable_payroll ?? null
                 this.csvPreview = []
                 this.step = 1

@@ -27,11 +27,11 @@
                 @click="toggleMetric(m.key)"
                 :class="[
                     'px-2.5 py-1 rounded-lg text-xs font-bold border transition-all',
-                    visibleMetrics.has(m.key)
+                    visibleMetrics.includes(m.key)
                         ? 'text-white border-transparent'
                         : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
                 ]"
-                :style="visibleMetrics.has(m.key) ? { background: m.color, borderColor: m.color } : {}"
+                :style="visibleMetrics.includes(m.key) ? { background: m.color, borderColor: m.color } : {}"
             >
                 {{ m.label }}
             </button>
@@ -45,6 +45,7 @@
 </template>
 
 <script>
+import { markRaw } from 'vue'
 import {
     Chart, LineController, LineElement, PointElement,
     LinearScale, CategoryScale, Tooltip, Legend
@@ -101,7 +102,7 @@ const CATEGORIES = [
     },
 ]
 
-const DEFAULT_VISIBLE = new Set(['totalSales', 'fRatio', 'lRatio', 'rRatio', 'netCashFlow'])
+const DEFAULT_VISIBLE = ['totalSales', 'fRatio', 'lRatio', 'rRatio', 'netCashFlow']
 
 const ALL_METRICS = CATEGORIES.flatMap(c => c.metrics)
 
@@ -116,7 +117,7 @@ export default {
             CATEGORIES,
             chart: null,
             expandedCategory: null,
-            visibleMetrics: new Set(DEFAULT_VISIBLE)
+            visibleMetrics: [...DEFAULT_VISIBLE]
         }
     },
     computed: {
@@ -126,7 +127,7 @@ export default {
         },
         chartDatasets() {
             return ALL_METRICS
-                .filter(m => this.visibleMetrics.has(m.key))
+                .filter(m => this.visibleMetrics.includes(m.key))
                 .map(m => ({
                     label: m.label,
                     yAxisID: m.axis,
@@ -155,10 +156,9 @@ export default {
             this.expandedCategory = this.expandedCategory === key ? null : key
         },
         toggleMetric(key) {
-            const next = new Set(this.visibleMetrics)
-            if (next.has(key)) next.delete(key)
-            else next.add(key)
-            this.visibleMetrics = next
+            const idx = this.visibleMetrics.indexOf(key)
+            if (idx >= 0) this.visibleMetrics.splice(idx, 1)
+            else this.visibleMetrics.push(key)
         },
         buildOptions() {
             return {
@@ -202,11 +202,14 @@ export default {
         },
         init() {
             if (this.chart) this.chart.destroy()
-            this.chart = new Chart(this.$refs.canvas, {
+            // markRaw でリアクティブ化を防ぐ。data() に格納された Chart インスタンスが
+            // Vue の Proxy にラップされると、chart.update() 時の内部参照同一性比較が壊れ、
+            // データセット変更が再描画に反映されない（トグルが効かない）ため。
+            this.chart = markRaw(new Chart(this.$refs.canvas, {
                 type: 'line',
                 data: { labels: this.labels, datasets: this.chartDatasets },
                 options: this.buildOptions()
-            })
+            }))
         },
         update() {
             if (!this.chart) { this.init(); return }

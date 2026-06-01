@@ -1,5 +1,44 @@
 # TROUBLESHOOTING
 
+## Case: トレンドチャートの指標トグルがチャートに反映されない（デフォルト指標は出るが切替不可）
+- Date: 2026-06-01
+- Severity: High
+- Owner: daiki
+
+### Symptoms
+- カテゴリ展開後、個別指標ボタンを押してもトレンドチャートの表示指標が切り替わらない。初期表示のデフォルト指標（税込総売上・F比・L比・R比・会社手残り）は正しく描画される
+
+### Cause
+- `PLTrendChart.vue` で Chart.js インスタンスを `chart: null` として `data()` に宣言していたため、`new Chart(...)` の戻り値が Vue 3 のリアクティブ Proxy にラップされていた
+- Chart.js は内部で多数の参照同一性比較（`===`）や自己参照を持つ。Proxy 経由だと raw オブジェクトと Proxy の同一性が崩れ、`chart.update()` がデータセット変更を再描画に反映できない
+- マウント時はコンストラクタが同期的に初回描画するため、デフォルト指標だけは表示され「出るのに切り替わらない」状態になっていた
+
+### Fix
+- `init()` で `this.chart = markRaw(new Chart(...))` とし、インスタンスをリアクティブ化対象外にする（`import { markRaw } from 'vue'`）
+- Files: `src/components/PLTrendChart.vue`
+
+### 教訓
+- Chart.js / Leaflet / 各種 Web SDK など**外部ライブラリの可変インスタンスを `data()` に保持しない**。保持する場合は必ず `markRaw()` でラップする（または `data()` に宣言せず非リアクティブなインスタンスフィールドとして持つ）。初回描画は動くため、テストで「更新が効かない」症状として後から顕在化しやすい
+
+## Case: トレンドチャートのカテゴリトグルボタンが反応しない（展開しない）
+- Date: 2026-06-01
+- Severity: High
+- Owner: daiki
+
+### Symptoms
+- PL モードのトレンドチャートで「売上」等のカテゴリボタンを押しても展開エリアが開かない。ボタンが完全に無反応に見える（PLT-05 の回帰）
+
+### Cause
+- `PLTrendChart.vue` で `visibleMetrics` を `Set` から `Array` に移行した際、展開エリアの指標ボタン `:style`（34行目）だけ `visibleMetrics.has(m.key)` が取りこぼされていた
+- カテゴリボタンのクリック自体は `expandedCategory` をセットできているが、続く再レンダリングで `v-if="expandedCategory"` の展開エリアを描画する瞬間、Array に存在しない `.has()` を呼んで `TypeError: visibleMetrics.has is not a function` が発生 → Vue の render が中断され DOM 更新が反映されず、結果「ボタンが反応しない」ように見えた
+
+### Fix
+- 34行目の `visibleMetrics.has(m.key)` を `visibleMetrics.includes(m.key)` に置換（30行目の class バインドは既に `.includes()` 済みだった）
+- Files: `src/components/PLTrendChart.vue`
+
+### 教訓
+- `Set`→`Array` のようなデータ型移行では、テンプレート内の `.has()` / `.add()` / `.delete()` 等の Set 専用メソッドを grep で洗い出して全置換する。class バインドだけ直して style バインドを見落とすと部分的に壊れる
+
 ## Case: 祝日マスタ「いま再取得する」がネットワーク切断時に「取得中...」で止まる
 - Date: 2026-05-30
 - Severity: Medium

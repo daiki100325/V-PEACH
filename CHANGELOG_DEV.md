@@ -1,6 +1,42 @@
 # CHANGELOG_DEV
 
 ## 2026-06-01
+- What: PLTrendChart で指標トグルがチャートに反映されない不具合を修正。Chart.js インスタンスを `markRaw()` でラップしてリアクティブ化を防止
+- Why: `chart` を `data()` に宣言していたため Chart.js インスタンスが Vue の Proxy に包まれ、`chart.update()` 時の内部参照同一性比較（`===`）が壊れてデータセット変更が再描画に反映されなかった。マウント時の初回描画（コンストラクタ）は動くため「デフォルト指標は出るがトグルが効かない」状態だった（トグル機能導入の `fe77e7d` から潜在。先行の `Set`→`Array` 修正は別問題で根本原因ではなかった）
+- Files: `src/components/PLTrendChart.vue`
+- Related: [[V-PEACH/notes/V-PEACH_test-plan]], [[V-PEACH/TROUBLESHOOTING]]
+
+## 2026-06-01
+- What: PLTrendChart のカテゴリトグルが反応しない不具合を修正（`Set`→`Array` 移行の取りこぼし）。展開エリアの指標ボタン `:style` に残っていた `visibleMetrics.has(m.key)` を `visibleMetrics.includes(m.key)` に置換
+- Why: `visibleMetrics` は Array 化済みだが34行目だけ Set メソッド `.has()` が残存。「売上」等のカテゴリボタンを押して展開エリアを描画する瞬間に `TypeError: visibleMetrics.has is not a function` が発生し、Vue の再レンダリングが失敗してボタンが無反応に見えていた（PLT-05 回帰）
+- Files: `src/components/PLTrendChart.vue`
+- Related: [[V-PEACH/notes/V-PEACH_test-plan]], [[V-PEACH/TROUBLESHOOTING]]
+
+## 2026-06-01
+- What: PLTrendChart のカテゴリトグル不具合修正 — `visibleMetrics` を `Set` から `Array` に変更し Vue 3 リアクティビティを確保
+- Why: `Set.has()` の computed 内依存追跡が Vue 3 Options API で不安定なため、`Array.includes()` + `splice/push` に置換
+- Files: `src/components/PLTrendChart.vue`
+
+## 2026-06-01
+- What: 固定給初期値 SEED（`SEED_fixed_salaries_20260520.sql`）とベンチマーク目標値の Supabase 投入完了を `notes/V-PEACH_release-plan.md`「現在のステータス」と `notes/_index.md` Weekly Review（Risks / Next Actions）に反映。「オーナー確認後に投入が必要」記載を「✅ 投入済み / 登録済み」に更新
+- Why: 2 つともオーナー確認が終わって Supabase に投入済みとなったため、Phase 12 期間中の残タスクから外して現状に合わせる
+- Files: `notes/V-PEACH_release-plan.md`, `notes/_index.md`
+
+## 2026-06-01
+- What: `notes/V-PEACH_release-plan.md` を `V-PEACH_history.md` の Phase 番号体系（0/1/2/3/4/5/6/7-1〜7-4/8/9/10/11/12）に合わせて全面再構成。「Phase 5+」「Phase 7-5」「無番号で散在していたベンチマーク改修・Step 0 集計期間プレビュー・PLApp N+1 削減・HRMOS UI/UX 改修」を所属 Phase に統合し、「現在のステータス」も Phase 11 完了 / Phase 12 進行中の現状に同期
+- What: `notes/V-PEACH_architecture.md` と `notes/V-PEACH_supabase-er-diagram.md` の SQL ファイル一覧・テーブル追加タイミング欄を新 Phase 体系に揃える（Phase 5+ → Phase 5、ベンチマーク再設計の Phase 7 → Phase 6、HRMOS 取込 → Phase 10、人件費新方式 → Phase 8）
+- What: `notes/_index.md` の「現在のステータス」を Phase 単位に再集約（標題に散在していたベンチマーク改修・Step 0 プレビュー・PLApp N+1 削減を所属 Phase の括弧内に折り畳む）
+- Why: history.md を正史としていたが、release-plan.md と一部 notes が旧 Phase 体系（Phase 5+ / Phase 7 でのベンチマーク改修 / 7-5 単独項目）のままで、進捗の俯瞰や CHANGELOG との対応取りに齟齬があったため
+- Files: `notes/V-PEACH_release-plan.md`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_history]]
+
+## 2026-06-01
+- What: 人件費プレビュー（Step 4）りょーさん枠テーブルに全店合計フッターを追加。「全店合計: XXX.X h ／ 代替コスト: ¥YYYY（¥1,300/h）」を表示。時給は `pe_company_settings.ryo_hourly_rate` をstartCsvEntry時に取得して使用。各店舗行の「代替コスト参考: X h」表記を「重みつき枠数 = X h」に修正（バイト行と統一）
+- Why: バイト枠には全店合計フッターがあるのにりょーさん枠には合計も代替コスト総計もなく、参考情報として不十分だった
+- Files: `src/components/apps/InputApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_test-plan]]
+
+## 2026-06-01
 - What: シフトCSVアップロード（Step 3）のUIを売上CSV（Step 1）に統一。ボタンをヘッダーカード内の全幅スタイルに変更、ボタンテキストを「シフトCSVを選択」に統一、ファイル名をボタン直下に表示、状態表示を独立したステータスカードに分離。シフトCSVに削除ボタンを追加（`clearShiftsCsv` メソッド新設）。再編集モードの「DB既存値を使用中」バナーに全店舗の枠数サマリー（バイト/りょーさん × 6h/7.5h）を追加
 - Why: Step 1 と Step 3 のUIが異なることがノイズになっていた。削除ボタン・既存値サマリーは売上CSVとの操作感を揃えるため
 - Files: `src/components/apps/InputApp.vue`

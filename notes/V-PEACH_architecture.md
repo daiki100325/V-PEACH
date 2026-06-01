@@ -53,15 +53,15 @@ V-PEACH/
 ├── supabase/
 │   ├── DB_MIGRATION.sql                            # Phase 1: pe_* 4テーブル作成
 │   ├── DB_MIGRATION_revision_20260517.sql          # Phase 5: 売上分離・カラム整理
-│   ├── DB_MIGRATION_versioned_settings.sql         # Phase 5+: 設定バージョン管理テーブル追加
-│   ├── DB_MIGRATION_enable_rls_20260517.sql        # Phase 5+: 全テーブルRLS有効化
-│   ├── DB_MIGRATION_benchmarks_flr_20260518.sql    # Phase 7: pe_benchmarks_revisions に FLR 3列追加
-│   ├── DB_MIGRATION_benchmarks_restructure_20260518.sql # Phase 7: pe_benchmarks フラット化
+│   ├── DB_MIGRATION_versioned_settings.sql         # Phase 5: 設定バージョン管理テーブル追加
+│   ├── DB_MIGRATION_enable_rls_20260517.sql        # Phase 5: 全テーブルRLS有効化
+│   ├── DB_MIGRATION_benchmarks_flr_20260518.sql    # Phase 6: pe_benchmarks_revisions に FLR 3列追加
+│   ├── DB_MIGRATION_benchmarks_restructure_20260518.sql # Phase 6: pe_benchmarks フラット化（5指標）
 │   ├── DB_MIGRATION_daily_sales_cache_20260518.sql # Phase 7-2: pe_daily_sales_cache 作成
-│   ├── DB_MIGRATION_labor_cost_20260520.sql        # 人件費新方式: pe_monthly_records 4列追加・pe_monthly_company_records 新設・固定給/社長時給列追加
-│   ├── DB_MIGRATION_hrmos_masters_20260525.sql     # HRMOS シフト CSV 取込: pe_hrmos_staffs/segments + pe_jp_holidays/meta
+│   ├── DB_MIGRATION_labor_cost_20260520.sql        # Phase 8: pe_monthly_records 4列追加・pe_monthly_company_records 新設・固定給/社長時給列追加
+│   ├── DB_MIGRATION_hrmos_masters_20260525.sql     # Phase 10: HRMOS シフト CSV 取込（pe_hrmos_staffs/segments + pe_jp_holidays/meta）
 │   ├── SEED_store_settings_defaults.sql            # フォールバック用デフォルト値投入
-│   ├── SEED_benchmarks_defaults_20260518.sql       # ベンチマーク初期値（5指標）
+│   ├── SEED_benchmarks_defaults_20260518.sql       # Phase 6: ベンチマーク初期値（5指標）
 │   └── SEED_daily_sales_cache_202512.sql           # Phase 7-2: 2025年12月分初回キャッシュ
 └── .env.local                   # 環境変数（gitignore済み）
 ```
@@ -148,7 +148,7 @@ CREATE TABLE pe_benchmarks (
 ```
 > 2026-05-18 に EAV形式（store_id / item_name / target_value）からフラット・シングルトン形式に再設計。`pe_company_settings` と同パターン。主系は `pe_benchmarks_revisions`、このテーブルはフォールバック用。
 
-### 設定バージョン管理テーブル（Phase 5+追加）
+### 設定バージョン管理テーブル（Phase 5追加）
 
 設定3種を `effective_from`（YYYYMM）付きで改定履歴管理。PL計算時は `effective_from <= periodKey` の最新行を取得し、行がなければ旧テーブルにフォールバックする。
 
