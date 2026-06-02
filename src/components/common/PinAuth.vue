@@ -11,9 +11,11 @@
                             </path>
                         </svg>
                     </div>
-                    <h1 class="text-2xl font-bold text-white">V-PEACH</h1>
-                    <p class="text-slate-400 text-xs mt-0.5">経営ダッシュボード</p>
-                    <p class="text-slate-400 text-sm mt-2">暗証番号を入力してください</p>
+                    <h1 class="text-2xl font-bold text-white tracking-wide">V-PEACH</h1>
+                    <p class="text-slate-400 text-[10px] mt-2 tracking-[0.15em] uppercase leading-relaxed px-2">
+                        Profit and Expense<br />Analysis for Corporate Health
+                    </p>
+                    <p class="text-slate-500 text-xs mt-4">暗証番号を入力してください</p>
                 </div>
 
                 <!-- テンキー入力エリア -->

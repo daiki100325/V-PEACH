@@ -1,5 +1,16 @@
 # CHANGELOG_DEV
 
+## 2026-06-02
+- What: PIN認証・ヘッダーから日本語ラベル「経営ダッシュボード」を削除。正式名称テキストを uppercase + `tracking-[0.1em]`（ヘッダー）/ `tracking-[0.15em]`（PIN画面）スタイルに変更し、略称・正式名称のデザインを洗練
+- Why: 不要なカテゴリ説明テキストを排除し、略称（V-PEACH）と英語正式名称の組み合わせをよりクリーンなタイポグラフィで表現するため
+- Files: `src/components/common/AppHeader.vue`, `src/components/common/PinAuth.vue`
+- Related: [[V-PEACH/CHANGELOG_DEV]]
+
+- What: V-PEACH の正式名称（**VANGVIENG Profit and Expense Analysis for Corporate Health**）を PIN 認証 UI とヘッダー左上ロゴに併記。基本ドキュメント（`notes/_index.md` / `notes/V-PEACH_requirements.md`）冒頭にも「正式名称」セクションを新設。モバイルファースト配慮として正式名称は極小フォント（`text-[9px]` ヘッダー / `text-[10px]` PIN 画面）＋ `tracking-tight` ＋ 1行（ヘッダーは `whitespace-nowrap` + `text-ellipsis`、PIN 画面は手動 `<br>` で2行）で組み込み、略称（V-PEACH）の主役配置と既存サブタイトル（経営ダッシュボード）を維持
+- Why: 略称ベースのブランディングに正式名称（バックロニム）を可視化し、新規ユーザー・関係者が略称の意味を一目で把握できるようにするため。狭いヘッダー領域でも視認性を損なわないよう、文字サイズ・トラッキング・折返し制御で UX を保つ
+- Files: `src/components/common/PinAuth.vue`, `src/components/common/AppHeader.vue`, `notes/_index.md`, `notes/V-PEACH_requirements.md`
+- Related: [[V-PEACH/notes/_index]], [[V-PEACH/notes/V-PEACH_requirements]]
+
 ## 2026-06-01
 - What: Phase 0〜12 完了・**正式リリース（本番稼働開始）を各帳票に明記**。`notes/V-PEACH_history.md`（概要に現況バナー・Phase 12 見出しを「正式リリース」化・🎉正式リリース小節追加・タイムライン更新）、`notes/V-PEACH_release-plan.md`（現在のステータスを「正式リリース済み」に・本番デプロイ完了明記・今後のロードマップに Phase 13 追加）、`notes/_index.md`（現在のステータスに正式リリースバナー・Phase 12 行に🎉追記）を更新
 - Why: Phase 12 までの完了と正式リリース済みであることを開発史・リリース計画・ハブの各帳票で明確にするため

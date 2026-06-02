@@ -4,6 +4,10 @@ tags: [project/v-peach, type/hub]
 
 # V-PEACH Hub
 
+## 正式名称
+- **V-PEACH** = **VANGVIENG Profit and Expense Analysis for Corporate Health**
+- 略称（V-PEACH）と正式名称は PIN 認証画面・ヘッダー左上ロゴにも併記する（モバイル可読性のため正式名称は極小フォント・1行）
+
 ## Overview
 - Goal: 現場データ（V-MINT 2.0）と財務データを結合した戦略的経営ダッシュボードの構築
 - Scope: 月次・年次PLの作成・分析・投資判断支援（Vue3 + Supabase + Cloudflare Pages）

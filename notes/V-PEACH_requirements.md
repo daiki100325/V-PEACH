@@ -5,6 +5,10 @@ parent: [[V-PEACH/notes/_index]]
 
 # V-PEACH — Requirements
 
+## 正式名称
+- **V-PEACH** = **VANGVIENG Profit and Expense Analysis for Corporate Health**
+- ブランド表記：略称（V-PEACH）を主、正式名称を副として PIN 認証画面・ヘッダー左上ロゴに併記する
+
 ## Summary
 - 現場データ（V-MINT 2.0）と財務データを結合し、「次の一手（投資・是正）」を導き出す戦略的経営ダッシュボード
 - 月次・年次PLの簡便な作成・確認と、投資判断の根拠提示が主目的

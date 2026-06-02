@@ -18,8 +18,10 @@
 
                 <!-- ポータル表示 -->
                 <div v-if="appMode === null" class="flex flex-col min-w-0 leading-tight">
-                    <h1 class="text-xl font-bold tracking-tight text-slate-800">V-PEACH</h1>
-                    <span class="text-[11px] text-slate-500 font-medium">経営ダッシュボード</span>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-800 leading-none">V-PEACH</h1>
+                    <span class="text-[9px] text-slate-400 font-medium tracking-[0.1em] uppercase leading-snug whitespace-nowrap mt-0.5">
+                        Profit &amp; Expense Analysis for Corporate Health
+                    </span>
                 </div>
 
                 <!-- モード名表示 -->
