@@ -664,6 +664,34 @@ export async function updateJpHolidaysMeta(payload) {
   if (error) throw error
 }
 
+// ─── 新店舗作成（アトミック RPC） ────────────────────────────────────────
+// 参照: V-PEACH/notes/V-PEACH_multi-store-scaling-plan.md (P4)
+
+/**
+ * 新店舗を単一トランザクションで作成する（create_store_atomic RPC のラッパー）
+ * stores / pe_store_settings / pe_store_settings_revisions / pe_store_shift_rules を
+ * 一括 insert する。失敗時はサーバ側でロールバックされ何も残らない。
+ * @param {object} payload
+ * @param {string} payload.p_store_key      英小文字始まり 2〜30 文字（^[a-z][a-z0-9_]{1,29}$）
+ * @param {string} payload.p_name           表示名（trim 後非空）
+ * @param {number} payload.p_effective_from 初期世代 YYYYMM（例: 202607）
+ * @param {object} payload.p_settings       { fixed_rent, fixed_utilities, fixed_sundries, payment_fee_rate, fixed_salary_total }
+ * @param {Array}  payload.p_shift_rules    [{ shift_type, day_type, hours }, ...] 6 要素必須
+ * @returns {object}  成功時の RPC 戻り値 { store_id, store_key, name, display_order, ... }
+ */
+export async function createStoreAtomic({ p_store_key, p_name, p_effective_from, p_settings, p_shift_rules }) {
+  requireSupabase()
+  const { data, error } = await supabase.rpc('create_store_atomic', {
+    p_store_key,
+    p_name,
+    p_effective_from,
+    p_settings,
+    p_shift_rules
+  })
+  if (error) throw error
+  return data
+}
+
 // ─── V-MINT cost_price_masters ──────────────────────────────────────────
 
 /** 指定periodKeyに有効なV-MINTの単価マスター（フレーバー・炭単価）を返す */

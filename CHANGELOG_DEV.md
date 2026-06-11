@@ -1,5 +1,11 @@
 # CHANGELOG_DEV
 
+## 2026-06-12
+- What: マルチストア改修 **P4 後半** — 新店舗追加ウィザード実装完了。`SettingsApp` の「＋ 新店舗を追加」ボタンを有効化し、3ステップのモーダルウィザード（Step1: 基本情報・Step2: 固定費設定・Step3: シフトルール＋サマリー）を追加。`api.js` に `createStoreAtomic()` ラッパー（`create_store_atomic` RPC 呼び出し）を追加。各ステップにクライアント側バリデーション（store_key 正規表現・全項目必須・非負）、Step3 で入力内容サマリー表示・確認ダイアログ（`smConfirm` 流用）を経て一発確定。成功時は店舗一覧リロード＋ウィザード閉じ。失敗時はサーバーエラーをStep3内に表示し入力保持
+- Why: 新店舗追加の一連フローを UI 完結させる（R6/R7 要件。multi-store-scaling-plan §4-4 / §6 P4 後半）
+- Files: `src/api.js`, `src/components/apps/SettingsApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
 ## 2026-06-11
 - What: マルチストア改修 **P4 前半** — `SettingsApp` に「店舗管理」セクションを新設（subMode `store-mgmt`）。shop 店舗の一覧（休止含む・display_order 順）／名称インライン編集（Enter保存・Escキャンセル）／休止・再開トグル（確認ダイアログ必須・休止で `closed_at`=当日・再開でクリア）／↑↓並べ替え（隣接 swap・office とは入れ替え不可）／`store_key` ロック表示。`api.js` に `updateStore(id, fields)` 追加（name/is_active/display_order/closed_at ホワイトリスト方式・store_key/store_type は更新経路なし）。新店舗追加ボタンは disabled プレースホルダー（P4 後半のウィザードで実装）
 - Why: 店舗マスタの単一窓口を V-PEACH に集約（R5）。休止は論理削除で過去データ保持（R2/R3）（multi-store-scaling-plan §4-4 / §6 P4）

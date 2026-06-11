@@ -677,18 +677,206 @@
                     </div>
                 </div>
 
-                <!-- 新店舗追加（P4 後半スコープ・現在は disabled プレースホルダー） -->
-                <button
-                    disabled
-                    title="P4 後半で実装予定"
-                    class="w-full py-2.5 rounded-xl text-sm font-medium border border-dashed border-slate-200 text-slate-300 cursor-not-allowed flex items-center justify-center gap-2">
+                <!-- 新店舗追加ボタン（ウィザードモーダルを開く） -->
+                <button @click="nsOpenWizard"
+                    :disabled="smSaving"
+                    class="w-full py-2.5 rounded-xl text-sm font-medium border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 hover:border-brand-400 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    ＋ 新店舗を追加（P4 後半で実装予定）
+                    ＋ 新店舗を追加
                 </button>
             </template>
         </div>
+
+        <!-- ─── 新店舗追加ウィザード（モーダル） ──────────────────────────── -->
+        <transition name="fade">
+            <div v-if="nsWizardOpen"
+                class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"
+                @click.self="nsCloseWizard">
+                <div class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg flex flex-col"
+                    style="max-height: 90dvh; overflow: hidden;">
+
+                    <!-- ヘッダー -->
+                    <div class="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                        <div>
+                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                                ステップ {{ nsStep }} / 3
+                            </div>
+                            <h3 class="text-base font-bold text-slate-800">
+                                {{ ['', '基本情報', '固定費設定', 'シフトルール'][nsStep] }}
+                            </h3>
+                        </div>
+                        <button @click="nsCloseWizard"
+                            class="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- ステップインジケーター -->
+                    <div class="px-6 py-3 flex items-center gap-2 shrink-0">
+                        <div v-for="s in 3" :key="s"
+                            class="flex-1 h-1 rounded-full transition-colors"
+                            :class="s <= nsStep ? 'bg-brand-500' : 'bg-slate-100'">
+                        </div>
+                    </div>
+
+                    <!-- コンテンツ（スクロール可） -->
+                    <div class="flex-1 overflow-y-auto px-6 pb-4 space-y-4" style="min-height: 0;">
+
+                        <!-- Step 1: 基本情報 -->
+                        <template v-if="nsStep === 1">
+                            <div class="space-y-0.5">
+                                <label class="block text-xs font-medium text-slate-500">
+                                    表示名 <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" v-model="nsForm.name" placeholder="例: 渋谷店"
+                                    class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
+                            </div>
+                            <div class="space-y-0.5">
+                                <label class="block text-xs font-medium text-slate-500">
+                                    店舗キー (store_key) <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" v-model="nsForm.store_key" placeholder="例: shibuya"
+                                    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                                    class="w-full bg-slate-50 border border-slate-200 text-sm font-mono rounded-xl px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
+                                <p class="text-xs text-slate-400">
+                                    英小文字始まり・2〜30 文字（英小文字・数字・_ のみ）。
+                                    <span class="font-bold text-slate-500">作成後は変更できません。</span>
+                                </p>
+                            </div>
+                            <div class="space-y-0.5">
+                                <label class="block text-xs font-medium text-slate-500">
+                                    適用開始月 <span class="text-red-500">*</span>
+                                </label>
+                                <input type="month" v-model="nsForm.effective_from"
+                                    class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
+                                <p class="text-xs text-slate-400">固定費・シフトルールの初期世代として登録されます。</p>
+                            </div>
+                            <p v-if="nsStep1Error" class="text-xs text-red-500">{{ nsStep1Error }}</p>
+                        </template>
+
+                        <!-- Step 2: 固定費設定 -->
+                        <template v-if="nsStep === 2">
+                            <div v-for="field in storeSettingsFields" :key="field.key" class="space-y-0.5">
+                                <label class="block text-xs font-medium text-slate-500">
+                                    {{ field.label }} <span class="text-red-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <span v-if="field.isJPY" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">¥</span>
+                                    <CurrencyInput v-if="field.isJPY"
+                                        v-model="nsSettings[field.key]"
+                                        class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl pl-7 pr-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
+                                    <input v-else type="number" min="0" :step="field.step || 0.01"
+                                        v-model.number="nsSettings[field.key]"
+                                        class="w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
+                                    <span v-if="field.isRate" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">%</span>
+                                </div>
+                                <p v-if="field.hint" class="text-xs text-slate-400">{{ field.hint }}</p>
+                            </div>
+                            <p v-if="nsStep2Error" class="text-xs text-red-500">{{ nsStep2Error }}</p>
+                        </template>
+
+                        <!-- Step 3: シフトルール + サマリー -->
+                        <template v-if="nsStep === 3">
+                            <!-- シフトルール 6マス（早番 × 中番 × 遅番 ／ 平日 × 土日祝） -->
+                            <div>
+                                <p class="text-xs font-medium text-slate-500 mb-2">
+                                    各シフト枠の勤務時間
+                                    <span class="text-slate-400 font-normal">（6h または 7.5h を選択）</span>
+                                </p>
+                                <div class="rounded-2xl border border-slate-100 overflow-hidden">
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr class="bg-slate-50 text-xs font-bold text-slate-500">
+                                                <th class="px-4 py-2.5 text-left">シフト</th>
+                                                <th class="px-4 py-2.5 text-center">平日</th>
+                                                <th class="px-4 py-2.5 text-center">土日祝</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-50">
+                                            <tr v-for="shift in [{ key: 'early', label: '早番' }, { key: 'middle', label: '中番' }, { key: 'late', label: '遅番' }]"
+                                                :key="shift.key">
+                                                <td class="px-4 py-2.5 font-bold text-slate-700">{{ shift.label }}</td>
+                                                <td class="px-2 py-2 text-center">
+                                                    <select v-model.number="nsShiftRules[shift.key + '_weekday']"
+                                                        class="appearance-none bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-brand-500 text-center">
+                                                        <option :value="6">6h</option>
+                                                        <option :value="7.5">7.5h</option>
+                                                    </select>
+                                                </td>
+                                                <td class="px-2 py-2 text-center">
+                                                    <select v-model.number="nsShiftRules[shift.key + '_holiday']"
+                                                        class="appearance-none bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-brand-500 text-center">
+                                                        <option :value="6">6h</option>
+                                                        <option :value="7.5">7.5h</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- 入力内容サマリー -->
+                            <div class="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-2">
+                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">入力内容の確認</p>
+                                <div class="space-y-1.5 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500">表示名</span>
+                                        <span class="font-bold text-slate-800">{{ nsForm.name }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500">店舗キー</span>
+                                        <span class="font-mono font-bold text-slate-800">{{ nsForm.store_key }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500">適用開始月</span>
+                                        <span class="font-bold text-slate-800">{{ nsEffectiveFromLabel }}</span>
+                                    </div>
+                                    <div class="border-t border-slate-200 pt-1.5"></div>
+                                    <!-- 固定費サマリー（nsFormatSettingValue で % 値を正しく表示） -->
+                                    <div v-for="field in storeSettingsFields" :key="field.key"
+                                        class="flex justify-between text-xs">
+                                        <span class="text-slate-500">{{ field.shortLabel }}</span>
+                                        <span class="font-bold text-slate-700">{{ nsFormatSettingValue(nsSettings[field.key], field) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- サーバーエラー表示（RPC 失敗時。入力保持のまま同ステップに留まる） -->
+                            <p v-if="nsServerError" class="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{{ nsServerError }}</p>
+                        </template>
+
+                    </div>
+
+                    <!-- フッター: 戻る / 次へ / 作成 ボタン -->
+                    <div class="px-6 py-4 border-t border-slate-100 flex items-center gap-3 shrink-0">
+                        <button v-if="nsStep > 1" @click="nsPrevStep"
+                            :disabled="nsSaving"
+                            class="px-4 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors">
+                            ← 戻る
+                        </button>
+                        <div class="flex-1"></div>
+                        <!-- 次へボタン（Step1・2）: バリデーション通過が条件 -->
+                        <button v-if="nsStep < 3" @click="nsNextStep"
+                            :disabled="!!(nsStep === 1 ? nsStep1Error : nsStep2Error)"
+                            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-brand-600 hover:bg-brand-700 text-white">
+                            次へ →
+                        </button>
+                        <!-- 作成ボタン（Step3）: 確認ダイアログ → RPC 呼び出し -->
+                        <button v-if="nsStep === 3" @click="nsSubmit"
+                            :disabled="nsSaving"
+                            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-brand-600 hover:bg-brand-700 text-white">
+                            {{ nsSaving ? '作成中...' : '店舗を作成する' }}
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </transition>
 
     </main>
 </template>
@@ -701,7 +889,8 @@ import {
     getHrmosStaffs, upsertHrmosStaffs, updateHrmosStaffRole,
     getHrmosSegments, upsertHrmosSegments, updateHrmosSegment,
     getJpHolidays, getJpHolidaysMeta,
-    getStores, updateStore
+    getStores, updateStore,
+    createStoreAtomic
 } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey } from '../../utils/periods.js'
 import CurrencyInput from '../CurrencyInput.vue'
@@ -768,7 +957,32 @@ export default {
             smSaving: false,
             smStores: [],        // store_type='shop' の全行（is_active 問わず・display_order 順）
             smEditingId: null,   // インライン名称編集中の store.id
-            smEditingName: ''    // 編集中の一時名称
+            smEditingName: '',   // 編集中の一時名称
+            // 新店舗追加ウィザード（create_store_atomic RPC）
+            nsWizardOpen: false,  // モーダル開閉フラグ
+            nsStep: 1,            // 現在のステップ 1=基本情報 / 2=固定費 / 3=シフトルール
+            nsSaving: false,      // RPC 呼び出し中フラグ
+            nsServerError: '',    // サーバーエラーメッセージ
+            nsForm: {             // Step1: 基本情報
+                name: '',
+                store_key: '',
+                effective_from: ''  // input[type="month"] の値（"2026-07" 形式）
+            },
+            nsSettings: {         // Step2: 固定費（payment_fee_rate は % 入力。例: 2.5 = 2.5%）
+                fixed_rent: null,
+                fixed_utilities: null,
+                fixed_sundries: null,
+                payment_fee_rate: null,
+                fixed_salary_total: null
+            },
+            nsShiftRules: {       // Step3: シフトルール 6マス（デフォルト: 早番7.5h・中番6h・遅番6h）
+                early_weekday: 7.5,
+                early_holiday: 7.5,
+                middle_weekday: 6,
+                middle_holiday: 6,
+                late_weekday: 6,
+                late_holiday: 6
+            }
         }
     },
     computed: {
@@ -828,6 +1042,38 @@ export default {
         },
         holRowsView() {
             return this.holRows.slice(0, 200)
+        },
+        // ─── 新店舗追加ウィザード ─────────────────────────────────────
+        /** Step1 バリデーションエラー文字列（空文字列 = エラーなし） */
+        nsStep1Error() {
+            if (!this.nsForm.name.trim()) return '表示名を入力してください。'
+            if (!this.nsForm.store_key) return '店舗キーを入力してください。'
+            if (!/^[a-z][a-z0-9_]{1,29}$/.test(this.nsForm.store_key)) {
+                return '店舗キーは英小文字始まり・2〜30文字（英小文字・数字・_ のみ）で入力してください。'
+            }
+            if (!this.nsForm.effective_from) return '適用開始月を選択してください。'
+            return ''
+        },
+        /** Step2 バリデーションエラー文字列（空文字列 = エラーなし） */
+        nsStep2Error() {
+            const s = this.nsSettings
+            const keys = ['fixed_rent', 'fixed_utilities', 'fixed_sundries', 'payment_fee_rate', 'fixed_salary_total']
+            for (const k of keys) {
+                if (s[k] === null || s[k] === '') return 'すべての項目を入力してください。'
+                if (Number(s[k]) < 0) return '0 以上の値を入力してください。'
+            }
+            return ''
+        },
+        /** effective_from を YYYYMM 整数に変換（input[type="month"] の "2026-07" → 202607） */
+        nsEffectiveFromInt() {
+            if (!this.nsForm.effective_from) return null
+            const [y, m] = this.nsForm.effective_from.split('-')
+            return Number(y) * 100 + Number(m)
+        },
+        /** effective_from の日本語ラベル（例: "2026年7月〜"） */
+        nsEffectiveFromLabel() {
+            if (!this.nsEffectiveFromInt) return ''
+            return fmLabel(this.nsEffectiveFromInt)
         }
     },
     methods: {
@@ -1328,6 +1574,110 @@ export default {
                 return this.requestConfirm(message, okLabel, okClass)
             }
             return Promise.resolve(window.confirm(message))
+        },
+
+        // ─── 新店舗追加ウィザード ──────────────────────────────────────
+        /** ウィザードを開く（フォームを初期化し翌月を effective_from のデフォルトにする） */
+        nsOpenWizard() {
+            const now = new Date()
+            const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+            const y = next.getFullYear()
+            const m = String(next.getMonth() + 1).padStart(2, '0')
+            this.nsForm = { name: '', store_key: '', effective_from: `${y}-${m}` }
+            this.nsSettings = {
+                fixed_rent: null,
+                fixed_utilities: null,
+                fixed_sundries: null,
+                payment_fee_rate: null,
+                fixed_salary_total: null
+            }
+            this.nsShiftRules = {
+                early_weekday: 7.5, early_holiday: 7.5,
+                middle_weekday: 6,  middle_holiday: 6,
+                late_weekday: 6,    late_holiday: 6
+            }
+            this.nsStep = 1
+            this.nsServerError = ''
+            this.nsWizardOpen = true
+        },
+        /** ウィザードを閉じる（入力は全破棄。確認不要） */
+        nsCloseWizard() {
+            this.nsWizardOpen = false
+        },
+        /** 次のステップへ進む（バリデーション通過後に呼ばれる） */
+        nsNextStep() {
+            if (this.nsStep < 3) this.nsStep++
+        },
+        /** 前のステップへ戻る（入力保持） */
+        nsPrevStep() {
+            if (this.nsStep > 1) {
+                this.nsStep--
+                this.nsServerError = ''
+            }
+        },
+        /**
+         * nsSettings の表示用フォーマット（サマリー表示専用）
+         * payment_fee_rate はウィザード内では % 値（例: 2.5）で保持するため
+         * 通常の formatSettingValue（DB 値の 0.025 を × 100 する）とは別処理が必要
+         */
+        nsFormatSettingValue(val, field) {
+            if (val === null || val === '') return '—'
+            if (field.isJPY) return '¥' + Number(val).toLocaleString()
+            if (field.isRate) return Number(val).toFixed(2) + '%'  // 既に % 値
+            return String(val)
+        },
+        /** 最終確認ダイアログを経て create_store_atomic RPC を呼び出す */
+        async nsSubmit() {
+            // 最終確認（既存の smConfirm パターンを流用）
+            const ok = await this.smConfirm(
+                `以下の内容で店舗を作成します。よろしいですか？\n\n` +
+                `店名: ${this.nsForm.name.trim()}\n` +
+                `店舗キー: ${this.nsForm.store_key}\n` +
+                `適用開始月: ${this.nsEffectiveFromLabel}`,
+                '作成する',
+                'text-brand-600 hover:bg-brand-50'
+            )
+            if (!ok) return
+
+            this.nsSaving = true
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', '店舗を作成中...')
+            try {
+                // payment_fee_rate は % 入力（例: 2.5）なので DB 保存時に /100 して小数化
+                const pSettings = {
+                    fixed_rent: Number(this.nsSettings.fixed_rent ?? 0),
+                    fixed_utilities: Number(this.nsSettings.fixed_utilities ?? 0),
+                    fixed_sundries: Number(this.nsSettings.fixed_sundries ?? 0),
+                    payment_fee_rate: Number(this.nsSettings.payment_fee_rate ?? 0) / 100,
+                    fixed_salary_total: Number(this.nsSettings.fixed_salary_total ?? 0)
+                }
+                const pShiftRules = [
+                    { shift_type: 'early',  day_type: 'weekday', hours: this.nsShiftRules.early_weekday },
+                    { shift_type: 'early',  day_type: 'holiday', hours: this.nsShiftRules.early_holiday },
+                    { shift_type: 'middle', day_type: 'weekday', hours: this.nsShiftRules.middle_weekday },
+                    { shift_type: 'middle', day_type: 'holiday', hours: this.nsShiftRules.middle_holiday },
+                    { shift_type: 'late',   day_type: 'weekday', hours: this.nsShiftRules.late_weekday },
+                    { shift_type: 'late',   day_type: 'holiday', hours: this.nsShiftRules.late_holiday }
+                ]
+                await createStoreAtomic({
+                    p_store_key: this.nsForm.store_key,
+                    p_name: this.nsForm.name.trim(),
+                    p_effective_from: this.nsEffectiveFromInt,
+                    p_settings: pSettings,
+                    p_shift_rules: pShiftRules
+                })
+                // 成功: 店舗一覧リロード & ウィザードを閉じる
+                const rows = await getStores()
+                this.smStores = rows.filter(s => s.store_type === 'shop')
+                this.nsWizardOpen = false
+                alert('店舗を作成しました。')
+            } catch (e) {
+                // 失敗: エラーをウィザード内に表示（入力保持・Step3 に留まる）
+                this.nsServerError = e.message || '店舗の作成に失敗しました。'
+            } finally {
+                this.nsSaving = false
+                this.$emit('update:loading', false)
+            }
         }
     }
 }

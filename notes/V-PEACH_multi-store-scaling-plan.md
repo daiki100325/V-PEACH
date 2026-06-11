@@ -11,7 +11,7 @@ parent:
 # 店舗増減の GUI 対応 — 実装計画（V-PEACH / V-MINT2.0）
 
 > ステータス: **実装計画（確定・着手前）** / 作成 2026-06-01 / 最終更新 2026-06-11
-> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 🟡 実装完了・回帰スモーク待ち**（2026-06-11 全実装タスク完了。§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証。残はつーくんの画面スモークのみ）／**P4 🟡 進行中**（2026-06-11 前半完了: `create_store_atomic` RPC 適用済み・店舗管理セクション実装。残: 追加ウィザード）／P5〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
+> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 🟡 実装完了・回帰スモーク待ち**（2026-06-11 全実装タスク完了。§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証。残はつーくんの画面スモークのみ）／**P4 🟡 進行中**（2026-06-11 前半完了: `create_store_atomic` RPC 適用済み・店舗管理セクション実装。2026-06-12 後半: 追加ウィザード実装完了（Sonnet サブエージェント実装 → Fable レビュー・ビルド検証）。残: GUI 追加→両アプリ反映の e2e 確認・`requirements`/`how-to-use` ドキュメント同期）／P5〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
 > 開発・運用方針（2026-06-11 追加）: 本改修は **当面 obsidian-vault ローカル `multi-store` ブランチでのみ進め**（§5-1）、既存版（V-MINT `v2` / V-PEACH `main`）へのバグフィックスは `main` ブランチから従来どおり `/vmint-deploy`・`/vpeach-deploy` で対応する（§5-2）。Supabase 上の SQL 実行は **Supabase MCP 経由で Claude Code が直接実行**する運用に切替え、つーくんの手作業実行をなくす（§5-3）。
 > 対象: V-MINT2.0・V-PEACH 両アプリ（`stores` テーブル共有のため一体で実装）
 > ゴール: 新店舗オープン／既存店舗の閉店を、つーくん（管理者）が **GUI からできる限り完結** して扱えるようにする。SQL 手作業ゼロ・1 か所登録で両アプリ反映。
@@ -492,9 +492,9 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 
 **P4 — 店舗管理 GUI（V-PEACH SettingsApp）**
 - [x] 店舗管理セクション（一覧 / 名称編集 / `is_active` トグル / 並べ替え / 確認ダイアログ）✅ 2026-06-11 — `SettingsApp` に「店舗管理」サブモード新設（`store_type='shop'` のみ・office 非表示・休止店舗もグレーアウト表示）。名称インライン編集／休止=確認ダイアログ＋`closed_at`=当日・再開=クリア／↑↓で隣接 swap 並べ替え（office とは構造的に入れ替わらない）／`store_key` はロックアイコンで変更不可を明示。`api.js` に `updateStore(id, fields)`（name/is_active/display_order/closed_at のホワイトリスト方式）。既知の残課題: 並べ替えは update 2回のため部分失敗で UI/DB が一時乖離しうる（再読込で復旧。P4 後半で swap RPC 化を検討）・編集結果は他画面では再読込まで反映されない（getStores はマウント時取得）
-- [ ] 追加ウィザード（`name`+`key` / 固定費 / シフトルールを必須入力）
+- [x] 追加ウィザード（`name`+`key` / 固定費 / シフトルールを必須入力）✅ 2026-06-12 — `SettingsApp` に3ステップモーダル（Step1: 表示名・store_key・適用開始月＝デフォルト翌月／Step2: 固定費5項目必須・非負・`storeSettingsFields` 流用／Step3: 早中遅×平日土日祝の6マス select（6h/7.5h・既定プリセット）＋入力サマリー）。一発確定のみ（途中保存なし）・確認ダイアログ→`createStoreAtomic()`（api.js 新設ラッパー）1回呼び・成功で一覧リロード・失敗はエラー表示で入力保持。§5-4 体制（Sonnet 実装→Fable レビュー・vite build PASS）
 - [x] `create_store_atomic` RPC（一括 insert・失敗時ロールバック・§5-3 MCP 経由で定義）✅ 2026-06-11 — `stores`＋`pe_store_settings`（現行値）＋`pe_store_settings_revisions`（初期世代）＋`pe_store_shift_rules`（6行）を単一トランザクションで一括 insert。store_key 正規表現・固定費5項目必須・シフト6パターン必須をサーバ側バリデーション。SQL は `supabase/DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql`
-- [ ] `store_key` 作成時ロック・英数字バリデーション
+- [x] `store_key` 作成時ロック・英数字バリデーション ✅ 2026-06-12 — クライアント（ウィザード Step1 正規表現 `^[a-z][a-z0-9_]{1,29}$`・「作成後は変更できません」明示）＋サーバ（RPC 内バリデーション・重複拒否）の二重チェック。作成後は `updateStore` のホワイトリストに `store_key` が無いため更新経路ゼロ（P4 前半で担保済み）
 - [ ] GUI 追加 → V-MINT 含む両アプリ反映の e2e 確認
 - [ ] ドキュメント同期（`requirements` / `how-to-use`）
 
