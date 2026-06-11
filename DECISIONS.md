@@ -1,5 +1,49 @@
 # DECISIONS
 
+## ADR-20260611-01: マルチストア改修期間中の Supabase 操作を MCP 経由に切替（Claude Code 直接実行）
+- Status: Accepted
+- Date: 2026-06-11
+- Owners: daiki100325
+- Scope: V-MINT2.0 / V-PEACH 共有 Supabase プロジェクト・マルチストア改修期間（§6 P1〜P7）
+
+### Context
+- マルチストア改修は SQL 実行量が大きい（P1 DDL／SEED・P2 行ベース新 RPC `*_v2` の作成と 4 店舗差分検証・P4 `create_store_atomic` 定義・P7 旧ピボット RPC `DROP`）
+- 現状は Claude Code が生成した SQL を つーくん が Supabase Studio で 1 本ずつ手作業実行 — 生成 → 実行 → 結果検証のループが分断され、転記ミス・実行漏れ・実行順序ミスのリスクが高い
+- 特に P2 の差分検証は反復実行が多く、手作業ではコスト過大
+
+### Decision
+- 公式 `@supabase/mcp-server-supabase` を `C:\Obsidian Vault\.mcp.json` に登録し、Claude Code が Supabase に直接 SQL／RPC を実行できる体制に切替
+- 接続先は V-MINT2.0／V-PEACH 共有プロジェクト（プレビュー・本番で共有・§5-2-3）
+- 運用ルール（3 階層）:
+  - **読み取り**（`SELECT`／`EXPLAIN`／スキーマ参照）= Claude Code が自由実行
+  - **書き込み**（`CREATE`／`ALTER ADD`／`INSERT`／`UPDATE`／`CREATE FUNCTION`）= SQL を提示 → つーくん 承認 → 実行
+  - **破壊的**（`DROP`／`TRUNCATE`／WHERE なし `DELETE`／`ALTER DROP COLUMN`）= 上記に加え対象件数 SELECT・FK 参照元の明示・ロールバック手順をセットで提示してから承認・実行
+- PAT は環境変数経由で `.mcp.json` に渡し、`.mcp.json` 自体は `.gitignore` でリポジトリに含めない
+
+### Alternatives
+- **A. 現状維持（つーくん手作業実行）**: 安全性は最大だが、検証ループの分断と反復実行コストが本改修の規模に対して大きすぎる。却下
+- **B. MCP 接続するがすべての操作を承認制**: 読み取りまで都度承認すると Claude Code 側の探索的調査コストが上がりすぎる。読み取りは自由・書き込みから承認、の階層化を採用
+- **C. 別の開発専用 Supabase プロジェクトを切る**: 本番分離で安全性は上がるが、`stores` を含む実データなしでは P2 の差分検証が成立しない（既存 4 店舗の旧 RPC 出力との JSON 差分ゼロ確認が目的）。コストに対して得るものが少ない。却下
+- **D. Supabase CLI でローカル migration を回す**: ローカル開発に閉じれば安全だが、本番 DB 反映のステップは結局必要で工程は減らない。Studio 手作業を CLI に置き換えるだけになる。MCP の生成 → 即実行ループ性を取る方が改修の主目的に合う
+
+### Consequences
+- **Positive**:
+  - SQL 生成 → 実行 → 結果検証が 1 ループで完結。P2 の反復差分検証コストが大きく下がる
+  - 実行漏れ・転記ミスのリスクが排除される
+  - SQL ファイル（`supabase/migrations/`）と DB 状態の同期を Claude Code が一貫管理できる
+- **Negative**:
+  - Claude Code が本番共有 DB に書き込める状態となる — §5-3-4 の承認手順を必ず通すこと、`.mcp.json` の PAT 管理を厳格にすること（環境変数化＋`.gitignore`）が運用前提
+  - PAT が漏れると本番 DB に対する書き込み権限が露出する。PAT のスコープ最小化（プロジェクト単位）と Bitwarden 保管を徹底
+  - MCP サーバーの ライブラリ更新を追う必要あり（`@supabase/mcp-server-supabase` を npx 経由なので最新は自動で取れるが、破壊的変更時の手当てが必要）
+- **Operational guardrail**:
+  - P7（旧 RPC `DROP`）は §6 の go-live（P6）完了が前提条件
+  - 本 ADR の運用ルールは改修期間（P1〜P7）限定。go-live 後の通常運用で MCP を残すかは別途判断
+
+### Links
+- 本書 §5-3「Supabase MCP の活用」: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan#5-3]]
+- §5-2-3 共有 DB リスク: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan#5-2-3]]
+- §8-1 決定ログ 項目 9（再掲）
+
 ## ADR-20260529-01: `labor_cost` フォールバック廃止・`pe_monthly_company_records` 必須化
 - Status: Accepted
 - Date: 2026-05-29

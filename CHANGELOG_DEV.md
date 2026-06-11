@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-11
+- What: `inventory_logs_flavor_id_fkey`（`inventory_logs.flavor_id` → `flavors.id`）に `ON DELETE CASCADE` を追加。既存制約を DROP → `CASCADE` 付きで再作成
+- Why: テスト用に作成したフレーバー（AL FAKHER Twist, id=310）を `flavors` テーブルから削除しようとしたところ、FK 制約の `ON DELETE` 挙動が未設定（`NO ACTION`）で削除不可だった
+- Files: `supabase/migrations/20260611_inventory_logs_fk_on_delete_cascade.sql`（V-MINT2.0 側に格納）
+- Related: [[V-PEACH/TROUBLESHOOTING]], [[V-MINT2.0/CHANGELOG_DEV]]
+
+## 2026-06-11
 - What: マルチストア改修 **P3 着手** — `getStores()` を拡張（新4列 `is_active`/`display_order`/`store_type`/`closed_at` 取得・`display_order` 順）。office 含む全行返却で `is_active` 絞り込みは呼び出し側責務（休止トグルは P5）。既存呼び出し（SettingsApp / InputApp の HRMOS 系）は ID→キー解決のみで並び順非依存のため挙動不変。vite build 確認済み
 - Why: P3（フロント動的化）全タスクの起点となる基礎 API 整備（multi-store-scaling-plan §4-3 / §6 P3）
 - Files: `src/api.js`（`multi-store` ブランチ）, `notes/V-PEACH_multi-store-scaling-plan.md`
