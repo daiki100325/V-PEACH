@@ -25,10 +25,12 @@ async function getStoreIdByKey(storeKey) {
 
 export async function getStores() {
   requireSupabase()
+  // P3: マルチストア対応の基礎。休止フラグ・表示順・店舗種別・閉店日を含めて display_order 順に返す
+  // （office 含む全行を返す。is_active での絞り込みは呼び出し側の責務 — 休止店舗表示トグルは P5）
   const { data, error } = await supabase
     .from('stores')
-    .select('id,store_key,name')
-    .order('name', { ascending: true })
+    .select('id,store_key,name,is_active,display_order,store_type,closed_at')
+    .order('display_order', { ascending: true })
   if (error) throw error
   return data || []
 }
