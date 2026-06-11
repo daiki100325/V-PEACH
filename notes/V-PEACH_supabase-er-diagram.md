@@ -274,7 +274,7 @@ flowchart TD
 ### pe_store_shift_rules（店舗別シフト枠時間・マルチストア P1 / 2026-06-11 追加）
 - 店舗 × シフト種別（early/middle/late）× 日種別（weekday=平日 / holiday=土日祝）× `effective_from`（YYYYMM）で枠時間（6.0 / 7.5）を世代管理。`effective_from <= periodKey` の最新世代を採用（`getActiveStoreSettings` と同方式）。
 - 初期世代（`effective_from=202512`）は現行実装の再現: **早番7.5h / 中番6h / 遅番6h、馬場2号店のみ遅番×土日祝=7.5h**（`applyBaba2ndLateHolidayBoost` 相当）。3 店舗 × 6 パターン = 18 行。
-- P3 で `shiftImporter.js` のハードコードをこのテーブル参照へ置換予定。**現時点ではフロント未参照（先行投入）**。
+- P3（2026-06-11）で `shiftImporter.js` のハードコード（`STORE_KEYS` 固定・馬場2号店遅番補正）を撤廃しこのテーブル参照へ置換済み。`api.js` の `getStoreShiftRules()`（stores と FK join で store_key 解決・全世代返却）で取得し、世代選択（`effective_from<=periodKey` の最新）と枠時間ルックアップは shiftImporter 内の純関数で実施。InputApp が CSV 取込時に取得して引数で渡す。
 
 ### app_ui_settings（両アプリ共有 UI 状態・マルチストア P1 / 2026-06-11 追加）
 - シングルトン（`id=1` CHECK）。`show_inactive_stores`: 「休止店舗も表示」トグルの全社一括状態（R3）。

@@ -11,7 +11,7 @@ parent:
 # 店舗増減の GUI 対応 — 実装計画（V-PEACH / V-MINT2.0）
 
 > ステータス: **実装計画（確定・着手前）** / 作成 2026-06-01 / 最終更新 2026-06-11
-> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 🟡 進行中**（getStores 拡張済み）／P4〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
+> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 🟡 実装完了・回帰スモーク待ち**（2026-06-11 全実装タスク完了。§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証。残はつーくんの画面スモークのみ）／P4〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
 > 開発・運用方針（2026-06-11 追加）: 本改修は **当面 obsidian-vault ローカル `multi-store` ブランチでのみ進め**（§5-1）、既存版（V-MINT `v2` / V-PEACH `main`）へのバグフィックスは `main` ブランチから従来どおり `/vmint-deploy`・`/vpeach-deploy` で対応する（§5-2）。Supabase 上の SQL 実行は **Supabase MCP 経由で Claude Code が直接実行**する運用に切替え、つーくんの手作業実行をなくす（§5-3）。
 > 対象: V-MINT2.0・V-PEACH 両アプリ（`stores` テーブル共有のため一体で実装）
 > ゴール: 新店舗オープン／既存店舗の閉店を、つーくん（管理者）が **GUI からできる限り完結** して扱えるようにする。SQL 手作業ゼロ・1 か所登録で両アプリ反映。
@@ -483,12 +483,12 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 
 **P3 — フロント動的化**
 - [x] `getStores()` 拡張（2026-06-11）— 新4列（`is_active` / `display_order` / `store_type` / `closed_at`）取得・`display_order` 順・office 含む全行返却。V-PEACH は既存関数を拡張、V-MINT2.0 は新設（従来 getStores 自体が存在しなかった）。両アプリ vite build 確認済み
-- [ ] 店舗リスト直書き撤廃（`App.vue`×2 / `TransferApp` / `RequestApp`）
-- [ ] stock 辞書アクセス化（`RequestApp` / `TransferApp` / `api.js`）
-- [ ] 色・名前マップの動的化
-- [ ] `office` 特例 → `store_type==='office'` 判定へ統一
-- [ ] `shiftImporter` を `pe_store_shift_rules` 参照に刷新（馬場2号店ハードコード撤廃）
-- [ ] 4 店舗で全モード回帰
+- [x] 店舗リスト直書き撤廃（`App.vue`×2 / `TransferApp` / `RequestApp`）✅ 2026-06-11 — 全リストを `getStores()`/`getStoresCached()` 由来へ。UI キー＝DB `store_key` に統一（旧 `'baba'` は `normalizeStoreKey` シム＋localStorage ドラフト移行で吸収）。取得失敗時は現行4店舗の固定フォールバックで継続
+- [x] stock 辞書アクセス化（`RequestApp` / `TransferApp` / `api.js`）✅ 2026-06-11 — `item.stock.office` 等の直アクセスを店舗リスト駆動の `stock[store_key]` ループへ。`getDashboardStockOverview` の `storeStocks` は固定4キー詰め替えを廃止し DB store_key の動的パススルーに
+- [x] 色・名前マップの動的化 ✅ 2026-06-11 — `V-MINT2.0/src/utils/storeDisplay.js` 新設（`storeBadgeColor`＝display_order 位置ベースのパレット・既存4店舗の配色維持／`storeNameByKey`＝stores.name 由来）。RequestApp/TransferApp の固定マップ撤廃
+- [x] `office` 特例 → `store_type==='office'` 判定へ統一 ✅ 2026-06-11 — App.vue/CostApp/DashboardApp/InventoryApp/RequestApp に `isOfficeStore` 等の computed を導入し `key==='office'` リテラル比較を全廃（`store_type==='office'` の DB 値比較・シムのみ残置）
+- [x] `shiftImporter` を `pe_store_shift_rules` 参照に刷新（馬場2号店ハードコード撤廃）✅ 2026-06-11（`getStoreShiftRules()` 追加・`STORE_KEYS` 撤廃・補正の世代ルール化・InputApp 追従。SEED が現行再現のため回帰ゼロ）
+- [ ] 4 店舗で全モード回帰（実装は 2026-06-11 完了・両アプリ vite build PASS・店舗キー直書きの残骸ゼロを grep 確認済み。**つーくんの画面スモーク待ち**: V-MINT 棚卸し/移動/発注/ダッシュボード・V-PEACH PL/シフトCSV取込）
 
 **P4 — 店舗管理 GUI（V-PEACH SettingsApp）**
 - [ ] 店舗管理セクション（一覧 / 名称編集 / `is_active` トグル / 並べ替え / 確認ダイアログ）

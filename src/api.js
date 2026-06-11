@@ -35,6 +35,34 @@ export async function getStores() {
   return data || []
 }
 
+// ─── pe_store_shift_rules（店舗別シフト枠時間・改定履歴付き） ────────────────
+// 参照: notes/V-PEACH_multi-store-scaling-plan.md（P3）/ src/utils/shiftImporter.js
+// P3: shiftImporter のハードコード（STORE_KEYS 固定・馬場2号店遅番補正）撤廃の参照先。
+
+/**
+ * pe_store_shift_rules を全行取得し、stores との FK join で store_key を解決して返す。
+ * 世代選択（effective_from <= periodKey の最新を採用）は呼び出し側（shiftImporter）が行うため、
+ * ここでは全世代をそのまま返す。読み取り専用。
+ * @returns [{ store_id, store_key, effective_from, shift_type, day_type, hours, note }, ...]
+ */
+export async function getStoreShiftRules() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_store_shift_rules')
+    .select('store_id,effective_from,shift_type,day_type,hours,note,stores(store_key)')
+    .order('effective_from', { ascending: true })
+  if (error) throw error
+  return (data || []).map(r => ({
+    store_id: r.store_id,
+    store_key: r.stores?.store_key ?? null,
+    effective_from: r.effective_from,
+    shift_type: r.shift_type,
+    day_type: r.day_type,
+    hours: Number(r.hours),
+    note: r.note ?? null
+  }))
+}
+
 // ─── pe_monthly_records ─────────────────────────────────────────────────────
 
 export async function getMonthlyRecord(storeKey, periodKey) {

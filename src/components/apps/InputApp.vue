@@ -387,7 +387,7 @@ import {
 } from '../../utils/csvImporter.js'
 import { calcShiftsFromFile } from '../../utils/shiftImporter.js'
 import { fetchJpHolidaysCached } from '../../utils/jpHolidaysClient.js'
-import { getHrmosStaffs, getHrmosSegments, getStores } from '../../api.js'
+import { getHrmosStaffs, getHrmosSegments, getStores, getStoreShiftRules } from '../../api.js'
 import CurrencyInput from '../CurrencyInput.vue'
 import StoreCsvUpload from '../StoreCsvUpload.vue'
 
@@ -443,16 +443,16 @@ export default {
         totalSteps() { return 6 },
         formatShiftsResultForUi() {
             if (!this.shiftsCsvResult) return []
-            const storeNameByKey = Object.fromEntries(this.stores.map(s => [s.key === 'baba' ? 'baba_main' : s.key, s.name]))
-            // shiftImporter は 'baba_main' / 'nakano' / 'baba_2nd' で返す
-            const STORE_KEYS = ['baba_main', 'nakano', 'baba_2nd']
-            return STORE_KEYS.map(storeKey => {
+            // P3: 店舗リストは stores プロップ（App.vue が store_type==='shop' かつ is_active を抽出済み）由来で動的化。
+            // shiftImporter は storeKeys（= this.stores の key）で集計結果を返す。
+            return this.stores.map(store => {
+                const storeKey = store.key
                 const s = this.shiftsCsvResult.slots[storeKey] || { pt6h: 0, pt7_5h: 0, ryo6h: 0, ryo7_5h: 0 }
                 const ptWeighted  = 6 * s.pt6h + 7.5 * s.pt7_5h
                 const ryoWeighted = 6 * s.ryo6h + 7.5 * s.ryo7_5h
                 return {
                     storeKey,
-                    storeName: storeNameByKey[storeKey] || storeKey,
+                    storeName: store.name,
                     ...s,
                     ptWeighted,
                     ryoWeighted,
@@ -866,22 +866,26 @@ export default {
             this.shiftsCsvResult = null
             this.shiftsCsvProcessing = true
             try {
-                const [staffs, segments, storesDb] = await Promise.all([
+                const [staffs, segments, storesDb, shiftRules] = await Promise.all([
                     getHrmosStaffs(),
                     getHrmosSegments(),
-                    getStores()
+                    getStores(),
+                    getStoreShiftRules()
                 ])
                 if (staffs.length === 0 || segments.length === 0) {
                     throw new Error('HRMOS スタッフ／勤務区分マスタが未登録です。設定モードから CSV を取り込んでください。')
                 }
                 const storeKeyById = new Map(storesDb.map(s => [s.id, s.store_key]))
+                // P3: 集計対象店舗は stores プロップ（active な shop 店舗）由来で動的化
+                const storeKeys = this.stores.map(s => s.key)
                 const holidaySet = await fetchJpHolidaysCached(this.periodKey)
                 const result = await calcShiftsFromFile(file, this.periodKey, {
-                    staffs, segments, holidaySet, storeKeyById
+                    staffs, segments, holidaySet, storeKeyById, storeKeys, shiftRules
                 })
                 this.shiftsCsvResult = result
-                // laborSlots に反映（store_key 正規化：baba → baba_main）
-                for (const sKey of ['baba_main', 'nakano', 'baba_2nd']) {
+                // laborSlots に反映（result.slots のキー＝storeKeys を走査。
+                // store_key 正規化シム：レガシー保存データの 'baba' → 'baba_main' は残す）
+                for (const sKey of Object.keys(result.slots)) {
                     const target = (sKey === 'baba_main' && this.laborSlots['baba']) ? 'baba' : sKey
                     if (!this.laborSlots[target]) this.laborSlots[target] = { pt6h: 0, pt7_5h: 0, ryo6h: 0, ryo7_5h: 0 }
                     const s = result.slots[sKey]

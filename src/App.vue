@@ -81,6 +81,7 @@
 </template>
 
 <script>
+import { getStores } from './api.js'
 import PinAuth from './components/common/PinAuth.vue'
 import LoadingOverlay from './components/common/LoadingOverlay.vue'
 import AppHeader from './components/common/AppHeader.vue'
@@ -108,8 +109,9 @@ export default {
             appMode: null,
             loading: false,
             loadingMessage: '',
+            // P3: 店舗マスタ（stores テーブル）から動的取得。下記はロード完了までのフォールバック
             stores: [
-                { key: 'baba', name: '馬場本店' },
+                { key: 'baba_main', name: '馬場本店' },
                 { key: 'nakano', name: '中野店' },
                 { key: 'baba_2nd', name: '馬場2号店' }
             ],
@@ -129,6 +131,7 @@ export default {
     },
     created() {
         history.replaceState({ appMode: null }, '')
+        this.loadStores()
     },
     mounted() {
         window.addEventListener('popstate', this.handlePopState)
@@ -137,6 +140,19 @@ export default {
         window.removeEventListener('popstate', this.handlePopState)
     },
     methods: {
+        async loadStores() {
+            // P3: 営業店舗（store_type='shop'・is_active）のみ表示。office は V-PEACH の店舗リスト対象外。
+            // 休止店舗の表示トグルは P5 で app_ui_settings 連動にする
+            try {
+                const rows = await getStores()
+                const shops = rows.filter(s => s.store_type === 'shop' && s.is_active)
+                if (shops.length > 0) {
+                    this.stores = shops.map(s => ({ key: s.store_key, name: s.name }))
+                }
+            } catch (e) {
+                console.error('店舗マスタの取得に失敗（フォールバックの固定リストで継続）:', e)
+            }
+        },
         // ─── Global confirm dialog ─────────────────────────────────────────
         appConfirm(message, okLabel = 'OK', okClass = 'text-brand-600 hover:bg-brand-50') {
             return new Promise((resolve) => {

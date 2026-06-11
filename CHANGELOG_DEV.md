@@ -1,6 +1,18 @@
 # CHANGELOG_DEV
 
 ## 2026-06-11
+- What: マルチストア改修 **P3** — `App.vue` の店舗リスト直書き（`baba`/`nakano`/`baba_2nd`）を撤廃し、`getStores()` から `store_type==='shop'` かつ `is_active` の行を取得して動的生成（`loadStores()`）。UI キーを DB `store_key`（`baba_main`）に統一し、取得失敗時は現行3店舗の固定フォールバックで継続。休止店舗の表示トグルは P5 で対応
+- Why: 店舗増減を `stores` マスタ1か所の登録で V-PEACH 全モード（PL／入力／設定）に反映させる（multi-store-scaling-plan §4-3 / §6 P3）
+- Files: `src/App.vue`（`multi-store` ブランチ）
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-11
+- What: マルチストア改修 **P3** — `shiftImporter.js` の店舗ハードコード撤廃・`pe_store_shift_rules` 参照化。(1) `STORE_KEYS=['baba_main','nakano','baba_2nd']` 固定配列と `ryoSlots`/`ptSlots` 固定オブジェクトを撤廃し、集計対象店舗を呼び出し側から `storeKeys`（active な shop 店舗）で受け取る動的生成へ。(2) 「馬場2号店の遅番×土日祝=7.5h」ハードコード補正を撤廃し、シフト枠時間（shift_type×day_type×store）を `pe_store_shift_rules` から取得・対象月の世代を `effective_from<=periodKey` の最新で選択（`getActiveStoreSettings` と同方式）。shiftImporter は DB 非依存の純関数を維持し、ルールは呼び出し側で取得して引数で渡す。(3) `src/api.js` に読み取り専用 `getStoreShiftRules()`（stores と FK join で store_key 解決・全世代返却）を追加。(4) InputApp の `formatShiftsResultForUi`・`onUploadShiftsCsv` のハードコード店舗キーを stores プロップ／`result.slots` 由来に動的化（レガシー `baba`→`baba_main` 正規化シムは保持）。SEED が現行ハードコードを忠実再現のため既存3店舗の計算結果は不変（回帰ゼロ）
+- Why: マルチストア（4店舗目以降）対応。店舗固有ロジックの最終ハードコード源を撤廃（multi-store-scaling-plan §6 P3）
+- Files: `src/utils/shiftImporter.js`, `src/api.js`, `src/components/apps/InputApp.vue`（`multi-store` ブランチ）, `notes/V-PEACH_multi-store-scaling-plan.md`, `notes/V-PEACH_supabase-er-diagram.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
+
+## 2026-06-11
 - What: `inventory_logs_flavor_id_fkey`（`inventory_logs.flavor_id` → `flavors.id`）に `ON DELETE CASCADE` を追加。既存制約を DROP → `CASCADE` 付きで再作成
 - Why: テスト用に作成したフレーバー（AL FAKHER Twist, id=310）を `flavors` テーブルから削除しようとしたところ、FK 制約の `ON DELETE` 挙動が未設定（`NO ACTION`）で削除不可だった
 - Files: `supabase/migrations/20260611_inventory_logs_fk_on_delete_cascade.sql`（V-MINT2.0 側に格納）
