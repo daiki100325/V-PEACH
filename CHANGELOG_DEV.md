@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-11
+- What: マルチストア改修 **P3 着手** — `getStores()` を拡張（新4列 `is_active`/`display_order`/`store_type`/`closed_at` 取得・`display_order` 順）。office 含む全行返却で `is_active` 絞り込みは呼び出し側責務（休止トグルは P5）。既存呼び出し（SettingsApp / InputApp の HRMOS 系）は ID→キー解決のみで並び順非依存のため挙動不変。vite build 確認済み
+- Why: P3（フロント動的化）全タスクの起点となる基礎 API 整備（multi-store-scaling-plan §4-3 / §6 P3）
+- Files: `src/api.js`（`multi-store` ブランチ）, `notes/V-PEACH_multi-store-scaling-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-MINT2.0/CHANGELOG_DEV]]
+
+## 2026-06-11
 - What: マルチストア改修 **P2（RPC 行ベース化）完了**に伴い計画帳票を更新（§6 P2 ✅・全期間 202512〜202606 差分ゼロ検証 PASS・フロント切替済み）。あわせて計画に **§5-4 サブエージェント活用**（Fable=戦略・レビュー・コミット・DB 書き込み／Sonnet・Opus=自己完結な実装・調査。DB 書き込み・commit はサブエージェント禁止）を新設し決定ログ 10 に追記。P2 が §5-4 体制の初運用（Sonnet 草案 → Fable レビュー・適用・検証）
 - Why: 進捗正本の同期と、改修期間中のトークン節約・レビュー品質維持の体制明文化
 - Files: `notes/V-PEACH_multi-store-scaling-plan.md`
