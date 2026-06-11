@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-11
+- What: マルチストア改修 **P2（RPC 行ベース化）完了**に伴い計画帳票を更新（§6 P2 ✅・全期間 202512〜202606 差分ゼロ検証 PASS・フロント切替済み）。あわせて計画に **§5-4 サブエージェント活用**（Fable=戦略・レビュー・コミット・DB 書き込み／Sonnet・Opus=自己完結な実装・調査。DB 書き込み・commit はサブエージェント禁止）を新設し決定ログ 10 に追記。P2 が §5-4 体制の初運用（Sonnet 草案 → Fable レビュー・適用・検証）
+- Why: 進捗正本の同期と、改修期間中のトークン節約・レビュー品質維持の体制明文化
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`
+- Related: [[V-MINT2.0/CHANGELOG_DEV]], [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-11
 - What: マルチストア改修 **P1（DB マイグレーション）完了**＋**§5-1 ローカルブランチ運用開始**。(1) `stores` に `is_active` / `display_order` / `store_type`（CHECK 制約付き）/ `closed_at` を追加し既存 4 店舗を SEED（office は `store_type='office'`・`display_order` 0→3）、(2) `pe_store_shift_rules`（店舗別シフト枠時間・`effective_from` 世代管理）と `app_ui_settings`（両アプリ共有 UI 状態シングルトン）を新設し RLS（anon 全許可）＋初期 SEED 18 行投入、(3) Supabase MCP の migration `multi_store_p1_stores_shift_rules_app_ui_settings` で適用し既存 RPC 4 本（`fetch_stock_overview` 等）の正常応答を確認（additive のみ・既存動作不変）、(4) `multi-store` ローカルブランチ作成＋`/vmint-deploy`・`/vpeach-deploy` 冒頭にブランチガード追加、(5) シフト枠既定値は計画書表記（早番6h/中番7.5h）が実態と逆だったため `pe_hrmos_segments` 実データ準拠（**早番7.5h/中番6h/遅番6h・馬場2号店のみ遅番×土日祝7.5h**）で投入し、計画書 §4-1 と ER 図の表記も訂正
 - Why: 店舗増減 GUI 対応（multi-store-scaling-plan §6 P1）。additive のみで既存 4 店舗を壊さず、P3 フロント動的化・P4 店舗管理 GUI の DB 土台を先行整備するため
 - Files: `notes/V-PEACH_multi-store-scaling-plan.md`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/V-PEACH_architecture.md`, `supabase/DB_MIGRATION_multi_store_p1_20260611.sql`（`multi-store` ブランチ）, `.claude/commands/vmint-deploy.md` / `vpeach-deploy.md`（未追跡運用のため git 管理外）
