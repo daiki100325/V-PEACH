@@ -1,6 +1,19 @@
 # CHANGELOG_DEV
 
 ## 2026-06-12
+- What: マルチストア改修 **P5 最終** — `csvImporter.js` の店舗名寄せを動的化。`detectStoreKeyFromFilename`・`decideHrmosSegmentClassification`・`parseHrmosSegmentsCsv` のハードコード（`STORE_NAME_JP` / `STORE_KEY_FROM_FILENAME_EN` 固定マップ・`SEGMENT_STORE_PATTERNS` 固定パターン）を削除し、呼び出し元から `stores` リストを引数で渡す動的解決に置き換え。InputApp は `this.stores`（App.vue が DB から取得済みの店舗リスト）を渡す。SettingsApp は `this.hmStoresDb`（同 getStores() 結果）を第3引数として追加。警告メッセージも `this.stores.map(s => s.name).join('・')` で動的化。
+- Why: 店舗追加・名称変更が SettingsApp GUI から可能になったのに、CSV 名寄せのハードコードが残っていた。新店舗を追加するたびに csvImporter.js を手修正する必要があるため、stores テーブル由来の動的解決に統一（multi-store-scaling-plan §6 P5）。
+- Files: `src/utils/csvImporter.js`, `src/components/apps/InputApp.vue`, `src/components/apps/SettingsApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-12
+- What: マルチストア改修 **P5** — `PLApp` に休止店舗対応を実装。(1) 未定義だった `loadStoreContext()`（`getStores()` から `store_type==='shop'` 全行を `{key,name,isActive,closed_at}` に map して `allStores` へ・`getAppUiSettings()` で `showInactiveStores` 初期化・各々失敗時は console.error で握りつぶし現状継続）と `onToggleShowInactive(checked)`（楽観更新→`updateAppUiSettings`・失敗時 alert＋ロールバック・トグルOFFで選択中店舗が選択肢から消える場合は `'all'` に戻す整合処理）を追加。(2) PL の全店舗合計・店舗別PL一覧（`storePLs`）の集計母集団を `this.stores`（active のみ）から `aggStores`（休止含む全 shop）へ変更し、`prefetchPeriods`／`loadMonthlyPLCore`／rolling3・annual の `storePLs` 添字／`fetchCostPeriodPreview` を aggStores 基準に統一（displayColumns と添字一致）。(3) 集計ループと**人件費按分の分母**（`totalWeightedSlots`）に `isStoreOpenForPeriod(store, periodKey)` を適用し、閉店翌月以降の店舗を除外
+- Why: 休止店舗を選択UIから既定で隠しつつ過去PLはトグルで閲覧可能にし、閉店翌月以降は集計・按分分母から正しく除外するため（multi-store-scaling-plan §6 P5）。現行4店舗は全て is_active=true・closed_at=NULL のため画面・数値は完全一致（回帰ゼロ）
+- Files: `src/components/apps/PLApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+- 補足（按分分母の調査）: 人件費按分の分母は `loadMonthlyPLCore` 内 `totalWeightedSlots`＝各店 `pe_monthly_records`（実シフトデータ）の重みつき枠数合計。閉店翌月以降は通常その月のレコードが存在せず自然に 0 になるが、過去データ残骸で分母が膨らみ他店の変動費按分が歪むのを防ぐ安全弁として明示的に `isStoreOpenForPeriod` で除外。`App.vue` は既に `is_active` で props.stores を絞っており、InputApp/SettingsApp の他セレクタに休止店舗が混ざる箇所はなし（SettingsApp 店舗管理セクションは仕様通り休止も表示）
+
+## 2026-06-12
 - What: マルチストア改修 **P3 完了** — 画面スモーク全項目 PASS（PL 店舗切替・シフトCSV取込〔馬場2号店 遅番土日祝=7.5h 補正の維持確認含む〕・店舗管理セクション一覧/名称編集/並べ替え・追加ウィザードの Step バリデーション）。コード変更なし（検証のみ）。ウィザード最終確定→両アプリ反映の e2e は P4 残タスクとして未実施（共有 DB のため実店舗作成はタイミングを別途判断）
 - Why: P3 フロント動的化の完了条件「4 店舗で全モード回帰なし」を満たしたため（multi-store-scaling-plan §6 P3）
 - Files: なし（`notes/V-PEACH_multi-store-scaling-plan.md` の進捗帳票を更新）

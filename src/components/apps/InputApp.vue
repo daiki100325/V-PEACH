@@ -635,9 +635,11 @@ export default {
                     continue
                 }
 
-                const storeKey = detectStoreKeyFromFilename(file.name)
+                const storeKey = detectStoreKeyFromFilename(file.name, this.stores)
                 if (!storeKey || !this.csvFiles[storeKey]) {
-                    globalWarnings.push(`${file.name}: ファイル名に店舗名（馬場本店・中野店・馬場2号店）が含まれていません`)
+                    // 店舗名リストを動的に生成してユーザーへわかりやすく表示
+                    const storeNamesStr = this.stores.map(s => s.name).join('・')
+                    globalWarnings.push(`${file.name}: ファイル名に店舗名（${storeNamesStr}）が含まれていません`)
                     continue
                 }
 

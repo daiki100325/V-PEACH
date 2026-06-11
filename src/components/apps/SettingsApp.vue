@@ -1376,7 +1376,7 @@ export default {
                 for (const st of this.hmStoresDb) {
                     storeKeyToId[st.store_key] = st.id
                 }
-                const rows = parseHrmosSegmentsCsv(text, storeKeyToId)
+                const rows = parseHrmosSegmentsCsv(text, storeKeyToId, this.hmStoresDb)
                 if (rows.length === 0) throw new Error('有効な勤務区分行が見つかりませんでした')
                 // 既存上書きを尊重（store_id/shift_type/default_hours/is_payroll_target を保持）
                 const existingById = new Map(this.hmSegments.map(s => [s.hrmos_segment_id, s]))

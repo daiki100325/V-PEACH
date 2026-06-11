@@ -11,9 +11,20 @@
                     <select v-model="selectedStoreKey"
                         class="appearance-none w-full bg-slate-50 border border-slate-200 text-sm font-bold rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-teal-500 text-slate-800">
                         <option value="all">全店舗合計</option>
-                        <option v-for="store in stores" :key="store.key" :value="store.key">{{ store.name }}</option>
+                        <!-- P5: 既定では休止店舗を除外。「休止店舗も表示」ON 時のみ休止店舗も出す（休止は末尾に印） -->
+                        <option v-for="store in selectorStores" :key="store.key" :value="store.key">
+                            {{ store.name }}{{ store.isActive === false ? '（休止）' : '' }}
+                        </option>
                     </select>
                 </div>
+
+                <!-- 休止店舗も表示トグル（全社一括・app_ui_settings 連動／過去 PL の決算閲覧用） -->
+                <label class="flex items-center gap-2 self-end ml-auto cursor-pointer select-none py-2.5">
+                    <input type="checkbox" :checked="showInactiveStores"
+                        @change="onToggleShowInactive($event.target.checked)"
+                        class="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                    <span class="text-xs font-bold text-slate-500">休止店舗も表示</span>
+                </label>
 
                 <!-- 期間モード -->
                 <div class="space-y-1.5">
@@ -380,12 +391,14 @@ import {
     getMonthlyRecord, getStoreSettings, getCompanySettings,
     getActiveStoreSettings, getActiveCompanySettings, getActiveBenchmarks,
     getCostReportForPE, getCostPriceForPeriod, getCostReportDates,
-    getMonthlyCompanyRecord, getLatestPeriodKey
+    getMonthlyCompanyRecord, getLatestPeriodKey,
+    getStores, getAppUiSettings, updateAppUiSettings
 } from '../../api.js'
 import {
     calcPL, calcVariableCostFromCostReport,
     calcRolling3MonthAvg, calcAnnualSum, formatJPY, formatPct
 } from '../../utils/finance.js'
+import { selectableStores, isStoreOpenForPeriod } from '../../utils/storeFilters.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey, formatPeriodLabel, getNPrevPeriodKeys, getYearPeriodKeys, parsePeriodKey } from '../../utils/periods.js'
 import PLTrendChart from '../PLTrendChart.vue'
 
@@ -424,7 +437,11 @@ export default {
             loadingPreview: false,
             years: buildYearOptions(),
             months: buildMonthOptions(),
-            storePLs: []
+            storePLs: [],
+            // P5: 集計の母集団は休止店舗も含む全 shop 店舗（closed_at で月別に除外）。
+            // allStores が空の間は props.stores（active のみ）にフォールバック。
+            allStores: [],
+            showInactiveStores: false
         }
     },
     computed: {
@@ -443,8 +460,17 @@ export default {
         },
         selectedStoreLabel() {
             if (this.selectedStoreKey === 'all') return '全店舗合計'
-            const s = this.stores.find(x => x.key === this.selectedStoreKey)
+            const s = this.aggStores.find(x => x.key === this.selectedStoreKey)
             return s ? s.name : ''
+        },
+        // P5: 集計の母集団（休止含む全 shop 店舗）。allStores 未ロード時は props.stores にフォールバック。
+        // 閉店翌月以降の除外は periodKey ごとに isStoreOpenForPeriod で行う（ここでは母集団のみ）。
+        aggStores() {
+            return this.allStores.length > 0 ? this.allStores : this.stores
+        },
+        // P5: 拠点ドロップダウンに出す店舗。既定は休止店舗を除外、トグル ON で休止も表示。
+        selectorStores() {
+            return selectableStores(this.aggStores, this.showInactiveStores)
         },
         plHasData() {
             return this.plResult !== null
@@ -485,13 +511,27 @@ export default {
             if (!this.isAllStores) {
                 return [{ key: 'single', label: null, pl: this.displayPL }]
             }
+            // P5: storePLs の添字は aggStores 基準のため map 後に filter する。
+            // 休止店舗の列はトグル ON のときのみ表示（セレクタと同じ「（休止）」印付き）。
+            const storeCols = this.aggStores
+                .map((s, i) => ({
+                    key: s.key,
+                    label: s.name + (s.isActive === false ? '（休止）' : ''),
+                    pl: this.storePLs[i] ?? null,
+                    isActive: s.isActive
+                }))
+                .filter(c => this.showInactiveStores || c.isActive !== false)
             return [
                 { key: 'all', label: '全店舗', pl: this.displayPL },
-                ...this.stores.map((s, i) => ({ key: s.key, label: s.name, pl: this.storePLs[i] ?? null }))
+                ...storeCols
             ]
         }
     },
     async created() {
+        // P5: 集計母集団（休止含む全 shop）と UI 設定（休止表示トグル）を読み込む。
+        // await しないと初回 PL 読込が props.stores（active のみ）基準で走り、
+        // 完了後に aggStores が allStores へ切り替わって storePLs の添字とずれる恐れがある
+        await this.loadStoreContext()
         try {
             const latestPk = await getLatestPeriodKey()
             if (latestPk) {
@@ -517,6 +557,49 @@ export default {
     methods: {
         fmt(v) { return v == null ? '—' : formatJPY(v) },
         fmtPct(v) { return formatPct(v) },
+        // P5: 集計母集団（休止含む全 shop 店舗）と UI 設定（休止表示トグル）を読み込む。
+        // どちらも失敗時は console.error で握りつぶし、props.stores / 既定値で現状動作を継続する。
+        async loadStoreContext() {
+            try {
+                const rows = await getStores()
+                // store_type==='shop' のみを集計母集団に採用（office は PL の対象外）。
+                // display_order 順（getStores 側でソート済み）を維持し、props.stores と列順を一致させる。
+                // テンプレート／selectableStores が参照する形（key / name / isActive / closed_at）に map する。
+                this.allStores = (rows || [])
+                    .filter(s => s.store_type === 'shop')
+                    .map(s => ({
+                        key: s.store_key,
+                        name: s.name,
+                        isActive: s.is_active,
+                        closed_at: s.closed_at ?? null
+                    }))
+            } catch (e) {
+                console.error('店舗マスタの取得に失敗（props.stores で継続）:', e)
+            }
+            try {
+                // 休止店舗も表示トグルの初期値（全社一括・app_ui_settings 連動）
+                const ui = await getAppUiSettings()
+                this.showInactiveStores = !!(ui && ui.show_inactive_stores)
+            } catch (e) {
+                console.error('UI設定の取得に失敗（休止店舗トグルは false で継続）:', e)
+            }
+        },
+        // P5: 「休止店舗も表示」トグル。楽観更新 → 永続化、失敗時は元に戻す。全社一括設定。
+        async onToggleShowInactive(checked) {
+            const prev = this.showInactiveStores
+            this.showInactiveStores = checked
+            // トグル OFF で選択中店舗が選択肢から消えた場合は「全店舗合計」に戻す（整合処理）
+            if (!checked && this.selectedStoreKey !== 'all'
+                && !this.selectorStores.some(s => s.key === this.selectedStoreKey)) {
+                this.selectedStoreKey = 'all'
+            }
+            try {
+                await updateAppUiSettings({ show_inactive_stores: checked })
+            } catch (e) {
+                this.showInactiveStores = prev
+                alert('休止店舗の表示設定の保存に失敗しました。')
+            }
+        },
         // モバイル時の sticky 項目列＋スクロール、デスクトップでは項目列が flex-1 で空白を埋める
         plRowClass(opts = {}) {
             const { py = 'py-3', bg = null, rounded = null } = opts
@@ -570,8 +653,10 @@ export default {
             if (!periodKey || String(periodKey).length < 6) { this.costPeriodPreview = []; return }
             this.loadingPreview = true
             try {
+                // P5: その期間に営業している店舗のみ（閉店翌月以降は除外）を aggStores から抽出
+                const openStores = this.aggStores.filter(s => isStoreOpenForPeriod(s, periodKey))
                 this.costPeriodPreview = await Promise.all(
-                    this.stores.map(async (s) => ({
+                    openStores.map(async (s) => ({
                         storeKey: s.key,
                         storeName: s.name,
                         costReport: await getCostReportDates(s.key, periodKey)
@@ -632,7 +717,8 @@ export default {
                     const plResults = rawResults3.map(r => this.isAllStores ? r?.pl ?? null : r)
                     this.plResult = calcRolling3MonthAvg(plResults)
                     if (this.isAllStores) {
-                        this.storePLs = this.stores.map((s, si) =>
+                        // P5: storePLs は aggStores 添字基準（displayColumns と一致させる）
+                        this.storePLs = this.aggStores.map((s, si) =>
                             calcRolling3MonthAvg(rawResults3.map(r => r?.storePLs?.[si] ?? null))
                         )
                     }
@@ -667,7 +753,8 @@ export default {
                     const selectedMonthlyPLs = rawMonthlyResults.map(r => this.isAllStores ? r?.pl ?? null : r)
                     this.plResult = calcAnnualSum(selectedMonthlyPLs)
                     if (this.isAllStores) {
-                        this.storePLs = this.stores.map((s, si) =>
+                        // P5: storePLs は aggStores 添字基準（displayColumns と一致させる）
+                        this.storePLs = this.aggStores.map((s, si) =>
                             calcAnnualSum(rawMonthlyResults.map(r => r?.storePLs?.[si] ?? null))
                         )
                     }
@@ -694,9 +781,11 @@ export default {
         // 期間配列ぶんの pe_monthly_company_records と全店 pe_monthly_records をまとめて取得
         // 戻り値: { byPeriod: { [periodKey]: { companyRec, allStoreRecords } } }
         async prefetchPeriods(periodKeys) {
+            // P5: 集計母集団は aggStores（休止含む全 shop）。allStoreRecords の添字も aggStores 基準。
+            const aggStores = this.aggStores
             const [companyRecsAll, ...storeRecsByStore] = await Promise.all([
                 Promise.all(periodKeys.map(pk => getMonthlyCompanyRecord(pk))),
-                ...this.stores.map(s => Promise.all(periodKeys.map(pk => getMonthlyRecord(s.key, pk))))
+                ...aggStores.map(s => Promise.all(periodKeys.map(pk => getMonthlyRecord(s.key, pk))))
             ])
             const byPeriod = {}
             periodKeys.forEach((pk, i) => {
@@ -723,13 +812,20 @@ export default {
         async loadMonthlyPLCore(storeKey, periodKey, companySettings, prefetched, opts = {}) {
             const { includeStorePLs = false } = opts
             const isAll = storeKey === 'all'
-            const targetStores = isAll ? this.stores.map(s => s.key) : [storeKey]
+            // P5: 母集団は aggStores（休止含む全 shop）。allStoreRecords の添字も aggStores 基準。
+            const aggStores = this.aggStores
+            const targetStores = isAll ? aggStores.map(s => s.key) : [storeKey]
             const { companyRec, allStoreRecords } = prefetched
 
             // pe_monthly_company_records がない月はデータなしとして扱う
             if (!companyRec) return null
 
-            const totalWeightedSlots = allStoreRecords.reduce((sum, r) => {
+            // P5: 人件費按分の分母（重みつき枠数合計）も「その期間に営業している店舗」だけで構成する。
+            // 閉店翌月以降の店舗は isStoreOpenForPeriod=false で除外する。通常その月のシフトレコードは
+            // 存在せず自然に 0 になるが、過去データの残骸で分母が膨らみ他店の変動費按分が歪むのを防ぐ安全弁。
+            const totalWeightedSlots = aggStores.reduce((sum, store, idx) => {
+                if (!isStoreOpenForPeriod(store, periodKey)) return sum
+                const r = allStoreRecords[idx]
                 if (!r) return sum
                 return sum
                     + 6.0 * Number(r.part_time_slots_6h || 0)
@@ -741,10 +837,13 @@ export default {
                 ryoHourlyRate: Number(companySettings?.ryo_hourly_rate) || 1300
             }
 
-            // 早期 return：対象店舗のレコードがなければ計算しない（CostReport/Settings 取得もスキップ）
+            // 早期 return：対象店舗のレコードがなければ計算しない（CostReport/Settings 取得もスキップ）。
+            // 閉店翌月以降は record を null 扱いとし、集計・列表示から除外する。
             const targetRecords = targetStores.map(sk => {
-                const idx = this.stores.findIndex(s => s.key === sk)
-                return idx >= 0 ? allStoreRecords[idx] : null
+                const idx = aggStores.findIndex(s => s.key === sk)
+                if (idx < 0) return null
+                if (!isStoreOpenForPeriod(aggStores[idx], periodKey)) return null
+                return allStoreRecords[idx]
             })
             if (targetRecords.every(r => !r)) return null
 

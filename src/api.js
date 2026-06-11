@@ -59,6 +59,44 @@ export async function updateStore(id, fields) {
   if (error) throw error
 }
 
+// ─── app_ui_settings（全社共通 UI 設定・シングルトン id=1） ──────────────────
+// 参照: notes/V-PEACH_multi-store-scaling-plan.md（P5）
+// 休止店舗の表示トグルを V-MINT と DB 共有（全社一括）。行は P1 で投入済み・RLS anon 全許可。
+
+/** UI 設定シングルトン（id=1）を取得。行が無い場合は既定値を返す */
+export async function getAppUiSettings() {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('app_ui_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error) throw error
+  return data ?? { id: 1, show_inactive_stores: false }
+}
+
+/**
+ * UI 設定を更新する（ホワイトリスト方式）。
+ * 更新可能フィールドは show_inactive_stores のみ。id は固定（1）。
+ * @param {object} fields 更新フィールド（ホワイトリスト外は無視）
+ */
+export async function updateAppUiSettings(fields) {
+  requireSupabase()
+  const ALLOWED_KEYS = ['show_inactive_stores']
+  const payload = {}
+  for (const key of ALLOWED_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(fields, key)) {
+      payload[key] = fields[key]
+    }
+  }
+  if (Object.keys(payload).length === 0) return  // 更新対象なし
+  const { error } = await supabase
+    .from('app_ui_settings')
+    .update(payload)
+    .eq('id', 1)
+  if (error) throw error
+}
+
 // ─── pe_store_shift_rules（店舗別シフト枠時間・改定履歴付き） ────────────────
 // 参照: notes/V-PEACH_multi-store-scaling-plan.md（P3）/ src/utils/shiftImporter.js
 // P3: shiftImporter のハードコード（STORE_KEYS 固定・馬場2号店遅番補正）撤廃の参照先。

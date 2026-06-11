@@ -150,27 +150,43 @@ export function parseAirregiCsv(text) {
 }
 
 // ─── ファイル名から店舗キー / 期間を抽出 ─────────────────────────────────
-// 日本語店舗名（優先）または英語キーでマッチ。
-// 戻り値は InputApp の csvFiles キー（baba / nakano / baba_2nd）
-const STORE_NAME_JP = [
-  ['馬場2号店', 'baba_2nd'],  // 「馬場本店」より先にチェック
-  ['馬場本店',  'baba'],
-  ['中野店',    'nakano'],
-]
-const STORE_KEY_FROM_FILENAME_EN = {
-  'baba-main': 'baba',
-  'baba-2nd':  'baba_2nd',
-  'nakano':    'nakano'
-}
-
-export function detectStoreKeyFromFilename(filename) {
+// 戻り値は stores.store_key（または stores.key）。どれにも一致しなければ null。
+// stores（DB の getStores() 戻り値形式 [{store_key, name}] または
+//          InputApp の stores プロップ形式 [{key, name}]）から動的に解決する。
+//
+// 名寄せ優先順:
+//   1. stores.name の部分一致
+//      （名前の長い順でチェック → 「馬場2号店」が「馬場本店」に誤マッチするのを防ぐ）
+//   2. store_key をケバブ変換（_ → -）した部分一致（例: baba_main → baba-main）
+//   3. store_key そのままの部分一致（例: nakano）
+// どれにも一致しなければ null を返す。
+export function detectStoreKeyFromFilename(filename, stores = []) {
   const base = filename.replace(/\.csv$/i, '')
-  for (const [name, key] of STORE_NAME_JP) {
-    if (base.includes(name)) return key
+
+  // stores の各要素を { storeKey, name } に正規化
+  // （store_key フィールドまたは key フィールドのどちらにも対応）
+  const normalized = stores.map(s => ({
+    storeKey: (s.store_key ?? s.key ?? ''),
+    name: (s.name || '').trim()
+  }))
+
+  // 1. stores.name の部分一致（名前の長い順にチェックして短い名前の誤マッチを防ぐ）
+  const byNameLen = [...normalized].sort((a, b) => b.name.length - a.name.length)
+  for (const s of byNameLen) {
+    if (s.name && base.includes(s.name)) return s.storeKey
   }
-  for (const [k, key] of Object.entries(STORE_KEY_FROM_FILENAME_EN)) {
-    if (base.includes(k)) return key
+
+  // 2. store_key をケバブ変換した部分一致（例: baba_main → baba-main）
+  for (const s of normalized) {
+    const kebab = s.storeKey.replace(/_/g, '-')
+    if (kebab && base.includes(kebab)) return s.storeKey
   }
+
+  // 3. store_key そのままの部分一致（例: nakano）
+  for (const s of normalized) {
+    if (s.storeKey && base.includes(s.storeKey)) return s.storeKey
+  }
+
   return null
 }
 
@@ -263,18 +279,26 @@ export function parseHrmosStaffsCsv(text) {
 }
 
 // ─── HRMOS 勤務区分マスタ CSV パース ──────────────────────────────────────
-// 店舗判定（segment_name プレフィックスマッチ）と shift_type 判定を同時に行う
-// stores テーブルの store_id を解決するため、storeKeyToId マップを渡す
-//   { baba_main: 1, nakano: 2, baba_2nd: 3 }
-const SEGMENT_STORE_PATTERNS = [
-  { key: 'baba_main', match: ['高田馬場本店', '馬場本店', '馬場地区基本店'] },
-  { key: 'baba_2nd',  match: ['高田馬場2号店', '馬場2号店', '馬場地区2号店'] },
-  { key: 'nakano',    match: ['中野店'] }
-]
-
+// 店舗判定（stores.name の部分一致）と shift_type 判定を同時に行う。
+// storeKeyToId: stores テーブルの store_key → id マップ（store_id 解決用）
+//   例: { baba_main: 1, nakano: 2, baba_2nd: 3 }
+// stores: getStores() 戻り値互換の配列（店舗名動的解決用）
 const SEGMENT_NON_PAYROLL_PATTERNS = ['倉庫業務', '会議等', '営業中']
 
-export function decideHrmosSegmentClassification(segmentName) {
+/**
+ * HRMOS 勤務区分名から店舗キーとシフト種別を動的解決する（純粋関数）
+ *
+ * @param {string} segmentName  勤務区分名（例: 「馬場本店 早番」）
+ * @param {Array}  stores       店舗リスト [{store_key, name}] または [{key, name}]
+ *                              getStores() 戻り値形式・InputApp stores プロップ形式の両方に対応
+ *
+ * 店舗判定ロジック:
+ *   - stores.name の部分一致（名前の長い順でチェック）で動的解決
+ *   - 例: 「馬場本店」なら「高田馬場本店」「馬場本店」等の HRMOS 区分名に一致
+ *   ※ stores.name に含まれないエイリアス（例: 旧「馬場地区基本店」）は一致しない
+ *      → 該当区分は storeKey=null（misc 扱い）になるため、勤務区分 CSV 再取込で対応
+ */
+export function decideHrmosSegmentClassification(segmentName, stores = []) {
   const name = String(segmentName || '')
   // 1. 按分対象外（倉庫業務・会議等）
   for (const p of SEGMENT_NON_PAYROLL_PATTERNS) {
@@ -284,10 +308,13 @@ export function decideHrmosSegmentClassification(segmentName) {
   if (name.startsWith('[')) {
     return { storeKey: null, shiftType: 'misc', defaultHours: 0, isPayrollTarget: false }
   }
-  // 3. 店舗判定
+  // 3. 店舗判定（stores.name の部分一致で動的解決。名前の長い順でチェック）
   let storeKey = null
-  for (const p of SEGMENT_STORE_PATTERNS) {
-    if (p.match.some(m => name.includes(m))) { storeKey = p.key; break }
+  const sortedStores = [...stores]
+    .map(s => ({ storeKey: s.store_key ?? s.key ?? '', name: (s.name || '').trim() }))
+    .sort((a, b) => b.name.length - a.name.length)
+  for (const s of sortedStores) {
+    if (s.name && name.includes(s.name)) { storeKey = s.storeKey; break }
   }
   // 4. シフトタイプ判定
   //    - "オーラス"/"オールイン" は早番+遅番分解計上のため allin
@@ -305,7 +332,7 @@ export function decideHrmosSegmentClassification(segmentName) {
   return { storeKey: null, shiftType: 'misc', defaultHours: 0, isPayrollTarget: false }
 }
 
-export function parseHrmosSegmentsCsv(text, storeKeyToId) {
+export function parseHrmosSegmentsCsv(text, storeKeyToId, stores = []) {
   const rows = parseCsv(text)
   if (rows.length < 2) throw new Error('勤務区分 CSV にデータがありません')
   const header = rows[0]
@@ -321,7 +348,7 @@ export function parseHrmosSegmentsCsv(text, storeKeyToId) {
     if (!Number.isFinite(segId)) continue
     const name = (r[idxName] || '').trim()
     if (!name) continue
-    const c = decideHrmosSegmentClassification(name)
+    const c = decideHrmosSegmentClassification(name, stores)
     const storeId = c.storeKey ? (storeKeyToId?.[c.storeKey] ?? null) : null
     out.push({
       hrmos_segment_id: segId,

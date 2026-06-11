@@ -11,7 +11,7 @@ parent:
 # 店舗増減の GUI 対応 — 実装計画（V-PEACH / V-MINT2.0）
 
 > ステータス: **実装計画（確定・着手前）** / 作成 2026-06-01 / 最終更新 2026-06-11
-> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 ✅ 完了（2026-06-12）**（2026-06-11 全実装タスク完了〔§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証〕→ 2026-06-12 つーくんの画面スモーク全項目 PASS: V-MINT ダッシュボード/棚卸し/移動/発注/office特例・V-PEACH PL/シフトCSV取込〔馬場2号店 遅番土日祝補正含む〕）／**P4 🟡 進行中**（2026-06-11 前半完了: `create_store_atomic` RPC 適用済み・店舗管理セクション実装。2026-06-12 後半: 追加ウィザード実装完了（Sonnet サブエージェント実装 → Fable レビュー・ビルド検証）。残: GUI 追加→両アプリ反映の e2e 確認・`requirements`/`how-to-use` ドキュメント同期）／P5〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
+> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 ✅ 完了（2026-06-12）**（2026-06-11 全実装タスク完了〔§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証〕→ 2026-06-12 つーくんの画面スモーク全項目 PASS: V-MINT ダッシュボード/棚卸し/移動/発注/office特例・V-PEACH PL/シフトCSV取込〔馬場2号店 遅番土日祝補正含む〕）／**P4 🟡 進行中**（2026-06-11 前半完了: `create_store_atomic` RPC 適用済み・店舗管理セクション実装。2026-06-12 後半: 追加ウィザード実装完了（Sonnet サブエージェント実装 → Fable レビュー・ビルド検証）。残: GUI 追加→両アプリ反映の e2e 確認・`requirements`/`how-to-use` ドキュメント同期）／**P5 🟡 実装完了・e2e 待ち**（2026-06-12 全実装タスク完了: 休止表示トグル両アプリ・`closed_at` 翌月以降の集計除外〔按分分母含む〕・csvImporter 動的化。§5-4 体制で Sonnet×2＋Opus サブエージェント実装 → Fable レビュー・修正・ビルド検証。残は休止店舗の決算閲覧 e2e のみ＝P4 e2e のテスト店舗作成とセットで実施予定）／P6〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
 > 開発・運用方針（2026-06-11 追加）: 本改修は **当面 obsidian-vault ローカル `multi-store` ブランチでのみ進め**（§5-1）、既存版（V-MINT `v2` / V-PEACH `main`）へのバグフィックスは `main` ブランチから従来どおり `/vmint-deploy`・`/vpeach-deploy` で対応する（§5-2）。Supabase 上の SQL 実行は **Supabase MCP 経由で Claude Code が直接実行**する運用に切替え、つーくんの手作業実行をなくす（§5-3）。
 > 対象: V-MINT2.0・V-PEACH 両アプリ（`stores` テーブル共有のため一体で実装）
 > ゴール: 新店舗オープン／既存店舗の閉店を、つーくん（管理者）が **GUI からできる限り完結** して扱えるようにする。SQL 手作業ゼロ・1 か所登録で両アプリ反映。
@@ -450,7 +450,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 | **P2** | ✅ | 2026-06-11 | RPC を 4-2（行ベース）へ再設計。**新形式を別名並走させ 4 店舗で旧出力と差分ゼロを検証**してから切替。検証クエリは MCP で反復実行（§5-3） | 既存 RPC 利用箇所が全て新形式で同値 |
 | **P3** | ✅ | 2026-06-12 | フロント: `getStores()` 起点で店舗リスト・stock 辞書アクセス・色／名前マップを両アプリで動的化。`office` 特例を `store_type` 分岐へ。`shiftImporter` を `pe_store_shift_rules` 参照に刷新 | 4 店舗で全モード回帰なし |
 | **P4** | 🟡 | — | V-PEACH `SettingsApp` に店舗管理 GUI（追加ウィザード＝マスタ＋固定費＋シフトルール必須入力・一発確定で一括 upsert／`create_store_atomic` RPC・休止トグル・並べ替え・キー作成時ロック） | GUI から店舗追加→V-MINT 含む全モードに自動反映 |
-| **P5** | ⬜ | — | 休止店舗の全社一括表示トグル（`app_ui_settings` 連動）。`closed_at` 以降を集計から**明示除外**（按分分母含む）。`csvImporter` を `stores.name` 由来へ動的化 | 休止店舗の過去 PL/在庫が決算時に閲覧可・按分に休止店舗が混ざらない |
+| **P5** | 🟡 | — | 休止店舗の全社一括表示トグル（`app_ui_settings` 連動）。`closed_at` 以降を集計から**明示除外**（按分分母含む）。`csvImporter` を `stores.name` 由来へ動的化 | 休止店舗の過去 PL/在庫が決算時に閲覧可・按分に休止店舗が混ざらない |
 | **P6** | ⬜ | — | **本番反映（go-live）**。全テスト完了後に V-MINT `v3→v2`、V-PEACH `v2→main` をマージ（§5-2-4） | 本番 URL に反映・スモーク確認完了 |
 | **P7** | ⬜ | — | **レガシー除去（go-live 後）**。別名並走で残した旧ピボット RPC・移行用シム・不要カラムを破壊的マイグレーションで撤去（§6-2）。実行は §5-3 MCP 経由（破壊的ルール適用） | 旧要素を全削除・本番回帰なし・ドキュメント最終同期 |
 
@@ -499,10 +499,10 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 - [ ] ドキュメント同期（`requirements` / `how-to-use`）
 
 **P5 — 休止表示トグル・閉店除外**
-- [ ] `app_ui_settings` 連動トグル（V-MINT ダッシュボード / V-PEACH PL）
-- [ ] `closed_at` 以降を集計から明示除外（PL / 在庫 / 按分分母）
-- [ ] `csvImporter` の名寄せを `stores.name` 由来へ動的化
-- [ ] 休止店舗の決算閲覧 e2e 確認
+- [x] `app_ui_settings` 連動トグル（V-MINT ダッシュボード / V-PEACH PL）✅ 2026-06-12 — 両アプリ `api.js` に `getAppUiSettings`/`updateAppUiSettings`（ホワイトリスト方式）。V-MINT は `storeDisplay.js` の `activeStores()` ヘルパーで全コンポーネント稼働店舗のみに統一・ダッシュボードのトグルは**休止店舗が存在するときのみ出現**（全店稼働の現状は見た目不変＝回帰ゼロ）。V-PEACH PL は `selectorStores`（既定除外・トグルONで「（休止）」印付き表示）＋楽観更新・失敗時ロールバック・選択中店舗が消えたら「全店舗合計」へ戻す整合処理
+- [x] `closed_at` 以降を集計から明示除外（PL / 按分分母）✅ 2026-06-12 — `V-PEACH/src/utils/storeFilters.js` 新設（`closedMonthOf`/`isStoreOpenForPeriod`＝**閉店月までは集計対象・翌月以降除外**／`selectableStores`）。PLApp は集計母集団を `aggStores`（休止含む全 shop・storePLs 添字基準）に統一し、`targetRecords`・人件費按分の分母 `totalWeightedSlots`・期間プレビューに除外適用。按分分母は実シフトデータ由来で自然ゼロになる構造と判明したが、過去データ残骸で分母が歪むのを防ぐ**明示除外を安全弁として併用**（二重防御）。表示列 `displayColumns` はトグル連動で休止列を出し分け（Fable レビューで修正）。V-MINT 在庫は時点データのため「以降除外」概念なし＝表示フィルタで対応
+- [x] `csvImporter` の名寄せを `stores.name` 由来へ動的化 ✅ 2026-06-12 — `STORE_NAME_JP`/`STORE_KEY_FROM_FILENAME_EN`/`SEGMENT_STORE_PATTERNS` の固定マップ撤廃。`detectStoreKeyFromFilename(filename, stores)`・`decideHrmosSegmentClassification(segmentName, stores)` に店舗リスト引数を追加（純粋関数維持・名前の長い順チェックで誤マッチ防止）。旧コードがレガシーキー `'baba'` を返していた P3 以来の潜在バグも修正。旧エイリアス「馬場地区基本店」は実データ（`pe_hrmos_segments` 全14区分）に存在しないことを SQL で裏取り済み＝回帰ゼロ
+- [ ] 休止店舗の決算閲覧 e2e 確認（P4 の「GUI 追加→両アプリ反映 e2e」とセットで実施予定: テスト店舗作成→確認→休止化→決算閲覧→トグル動作までを一気通貫で検証）
 
 **P6 — 本番反映（go-live）**
 - [ ] `test-plan` 全件 done を確認
