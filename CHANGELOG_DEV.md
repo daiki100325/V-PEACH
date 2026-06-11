@@ -1,5 +1,23 @@
 # CHANGELOG_DEV
 
+## 2026-06-11
+- What: Supabase の `pe_monthly_company_records` で無効だった RLS を有効化し、他の pe_* テーブルと同一の `anon_all` ポリシー（anon ロールに ALL 許可・USING/WITH CHECK とも `true`）を付与。MCP 経由のマイグレーション `enable_rls_stg_and_pe_monthly_company` で適用（V-MINT2.0 側 `stg_*` 4テーブルも同マイグレーションに同梱）
+- Why: Supabase の advisor が RLS 無効を critical 指摘。アプリは URL 社外秘＋PIN 認証で保護する運用のため、他テーブルと同じく anon フルアクセスのポリシー付き RLS に統一し、挙動を変えずに無防備状態（ポリシー層の完全素通し）だけ解消する
+- Files: （DB マイグレーションのみ・コード変更なし）
+- Related: [[V-MINT2.0/CHANGELOG_DEV]]
+
+## 2026-06-11
+- What: `notes/V-PEACH_multi-store-scaling-plan.md` を**全面再構成**。後付け追加だった「ローカル分離運用」「Supabase MCP 活用」を本書の構造に統合し、§5「開発・運用環境（本改修中の作業基盤）」を新設して §5-1 ローカル ブランチ運用（旧 §6-5）／§5-2 デプロイ ブランチ戦略（旧 §6-1〜6-4）／§5-3 Supabase MCP の活用（新規）を並列化。旧 §5「実装フェーズ」は §6 へ繰り下げ、本文中のすべての §-参照を新番号体系に追従更新。§5-3 では MCP 活用の目的・前提・セットアップ手順・運用ルール（読み取り自由／書き込み承認／破壊的二重確認）・タスクチェックリスト・進捗表を §6 フェーズ表と同等の粒度で記述。§7 リスク欄に MCP 経由実行のリスクを追加、§8-1 決定ログに項目 9（MCP 活用）を追記、ヘッダー ステータス行も三点併記に更新
+- Why: マルチストア改修中の SQL 実行を Claude Code が MCP 経由で直接行い、つーくんの Supabase Studio 手作業をなくす方針を正本に明文化するため。同時に、後半 2 要素（ローカル分離・MCP）が「個別論点」として浮いている書きぶりを、前半（要件・影響範囲・採用アーキテクチャ）と同じ「要素単位の章立て」に揃え、全体を通して一貫した構造化に戻す
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`, `CHANGELOG_DEV.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-PEACH/DECISIONS]]
+
+## 2026-06-11
+- What: `notes/V-PEACH_multi-store-scaling-plan.md` に §6-5「ローカル分離運用」を追記。obsidian-vault に `multi-store` トピック ブランチを切り、マルチストア改修コミットは push せず、既存版へのバグフィックスだけ `main` から `/vmint-deploy`・`/vpeach-deploy` で本番へ送る運用方針を確定。誤爆防止策（デプロイ コマンド先頭のブランチ ガード）と他案比較（worktree / cherry-pick / 履歴フィルタ）も記録。ヘッダー ステータス行と §8-1 決定ログ（項目 8）にも反映（※同日後の全面再構成により §6-5 → §5-1 に再配置）
+- Why: マルチストア改修は変更が広範でデグレ リスクが高く、当面ローカルで進めたい。一方で既に本番稼働中のバージョンの不具合は随時 push したい — `git subtree push` が HEAD のサブツリー履歴全部を送る性質上、両者を同一ブランチに混在させると安全に分離できないため、ブランチ運用で物理的に分ける方針を正本に明文化する
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`, `CHANGELOG_DEV.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
 ## 2026-06-02
 - What: PIN認証・ヘッダーから日本語ラベル「経営ダッシュボード」を削除。正式名称テキストを uppercase + `tracking-[0.1em]`（ヘッダー）/ `tracking-[0.15em]`（PIN画面）スタイルに変更し、略称・正式名称のデザインを洗練
 - Why: 不要なカテゴリ説明テキストを排除し、略称（V-PEACH）と英語正式名称の組み合わせをよりクリーンなタイポグラフィで表現するため
