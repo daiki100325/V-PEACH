@@ -219,6 +219,13 @@ git subtree push --prefix=V-PEACH V-PEACH main
 # → Cloudflare Pages が自動ビルド・デプロイ
 ```
 
+## Supabase 操作（MCP・2026-06-11〜）
+
+- Supabase 上の SQL／RPC は **Claude Code が Supabase MCP 経由で直接実行**する（Supabase Studio での手作業実行は廃止）。
+- 運用ルール: 読み取りは自由／書き込み（additive）は承認後／破壊的（DROP・TRUNCATE 等）は対象件数 SELECT＋FK 影響＋ロールバック手順をセットで承認後に実行。正本: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] §5-3。
+- 接続設定は `C:\Obsidian Vault\.mcp.json`（PAT を含むため gitignore 済み・未追跡）。
+- マルチストア改修中のコード変更は obsidian-vault ローカル `multi-store` ブランチのみで行う（同プラン §5-1）。`/vpeach-deploy`・`/vmint-deploy` は冒頭のブランチガードで `main` 以外なら中止する。
+
 ## Context
 - Supabase プロジェクトは V-MINT 2.0 と共用（moejgsremxdksmzrowpw）
 - `pe_` プレフィックスで既存テーブルと分離

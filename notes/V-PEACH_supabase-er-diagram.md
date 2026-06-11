@@ -34,6 +34,8 @@ parent:
 | `pe_hrmos_segments` | マスタ | Phase 10（2026-05-25） | HRMOS 勤務区分マスタ（勤務区分ID PK・store_id・shift_type・default_hours・is_payroll_target） |
 | `pe_jp_holidays` | キャッシュ | Phase 10（2026-05-25） | 日本国民の祝日キャッシュ（holiday_date PK）。holidays-jp API から取得 |
 | `pe_jp_holidays_meta` | メタ | Phase 10（2026-05-25） | 祝日 API 取得状況（シングルトン `id=1`：last_fetched_at / last_fetch_status / last_fetch_error） |
+| `pe_store_shift_rules` | マスタ（改定履歴） | マルチストア P1（2026-06-11） | 店舗別シフト枠時間。店舗 × shift_type × day_type × `effective_from`（YYYYMM）で 6.0/7.5h を世代管理。P3 で `shiftImporter.js` の参照先になる予定（現時点フロント未参照） |
+| `app_ui_settings` | UI 状態（共有・中立） | マルチストア P1（2026-06-11） | 両アプリ共有 UI 状態シングルトン（`id=1`・`show_inactive_stores`）。V-MINT も読み書きするため `pe_` なしの中立名前空間 |
 
 ### 廃止済み（Phase 5 で削除）
 
@@ -46,7 +48,7 @@ parent:
 
 | テーブル名 | 用途 |
 |---|---|
-| `stores` | 店舗 ID 解決（`store_key` ↔ UI キー） |
+| `stores` | 店舗 ID 解決（`store_key` ↔ UI キー）。マルチストア P1（2026-06-11）で `is_active` / `display_order` / `store_type` / `closed_at` を追加 |
 | `cost_reports` | 炭消費・月次原価報告ヘッダ |
 | `flavor_brand_sales` | ブランド別消費 g・物販数（提供フレーバー原価算出） |
 | `drink_orders` | ジュース発注額（ジュース原価） |
@@ -98,6 +100,14 @@ flowchart TD
         UK effective_from YYYYMM
         f_ratio / l_ratio / r_ratio
         operating_profit_margin / labor_rate / note`"]
+
+        PE_SHIFT_RULES["`**PE_STORE_SHIFT_RULES**
+        PK id bigserial
+        FK store_id / effective_from YYYYMM
+        shift_type early・middle・late
+        day_type weekday・holiday
+        hours 6.0 or 7.5 / note
+        UQ(store_id,effective_from,shift_type,day_type)`"]
     end
 
     subgraph PEACH_TXN["V-PEACH トランザクション（月次）"]
@@ -121,6 +131,12 @@ flowchart TD
         discount_amount / gross_sales
         customer_count / raw_payload jsonb
         UQ(store_id, sale_date)`"]
+    end
+
+    subgraph SHARED_UI["共有 UI 状態（中立・両アプリ）"]
+        APP_UI["`**APP_UI_SETTINGS**
+        PK id=1 CHECK
+        show_inactive_stores`"]
     end
 
     subgraph HRMOS_MASTER["HRMOS マスタ・祝日"]
@@ -151,7 +167,8 @@ flowchart TD
     subgraph VMINT["V-MINT 2.0（読み取り専用）"]
         STORES["`**STORES**
         PK id / UK store_key
-        name`"]
+        name / is_active / display_order
+        store_type shop・office / closed_at`"]
 
         COST_REPORTS["`**COST_REPORTS**
         PK id / FK store_id
@@ -180,6 +197,7 @@ flowchart TD
     STORES -->|1:N FK| PE_DAILY
     STORES -.->|任意FK| PE_STAFFS
     STORES -.->|任意FK| PE_SEGMENTS
+    STORES -->|1:N FK| PE_SHIFT_RULES
 
     STORES -->|1:N| COST_REPORTS
     COST_REPORTS -->|1:N CASCADE| FLAVOR
@@ -245,13 +263,22 @@ flowchart TD
 
 ### pe_hrmos_segments（HRMOS 勤務区分マスタ・2026-05-25 追加）
 - `hrmos_segment_id`（整数）が PK。HRMOS CSV の勤務区分 ID をそのまま使用。
-- `shift_type`: `early`（早番 6h）/ `middle`（中番 7.5h）/ `late`（遅番 6h）/ `allin`（通し 11.5h）/ `misc`（特殊・按分対象外）。
+- `shift_type`: `early`（早番 7.5h）/ `middle`（中番 6h）/ `late`（遅番 6h）/ `allin`（通し 11.5h）/ `misc`（特殊・按分対象外）。※早番・中番の時間表記は `default_hours` 実データ準拠に 2026-06-11 訂正（旧表記は逆だった）
 - `is_payroll_target = false` の行（倉庫・会議・特殊枠）は変動人件費按分から除外。
 - `store_id` が NULL の区分は全店またがる特殊枠として扱う。
 
 ### pe_jp_holidays / pe_jp_holidays_meta（祝日キャッシュ・2026-05-25 追加）
 - `pe_jp_holidays`: holidays-jp API から取得した祝日を `holiday_date` PK でキャッシュ。
 - `pe_jp_holidays_meta`: シングルトン（`id=1`）。最終取得日時・ステータスを管理。UI の「祝日更新」ボタンが叩くエンドポイントで更新。
+
+### pe_store_shift_rules（店舗別シフト枠時間・マルチストア P1 / 2026-06-11 追加）
+- 店舗 × シフト種別（early/middle/late）× 日種別（weekday=平日 / holiday=土日祝）× `effective_from`（YYYYMM）で枠時間（6.0 / 7.5）を世代管理。`effective_from <= periodKey` の最新世代を採用（`getActiveStoreSettings` と同方式）。
+- 初期世代（`effective_from=202512`）は現行実装の再現: **早番7.5h / 中番6h / 遅番6h、馬場2号店のみ遅番×土日祝=7.5h**（`applyBaba2ndLateHolidayBoost` 相当）。3 店舗 × 6 パターン = 18 行。
+- P3 で `shiftImporter.js` のハードコードをこのテーブル参照へ置換予定。**現時点ではフロント未参照（先行投入）**。
+
+### app_ui_settings（両アプリ共有 UI 状態・マルチストア P1 / 2026-06-11 追加）
+- シングルトン（`id=1` CHECK）。`show_inactive_stores`: 「休止店舗も表示」トグルの全社一括状態（R3）。
+- V-MINT も読み書きするため `pe_` プレフィックスなしの中立名前空間。P5 で両アプリのトグルがこの 1 行に連動予定。**現時点ではフロント未参照**。
 
 ### V-MINT 参照の結合（アプリ層）
 
@@ -314,7 +341,7 @@ V-PEACH は Supabase RPC を使わず、anon キーからテーブル CRUD + V-M
 
 ## Row Level Security（RLS）
 
-全 `pe_*` テーブルに RLS 有効化（anon 全許可ポリシー）。URL 非公開・信頼ユーザー前提の内部ツール。
+全 `pe_*` テーブルおよび `app_ui_settings` に RLS 有効化（anon 全許可ポリシー）。URL 非公開・信頼ユーザー前提の内部ツール。
 
 ```sql
 -- 全テーブル共通ポリシー
@@ -337,6 +364,7 @@ ALLOW ALL TO anon USING (true) WITH CHECK (true);
 | `supabase/SEED_store_settings_defaults.sql` | フォールバック用デフォルト値投入（`pe_store_settings_revisions` 未適用期間の 0 落ち防止） |
 | `supabase/SEED_benchmarks_defaults_20260518.sql` | Phase 6: ベンチマーク 5 指標の初期値投入（`pe_benchmarks` シングルトン） |
 | `supabase/SEED_daily_sales_cache_202512.sql` | Phase 7-2: 2025年12月分 Airレジ日次キャッシュ初回投入（3店舗 × 25日 = 75行） |
+| `supabase/DB_MIGRATION_multi_store_p1_20260611.sql`（`multi-store` ブランチ管理） | マルチストア P1: `stores` に `is_active`/`display_order`/`store_type`/`closed_at` 追加、`pe_store_shift_rules`・`app_ui_settings` 新設＋RLS＋SEED。Supabase MCP（migration `multi_store_p1_stores_shift_rules_app_ui_settings`）で 2026-06-11 適用済み |
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_architecture]]

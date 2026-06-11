@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-11
+- What: マルチストア改修 **P1（DB マイグレーション）完了**＋**§5-1 ローカルブランチ運用開始**。(1) `stores` に `is_active` / `display_order` / `store_type`（CHECK 制約付き）/ `closed_at` を追加し既存 4 店舗を SEED（office は `store_type='office'`・`display_order` 0→3）、(2) `pe_store_shift_rules`（店舗別シフト枠時間・`effective_from` 世代管理）と `app_ui_settings`（両アプリ共有 UI 状態シングルトン）を新設し RLS（anon 全許可）＋初期 SEED 18 行投入、(3) Supabase MCP の migration `multi_store_p1_stores_shift_rules_app_ui_settings` で適用し既存 RPC 4 本（`fetch_stock_overview` 等）の正常応答を確認（additive のみ・既存動作不変）、(4) `multi-store` ローカルブランチ作成＋`/vmint-deploy`・`/vpeach-deploy` 冒頭にブランチガード追加、(5) シフト枠既定値は計画書表記（早番6h/中番7.5h）が実態と逆だったため `pe_hrmos_segments` 実データ準拠（**早番7.5h/中番6h/遅番6h・馬場2号店のみ遅番×土日祝7.5h**）で投入し、計画書 §4-1 と ER 図の表記も訂正
+- Why: 店舗増減 GUI 対応（multi-store-scaling-plan §6 P1）。additive のみで既存 4 店舗を壊さず、P3 フロント動的化・P4 店舗管理 GUI の DB 土台を先行整備するため
+- Files: `notes/V-PEACH_multi-store-scaling-plan.md`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/V-PEACH_architecture.md`, `supabase/DB_MIGRATION_multi_store_p1_20260611.sql`（`multi-store` ブランチ）, `.claude/commands/vmint-deploy.md` / `vpeach-deploy.md`（未追跡運用のため git 管理外）
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-PEACH/notes/V-PEACH_supabase-er-diagram]], [[V-MINT2.0/CHANGELOG_DEV]]
+
+## 2026-06-11
 - What: Supabase の `pe_monthly_company_records` で無効だった RLS を有効化し、他の pe_* テーブルと同一の `anon_all` ポリシー（anon ロールに ALL 許可・USING/WITH CHECK とも `true`）を付与。MCP 経由のマイグレーション `enable_rls_stg_and_pe_monthly_company` で適用（V-MINT2.0 側 `stg_*` 4テーブルも同マイグレーションに同梱）
 - Why: Supabase の advisor が RLS 無効を critical 指摘。アプリは URL 社外秘＋PIN 認証で保護する運用のため、他テーブルと同じく anon フルアクセスのポリシー付き RLS に統一し、挙動を変えずに無防備状態（ポリシー層の完全素通し）だけ解消する
 - Files: （DB マイグレーションのみ・コード変更なし）
