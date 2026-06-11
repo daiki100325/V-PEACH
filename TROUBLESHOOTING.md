@@ -1,5 +1,52 @@
 # TROUBLESHOOTING
 
+## Case: flavors テーブルの行が外部キー制約で削除できない
+- Date: 2026-06-11
+- Severity: Low
+- Owner: daiki
+
+### Symptoms
+- Supabase Table Editor で `flavors` テーブルの行（例: id=310 "Twist"）を削除しようとすると以下のエラーで弾かれる
+  ```
+  Unable to delete row as it is currently referenced by a foreign key constraint
+  from the table `inventory_logs`
+  DETAIL: Key (id)=(310) is still referenced from table inventory_logs.
+  ```
+
+### Cause
+- `inventory_logs.flavor_id` → `flavors.id` の外部キー制約 `inventory_logs_flavor_id_fkey` に `ON DELETE` 挙動が未設定（デフォルト `NO ACTION`）だったため、`flavors` 側を先に削除しようとすると制約違反になる
+
+### Fix
+- 外部キー制約を一度 DROP して、`ON DELETE CASCADE` 付きで再作成する
+
+```sql
+ALTER TABLE inventory_logs
+  DROP CONSTRAINT IF EXISTS inventory_logs_flavor_id_fkey;
+
+ALTER TABLE inventory_logs
+  ADD CONSTRAINT inventory_logs_flavor_id_fkey
+    FOREIGN KEY (flavor_id)
+    REFERENCES flavors (id)
+    ON DELETE CASCADE;
+```
+
+- この変更により `flavors` のレコードを削除すると、それを参照する `inventory_logs` の行も自動で削除される
+- Migration: `V-MINT2.0/supabase/migrations/20260611_inventory_logs_fk_on_delete_cascade.sql`
+
+### 確認クエリ
+```sql
+-- confdeltype が 'c'（CASCADE）になっていれば成功
+SELECT conname, confdeltype
+FROM pg_constraint
+WHERE conname = 'inventory_logs_flavor_id_fkey';
+```
+
+### 教訓
+- テスト用レコードを後から削除する可能性があるテーブル間の FK は、作成時に `ON DELETE CASCADE`（または `SET NULL`）を明示しておく
+- Supabase Table Editor のエラーメッセージにある制約名（`inventory_logs_flavor_id_fkey`）を手がかりに `pg_constraint` を確認すると原因が特定しやすい
+
+---
+
 ## Case: トレンドチャートの指標トグルがチャートに反映されない（デフォルト指標は出るが切替不可）
 - Date: 2026-06-01
 - Severity: High
