@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-12
+- What: マルチストア改修 **P3 完了** — 画面スモーク全項目 PASS（PL 店舗切替・シフトCSV取込〔馬場2号店 遅番土日祝=7.5h 補正の維持確認含む〕・店舗管理セクション一覧/名称編集/並べ替え・追加ウィザードの Step バリデーション）。コード変更なし（検証のみ）。ウィザード最終確定→両アプリ反映の e2e は P4 残タスクとして未実施（共有 DB のため実店舗作成はタイミングを別途判断）
+- Why: P3 フロント動的化の完了条件「4 店舗で全モード回帰なし」を満たしたため（multi-store-scaling-plan §6 P3）
+- Files: なし（`notes/V-PEACH_multi-store-scaling-plan.md` の進捗帳票を更新）
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-12
 - What: マルチストア改修 **P4 後半** — 新店舗追加ウィザード実装完了。`SettingsApp` の「＋ 新店舗を追加」ボタンを有効化し、3ステップのモーダルウィザード（Step1: 基本情報・Step2: 固定費設定・Step3: シフトルール＋サマリー）を追加。`api.js` に `createStoreAtomic()` ラッパー（`create_store_atomic` RPC 呼び出し）を追加。各ステップにクライアント側バリデーション（store_key 正規表現・全項目必須・非負）、Step3 で入力内容サマリー表示・確認ダイアログ（`smConfirm` 流用）を経て一発確定。成功時は店舗一覧リロード＋ウィザード閉じ。失敗時はサーバーエラーをStep3内に表示し入力保持
 - Why: 新店舗追加の一連フローを UI 完結させる（R6/R7 要件。multi-store-scaling-plan §4-4 / §6 P4 後半）
 - Files: `src/api.js`, `src/components/apps/SettingsApp.vue`

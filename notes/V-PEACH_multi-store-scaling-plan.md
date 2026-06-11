@@ -11,7 +11,7 @@ parent:
 # 店舗増減の GUI 対応 — 実装計画（V-PEACH / V-MINT2.0）
 
 > ステータス: **実装計画（確定・着手前）** / 作成 2026-06-01 / 最終更新 2026-06-11
-> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 🟡 実装完了・回帰スモーク待ち**（2026-06-11 全実装タスク完了。§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証。残はつーくんの画面スモークのみ）／**P4 🟡 進行中**（2026-06-11 前半完了: `create_store_atomic` RPC 適用済み・店舗管理セクション実装。2026-06-12 後半: 追加ウィザード実装完了（Sonnet サブエージェント実装 → Fable レビュー・ビルド検証）。残: GUI 追加→両アプリ反映の e2e 確認・`requirements`/`how-to-use` ドキュメント同期）／P5〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
+> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 ✅ 完了（2026-06-12）**（2026-06-11 全実装タスク完了〔§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証〕→ 2026-06-12 つーくんの画面スモーク全項目 PASS: V-MINT ダッシュボード/棚卸し/移動/発注/office特例・V-PEACH PL/シフトCSV取込〔馬場2号店 遅番土日祝補正含む〕）／**P4 🟡 進行中**（2026-06-11 前半完了: `create_store_atomic` RPC 適用済み・店舗管理セクション実装。2026-06-12 後半: 追加ウィザード実装完了（Sonnet サブエージェント実装 → Fable レビュー・ビルド検証）。残: GUI 追加→両アプリ反映の e2e 確認・`requirements`/`how-to-use` ドキュメント同期）／P5〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
 > 開発・運用方針（2026-06-11 追加）: 本改修は **当面 obsidian-vault ローカル `multi-store` ブランチでのみ進め**（§5-1）、既存版（V-MINT `v2` / V-PEACH `main`）へのバグフィックスは `main` ブランチから従来どおり `/vmint-deploy`・`/vpeach-deploy` で対応する（§5-2）。Supabase 上の SQL 実行は **Supabase MCP 経由で Claude Code が直接実行**する運用に切替え、つーくんの手作業実行をなくす（§5-3）。
 > 対象: V-MINT2.0・V-PEACH 両アプリ（`stores` テーブル共有のため一体で実装）
 > ゴール: 新店舗オープン／既存店舗の閉店を、つーくん（管理者）が **GUI からできる限り完結** して扱えるようにする。SQL 手作業ゼロ・1 か所登録で両アプリ反映。
@@ -448,7 +448,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 | **P0** | ⏸️ | — | **デプロイブランチ準備（§5-2）**。A 案採用につき事前作成はせず、**P1 の初回 subtree push 時に V-MINT `v3` / V-PEACH `v2` を自動生成**。以後この改修の push 先を本番ブランチから切り離す | 両ブランチが生成され、Cloudflare で非本番（プレビュー）扱いと確認 |
 | **P1** | ✅ | 2026-06-11 | DB: `stores` に `is_active` / `display_order` / `store_type` / `closed_at` 追加。`pe_store_shift_rules`・`app_ui_settings` 新設＋既定値 SEED。既存 4 店舗を移行（`office` は `store_type='office'`）。実行は §5-3 MCP 経由 | マイグレーション適用・既存動作不変（後方互換） |
 | **P2** | ✅ | 2026-06-11 | RPC を 4-2（行ベース）へ再設計。**新形式を別名並走させ 4 店舗で旧出力と差分ゼロを検証**してから切替。検証クエリは MCP で反復実行（§5-3） | 既存 RPC 利用箇所が全て新形式で同値 |
-| **P3** | 🟡 | — | フロント: `getStores()` 起点で店舗リスト・stock 辞書アクセス・色／名前マップを両アプリで動的化。`office` 特例を `store_type` 分岐へ。`shiftImporter` を `pe_store_shift_rules` 参照に刷新 | 4 店舗で全モード回帰なし |
+| **P3** | ✅ | 2026-06-12 | フロント: `getStores()` 起点で店舗リスト・stock 辞書アクセス・色／名前マップを両アプリで動的化。`office` 特例を `store_type` 分岐へ。`shiftImporter` を `pe_store_shift_rules` 参照に刷新 | 4 店舗で全モード回帰なし |
 | **P4** | 🟡 | — | V-PEACH `SettingsApp` に店舗管理 GUI（追加ウィザード＝マスタ＋固定費＋シフトルール必須入力・一発確定で一括 upsert／`create_store_atomic` RPC・休止トグル・並べ替え・キー作成時ロック） | GUI から店舗追加→V-MINT 含む全モードに自動反映 |
 | **P5** | ⬜ | — | 休止店舗の全社一括表示トグル（`app_ui_settings` 連動）。`closed_at` 以降を集計から**明示除外**（按分分母含む）。`csvImporter` を `stores.name` 由来へ動的化 | 休止店舗の過去 PL/在庫が決算時に閲覧可・按分に休止店舗が混ざらない |
 | **P6** | ⬜ | — | **本番反映（go-live）**。全テスト完了後に V-MINT `v3→v2`、V-PEACH `v2→main` をマージ（§5-2-4） | 本番 URL に反映・スモーク確認完了 |
@@ -488,7 +488,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 - [x] 色・名前マップの動的化 ✅ 2026-06-11 — `V-MINT2.0/src/utils/storeDisplay.js` 新設（`storeBadgeColor`＝display_order 位置ベースのパレット・既存4店舗の配色維持／`storeNameByKey`＝stores.name 由来）。RequestApp/TransferApp の固定マップ撤廃
 - [x] `office` 特例 → `store_type==='office'` 判定へ統一 ✅ 2026-06-11 — App.vue/CostApp/DashboardApp/InventoryApp/RequestApp に `isOfficeStore` 等の computed を導入し `key==='office'` リテラル比較を全廃（`store_type==='office'` の DB 値比較・シムのみ残置）
 - [x] `shiftImporter` を `pe_store_shift_rules` 参照に刷新（馬場2号店ハードコード撤廃）✅ 2026-06-11（`getStoreShiftRules()` 追加・`STORE_KEYS` 撤廃・補正の世代ルール化・InputApp 追従。SEED が現行再現のため回帰ゼロ）
-- [ ] 4 店舗で全モード回帰（実装は 2026-06-11 完了・両アプリ vite build PASS・店舗キー直書きの残骸ゼロを grep 確認済み。**つーくんの画面スモーク待ち**: V-MINT 棚卸し/移動/発注/ダッシュボード・V-PEACH PL/シフトCSV取込）
+- [x] 4 店舗で全モード回帰 ✅ 2026-06-12 — つーくんの画面スモーク全項目 PASS（ローカル dev サーバー両起動: V-MINT ダッシュボード/棚卸し/移動/発注/office 特例の表示区別・V-PEACH PL/シフトCSV取込〔馬場2号店 遅番土日祝=7.5h 補正の維持確認含む〕・店舗管理セクション一覧/名称編集/並べ替え・ウィザードの Step バリデーション動作。ウィザード最終確定のみ未実施＝P4 e2e として残置）
 
 **P4 — 店舗管理 GUI（V-PEACH SettingsApp）**
 - [x] 店舗管理セクション（一覧 / 名称編集 / `is_active` トグル / 並べ替え / 確認ダイアログ）✅ 2026-06-11 — `SettingsApp` に「店舗管理」サブモード新設（`store_type='shop'` のみ・office 非表示・休止店舗もグレーアウト表示）。名称インライン編集／休止=確認ダイアログ＋`closed_at`=当日・再開=クリア／↑↓で隣接 swap 並べ替え（office とは構造的に入れ替わらない）／`store_key` はロックアイコンで変更不可を明示。`api.js` に `updateStore(id, fields)`（name/is_active/display_order/closed_at のホワイトリスト方式）。既知の残課題: 並べ替えは update 2回のため部分失敗で UI/DB が一時乖離しうる（再読込で復旧。P4 後半で swap RPC 化を検討）・編集結果は他画面では再読込まで反映されない（getStores はマウント時取得）
