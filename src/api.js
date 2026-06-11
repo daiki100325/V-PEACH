@@ -35,6 +35,30 @@ export async function getStores() {
   return data || []
 }
 
+/**
+ * stores テーブルの指定 id 行を更新する（ホワイトリスト方式）
+ * 更新可能フィールド: name / is_active / display_order / closed_at
+ * store_key / store_type はシステム管理項目のため更新不可
+ * @param {number} id  stores.id
+ * @param {object} fields  更新フィールド（ホワイトリスト外は無視）
+ */
+export async function updateStore(id, fields) {
+  requireSupabase()
+  const ALLOWED_KEYS = ['name', 'is_active', 'display_order', 'closed_at']
+  const payload = {}
+  for (const key of ALLOWED_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(fields, key)) {
+      payload[key] = fields[key]
+    }
+  }
+  if (Object.keys(payload).length === 0) return  // 更新対象なし
+  const { error } = await supabase
+    .from('stores')
+    .update(payload)
+    .eq('id', id)
+  if (error) throw error
+}
+
 // ─── pe_store_shift_rules（店舗別シフト枠時間・改定履歴付き） ────────────────
 // 参照: notes/V-PEACH_multi-store-scaling-plan.md（P3）/ src/utils/shiftImporter.js
 // P3: shiftImporter のハードコード（STORE_KEYS 固定・馬場2号店遅番補正）撤廃の参照先。

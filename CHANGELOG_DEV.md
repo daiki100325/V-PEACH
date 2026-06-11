@@ -1,6 +1,18 @@
 # CHANGELOG_DEV
 
 ## 2026-06-11
+- What: マルチストア改修 **P4 前半** — `SettingsApp` に「店舗管理」セクションを新設（subMode `store-mgmt`）。shop 店舗の一覧（休止含む・display_order 順）／名称インライン編集（Enter保存・Escキャンセル）／休止・再開トグル（確認ダイアログ必須・休止で `closed_at`=当日・再開でクリア）／↑↓並べ替え（隣接 swap・office とは入れ替え不可）／`store_key` ロック表示。`api.js` に `updateStore(id, fields)` 追加（name/is_active/display_order/closed_at ホワイトリスト方式・store_key/store_type は更新経路なし）。新店舗追加ボタンは disabled プレースホルダー（P4 後半のウィザードで実装）
+- Why: 店舗マスタの単一窓口を V-PEACH に集約（R5）。休止は論理削除で過去データ保持（R2/R3）（multi-store-scaling-plan §4-4 / §6 P4）
+- Files: `src/components/apps/SettingsApp.vue`, `src/api.js`（`multi-store` ブランチ）
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-11
+- What: マルチストア改修 **P4 前半** — `create_store_atomic` RPC を Supabase MCP（migration `multi_store_p4_create_store_atomic`）で適用。`stores`＋`pe_store_settings`（現行値）＋`pe_store_settings_revisions`（初期世代）＋`pe_store_shift_rules`（6行）を単一トランザクションで一括 insert・失敗時全体ロールバック。store_key 正規表現／固定費5項目必須／シフト6パターン必須のサーバ側バリデーション付き。検証: 成功パスを BEGIN→ROLLBACK で実行し残骸ゼロ確認・重複キー／ルール不足の拒否も確認
+- Why: P4 新店舗追加ウィザード（一発確定）の前提。「stores だけある半端な店舗」を構造的に作らせない（multi-store-scaling-plan §4-4 / §7）
+- Files: `supabase/DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/V-PEACH_multi-store-scaling-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
+
+## 2026-06-11
 - What: マルチストア改修 **P3** — `App.vue` の店舗リスト直書き（`baba`/`nakano`/`baba_2nd`）を撤廃し、`getStores()` から `store_type==='shop'` かつ `is_active` の行を取得して動的生成（`loadStores()`）。UI キーを DB `store_key`（`baba_main`）に統一し、取得失敗時は現行3店舗の固定フォールバックで継続。休止店舗の表示トグルは P5 で対応
 - Why: 店舗増減を `stores` マスタ1か所の登録で V-PEACH 全モード（PL／入力／設定）に反映させる（multi-store-scaling-plan §4-3 / §6 P3）
 - Files: `src/App.vue`（`multi-store` ブランチ）

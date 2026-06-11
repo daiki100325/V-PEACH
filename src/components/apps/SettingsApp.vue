@@ -48,6 +48,14 @@
                         </div>
                         <div class="text-sm text-slate-500">日本国民の祝日キャッシュを再取得します</div>
                     </button>
+                    <button @click="openStoreMgmt"
+                        class="text-left rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 p-5 transition-colors focus:outline-none">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🏬</span>
+                            <span class="text-base font-bold text-slate-800">店舗管理</span>
+                        </div>
+                        <div class="text-sm text-slate-500">店名・運営状態・表示順を管理します</div>
+                    </button>
                 </div>
             </div>
         </div>
@@ -555,6 +563,133 @@
             </template>
         </div>
 
+        <!-- ─── 店舗管理 ─────────────────────────────────────────────── -->
+        <div v-if="subMode === 'store-mgmt'" class="space-y-4 pb-16">
+            <h2 class="text-base font-bold text-slate-700">店舗管理</h2>
+            <p class="text-xs text-slate-400">
+                店名・運営状態・表示順を管理します。
+                <span class="inline-flex items-center gap-0.5 text-slate-300">
+                    <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    store_key
+                </span>
+                はシステム識別子のため変更できません。
+            </p>
+
+            <div v-if="smLoading" class="text-center py-12 text-slate-400 text-sm">読み込み中...</div>
+
+            <template v-else>
+                <!-- 店舗一覧カード -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <!-- データなし -->
+                    <div v-if="smStores.length === 0" class="px-4 py-8 text-center text-sm text-slate-400">
+                        店舗データがありません
+                    </div>
+                    <!-- 各店舗行 -->
+                    <div v-for="(store, idx) in smStores" :key="store.id"
+                        class="px-4 py-3.5 border-b border-slate-50 last:border-0"
+                        :class="store.is_active ? '' : 'bg-slate-50'">
+                        <div class="flex items-start gap-3">
+
+                            <!-- ↑↓ 並べ替えボタン（shop 同士のみ入れ替わる） -->
+                            <div class="flex flex-col gap-0.5 pt-0.5 shrink-0">
+                                <button @click="smMoveUp(idx)"
+                                    :disabled="idx === 0 || smSaving"
+                                    class="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+                                    title="上へ移動">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+                                    </svg>
+                                </button>
+                                <button @click="smMoveDown(idx)"
+                                    :disabled="idx === smStores.length - 1 || smSaving"
+                                    class="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+                                    title="下へ移動">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- 店名（インライン編集）+ store_key（ロック表示） -->
+                            <div class="flex-1 min-w-0">
+                                <!-- 編集モード -->
+                                <div v-if="smEditingId === store.id" class="flex items-center gap-2 mb-0.5">
+                                    <input type="text" v-model="smEditingName"
+                                        @keydown.enter="smSaveName(store)"
+                                        @keydown.escape="smCancelEdit"
+                                        class="flex-1 min-w-0 bg-slate-50 border border-brand-300 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none" />
+                                    <button @click="smSaveName(store)"
+                                        :disabled="!smEditingName.trim() || smSaving"
+                                        class="shrink-0 text-xs font-bold text-brand-600 hover:text-brand-700 disabled:opacity-40 transition-colors">保存</button>
+                                    <button @click="smCancelEdit"
+                                        class="shrink-0 text-xs text-slate-400 hover:text-slate-600 transition-colors">キャンセル</button>
+                                </div>
+                                <!-- 表示モード（クリックで編集開始） -->
+                                <button v-else @click="smStartEdit(store)"
+                                    class="group flex items-center gap-1.5 text-left mb-0.5">
+                                    <span class="text-sm font-bold transition-colors"
+                                        :class="store.is_active ? 'text-slate-800 group-hover:text-brand-600' : 'text-slate-400 group-hover:text-brand-500'">{{ store.name }}</span>
+                                    <svg class="w-3 h-3 text-slate-200 group-hover:text-brand-400 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                                <!-- store_key（変更不可・ロックアイコンで視覚化） -->
+                                <div class="flex items-center gap-1">
+                                    <svg class="w-3 h-3 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                    <span class="text-xs text-slate-300 font-mono">{{ store.store_key }}</span>
+                                </div>
+                            </div>
+
+                            <!-- 状態バッジ + 休止/再開ボタン -->
+                            <div class="flex flex-col items-end gap-1.5 shrink-0">
+                                <!-- 営業中 -->
+                                <span v-if="store.is_active"
+                                    class="inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
+                                    営業中
+                                </span>
+                                <!-- 休止中 + 閉店日 -->
+                                <template v-else>
+                                    <span class="inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                        休止中
+                                    </span>
+                                    <span v-if="store.closed_at" class="text-xs text-slate-400">{{ store.closed_at }}〜</span>
+                                </template>
+                                <!-- アクションボタン -->
+                                <button v-if="store.is_active"
+                                    @click="smDeactivate(store)"
+                                    :disabled="smSaving"
+                                    class="text-xs text-slate-400 hover:text-red-500 disabled:opacity-40 transition-colors font-medium">
+                                    休止にする
+                                </button>
+                                <button v-else
+                                    @click="smActivate(store)"
+                                    :disabled="smSaving"
+                                    class="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-40 transition-colors font-medium">
+                                    再開する
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 新店舗追加（P4 後半スコープ・現在は disabled プレースホルダー） -->
+                <button
+                    disabled
+                    title="P4 後半で実装予定"
+                    class="w-full py-2.5 rounded-xl text-sm font-medium border border-dashed border-slate-200 text-slate-300 cursor-not-allowed flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    ＋ 新店舗を追加（P4 後半で実装予定）
+                </button>
+            </template>
+        </div>
+
     </main>
 </template>
 
@@ -566,7 +701,7 @@ import {
     getHrmosStaffs, upsertHrmosStaffs, updateHrmosStaffRole,
     getHrmosSegments, upsertHrmosSegments, updateHrmosSegment,
     getJpHolidays, getJpHolidaysMeta,
-    getStores
+    getStores, updateStore
 } from '../../api.js'
 import { buildYearOptions, buildMonthOptions, composePeriodKey } from '../../utils/periods.js'
 import CurrencyInput from '../CurrencyInput.vue'
@@ -589,6 +724,10 @@ export default {
         stores: { type: Array, default: () => [] }
     },
     emits: ['update:loading', 'update:loadingMessage'],
+    inject: {
+        // App.vue の provide('requestConfirm') を利用してグローバル確認ダイアログを呼び出す
+        requestConfirm: { from: 'requestConfirm', default: null }
+    },
     data() {
         return {
             subMode: null,
@@ -623,7 +762,13 @@ export default {
             holLoading: false,
             holRefreshing: false,
             holMeta: { last_fetched_at: null, last_fetch_status: null, last_fetch_error: null },
-            holRows: []
+            holRows: [],
+            // 店舗管理
+            smLoading: false,
+            smSaving: false,
+            smStores: [],        // store_type='shop' の全行（is_active 問わず・display_order 順）
+            smEditingId: null,   // インライン名称編集中の store.id
+            smEditingName: ''    // 編集中の一時名称
         }
     },
     computed: {
@@ -1060,6 +1205,129 @@ export default {
             const d = new Date(ts)
             const z = n => String(n).padStart(2, '0')
             return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`
+        },
+
+        // ─── 店舗管理 ──────────────────────────────────────────────
+        async openStoreMgmt() {
+            this.subMode = 'store-mgmt'
+            this.smLoading = true
+            try {
+                const rows = await getStores()
+                // shop 種別のみ display_order 順（is_active 問わず全店舗を管理対象に表示）
+                this.smStores = rows.filter(s => s.store_type === 'shop')
+            } catch (e) {
+                alert(e.message || '読み込みに失敗しました。')
+            } finally {
+                this.smLoading = false
+            }
+        },
+        smStartEdit(store) {
+            this.smEditingId = store.id
+            this.smEditingName = store.name
+        },
+        smCancelEdit() {
+            this.smEditingId = null
+            this.smEditingName = ''
+        },
+        async smSaveName(store) {
+            const name = this.smEditingName.trim()
+            if (!name) return
+            this.smSaving = true
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', '保存中...')
+            try {
+                await updateStore(store.id, { name })
+                store.name = name
+                this.smCancelEdit()
+            } catch (e) {
+                alert(e.message || '更新に失敗しました。')
+            } finally {
+                this.smSaving = false
+                this.$emit('update:loading', false)
+            }
+        },
+        async smDeactivate(store) {
+            // 休止化: 確認ダイアログ必須（過去データ保持の旨を明記）
+            const ok = await this.smConfirm(
+                `「${store.name}」を休止にしますか？\n過去データは保持され、決算時に閲覧できます。`,
+                '休止にする',
+                'text-red-600 hover:bg-red-50'
+            )
+            if (!ok) return
+            this.smSaving = true
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', '更新中...')
+            try {
+                const today = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
+                await updateStore(store.id, { is_active: false, closed_at: today })
+                store.is_active = false
+                store.closed_at = today
+            } catch (e) {
+                alert(e.message || '更新に失敗しました。')
+            } finally {
+                this.smSaving = false
+                this.$emit('update:loading', false)
+            }
+        },
+        async smActivate(store) {
+            // 再開: 確認ダイアログ → is_active=true・closed_at=null
+            const ok = await this.smConfirm(
+                `「${store.name}」を再開しますか？`,
+                '再開する',
+                'text-emerald-600 hover:bg-emerald-50'
+            )
+            if (!ok) return
+            this.smSaving = true
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', '更新中...')
+            try {
+                await updateStore(store.id, { is_active: true, closed_at: null })
+                store.is_active = true
+                store.closed_at = null
+            } catch (e) {
+                alert(e.message || '更新に失敗しました。')
+            } finally {
+                this.smSaving = false
+                this.$emit('update:loading', false)
+            }
+        },
+        async smMoveUp(idx) {
+            if (idx === 0) return
+            await this.smSwap(idx - 1, idx)
+        },
+        async smMoveDown(idx) {
+            if (idx === this.smStores.length - 1) return
+            await this.smSwap(idx, idx + 1)
+        },
+        async smSwap(idxA, idxB) {
+            const a = this.smStores[idxA]
+            const b = this.smStores[idxB]
+            this.smSaving = true
+            this.$emit('update:loading', true)
+            this.$emit('update:loadingMessage', '並べ替え中...')
+            try {
+                // 隣接する2店舗の display_order を入れ替え（2回 update）
+                // shop 同士のリスト上での操作なので office(order=0) とは絶対に入れ替わらない
+                await updateStore(a.id, { display_order: b.display_order })
+                await updateStore(b.id, { display_order: a.display_order })
+                // ローカル状態を更新してリストを再ソート
+                const tempOrder = a.display_order
+                a.display_order = b.display_order
+                b.display_order = tempOrder
+                this.smStores = this.smStores.slice().sort((x, y) => x.display_order - y.display_order)
+            } catch (e) {
+                alert(e.message || '並べ替えに失敗しました。')
+            } finally {
+                this.smSaving = false
+                this.$emit('update:loading', false)
+            }
+        },
+        // requestConfirm が inject 済みであれば使い、なければ native confirm() にフォールバック
+        smConfirm(message, okLabel = 'OK', okClass = 'text-brand-600 hover:bg-brand-50') {
+            if (this.requestConfirm) {
+                return this.requestConfirm(message, okLabel, okClass)
+            }
+            return Promise.resolve(window.confirm(message))
         }
     }
 }

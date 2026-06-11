@@ -11,7 +11,7 @@ parent:
 # 店舗増減の GUI 対応 — 実装計画（V-PEACH / V-MINT2.0）
 
 > ステータス: **実装計画（確定・着手前）** / 作成 2026-06-01 / 最終更新 2026-06-11
-> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 🟡 実装完了・回帰スモーク待ち**（2026-06-11 全実装タスク完了。§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証。残はつーくんの画面スモークのみ）／P4〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
+> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／**P3 🟡 実装完了・回帰スモーク待ち**（2026-06-11 全実装タスク完了。§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証。残はつーくんの画面スモークのみ）／**P4 🟡 進行中**（2026-06-11 前半完了: `create_store_atomic` RPC 適用済み・店舗管理セクション実装。残: 追加ウィザード）／P5〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
 > 開発・運用方針（2026-06-11 追加）: 本改修は **当面 obsidian-vault ローカル `multi-store` ブランチでのみ進め**（§5-1）、既存版（V-MINT `v2` / V-PEACH `main`）へのバグフィックスは `main` ブランチから従来どおり `/vmint-deploy`・`/vpeach-deploy` で対応する（§5-2）。Supabase 上の SQL 実行は **Supabase MCP 経由で Claude Code が直接実行**する運用に切替え、つーくんの手作業実行をなくす（§5-3）。
 > 対象: V-MINT2.0・V-PEACH 両アプリ（`stores` テーブル共有のため一体で実装）
 > ゴール: 新店舗オープン／既存店舗の閉店を、つーくん（管理者）が **GUI からできる限り完結** して扱えるようにする。SQL 手作業ゼロ・1 か所登録で両アプリ反映。
@@ -415,7 +415,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 | MCP セットアップ完了 | ✅ | 2026-06-11 | §5-3-5 チェックリスト 全 ✅ |
 | P1 マイグレーション（DDL／SEED）を MCP 経由で実行 | ✅ | 2026-06-11 | migration `multi_store_p1_stores_shift_rules_app_ui_settings`。既存 RPC 4 本の正常応答確認済み |
 | P2 行ベース新 RPC（`*_v2`）作成・差分検証 | ✅ | 2026-06-11 | migration `multi_store_p2_rpc_v2_parallel`。全期間（202512〜202606）×3関数で差分ゼロ PASS |
-| P4 `create_store_atomic` RPC の定義 | ⬜ | — | §6 P4 と連動 |
+| P4 `create_store_atomic` RPC の定義 | ✅ | 2026-06-11 | migration `multi_store_p4_create_store_atomic`。成功パスは BEGIN→ROLLBACK で残骸ゼロ検証・重複キー/ルール不足の拒否も確認済み |
 | P7 旧ピボット RPC の `DROP`・別名リネーム | ⬜ | — | §6 P7 と連動。**P6 完了が前提条件**（§5-2-3／§5-3-4 破壊的） |
 
 ### 5-4. サブエージェント活用（モデル分担・トークン節約／2026-06-11 追加）
@@ -449,7 +449,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 | **P1** | ✅ | 2026-06-11 | DB: `stores` に `is_active` / `display_order` / `store_type` / `closed_at` 追加。`pe_store_shift_rules`・`app_ui_settings` 新設＋既定値 SEED。既存 4 店舗を移行（`office` は `store_type='office'`）。実行は §5-3 MCP 経由 | マイグレーション適用・既存動作不変（後方互換） |
 | **P2** | ✅ | 2026-06-11 | RPC を 4-2（行ベース）へ再設計。**新形式を別名並走させ 4 店舗で旧出力と差分ゼロを検証**してから切替。検証クエリは MCP で反復実行（§5-3） | 既存 RPC 利用箇所が全て新形式で同値 |
 | **P3** | 🟡 | — | フロント: `getStores()` 起点で店舗リスト・stock 辞書アクセス・色／名前マップを両アプリで動的化。`office` 特例を `store_type` 分岐へ。`shiftImporter` を `pe_store_shift_rules` 参照に刷新 | 4 店舗で全モード回帰なし |
-| **P4** | ⬜ | — | V-PEACH `SettingsApp` に店舗管理 GUI（追加ウィザード＝マスタ＋固定費＋シフトルール必須入力・一発確定で一括 upsert／`create_store_atomic` RPC・休止トグル・並べ替え・キー作成時ロック） | GUI から店舗追加→V-MINT 含む全モードに自動反映 |
+| **P4** | 🟡 | — | V-PEACH `SettingsApp` に店舗管理 GUI（追加ウィザード＝マスタ＋固定費＋シフトルール必須入力・一発確定で一括 upsert／`create_store_atomic` RPC・休止トグル・並べ替え・キー作成時ロック） | GUI から店舗追加→V-MINT 含む全モードに自動反映 |
 | **P5** | ⬜ | — | 休止店舗の全社一括表示トグル（`app_ui_settings` 連動）。`closed_at` 以降を集計から**明示除外**（按分分母含む）。`csvImporter` を `stores.name` 由来へ動的化 | 休止店舗の過去 PL/在庫が決算時に閲覧可・按分に休止店舗が混ざらない |
 | **P6** | ⬜ | — | **本番反映（go-live）**。全テスト完了後に V-MINT `v3→v2`、V-PEACH `v2→main` をマージ（§5-2-4） | 本番 URL に反映・スモーク確認完了 |
 | **P7** | ⬜ | — | **レガシー除去（go-live 後）**。別名並走で残した旧ピボット RPC・移行用シム・不要カラムを破壊的マイグレーションで撤去（§6-2）。実行は §5-3 MCP 経由（破壊的ルール適用） | 旧要素を全削除・本番回帰なし・ドキュメント最終同期 |
@@ -491,9 +491,9 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 - [ ] 4 店舗で全モード回帰（実装は 2026-06-11 完了・両アプリ vite build PASS・店舗キー直書きの残骸ゼロを grep 確認済み。**つーくんの画面スモーク待ち**: V-MINT 棚卸し/移動/発注/ダッシュボード・V-PEACH PL/シフトCSV取込）
 
 **P4 — 店舗管理 GUI（V-PEACH SettingsApp）**
-- [ ] 店舗管理セクション（一覧 / 名称編集 / `is_active` トグル / 並べ替え / 確認ダイアログ）
+- [x] 店舗管理セクション（一覧 / 名称編集 / `is_active` トグル / 並べ替え / 確認ダイアログ）✅ 2026-06-11 — `SettingsApp` に「店舗管理」サブモード新設（`store_type='shop'` のみ・office 非表示・休止店舗もグレーアウト表示）。名称インライン編集／休止=確認ダイアログ＋`closed_at`=当日・再開=クリア／↑↓で隣接 swap 並べ替え（office とは構造的に入れ替わらない）／`store_key` はロックアイコンで変更不可を明示。`api.js` に `updateStore(id, fields)`（name/is_active/display_order/closed_at のホワイトリスト方式）。既知の残課題: 並べ替えは update 2回のため部分失敗で UI/DB が一時乖離しうる（再読込で復旧。P4 後半で swap RPC 化を検討）・編集結果は他画面では再読込まで反映されない（getStores はマウント時取得）
 - [ ] 追加ウィザード（`name`+`key` / 固定費 / シフトルールを必須入力）
-- [ ] `create_store_atomic` RPC（一括 insert・失敗時ロールバック・§5-3 MCP 経由で定義）
+- [x] `create_store_atomic` RPC（一括 insert・失敗時ロールバック・§5-3 MCP 経由で定義）✅ 2026-06-11 — `stores`＋`pe_store_settings`（現行値）＋`pe_store_settings_revisions`（初期世代）＋`pe_store_shift_rules`（6行）を単一トランザクションで一括 insert。store_key 正規表現・固定費5項目必須・シフト6パターン必須をサーバ側バリデーション。SQL は `supabase/DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql`
 - [ ] `store_key` 作成時ロック・英数字バリデーション
 - [ ] GUI 追加 → V-MINT 含む両アプリ反映の e2e 確認
 - [ ] ドキュメント同期（`requirements` / `how-to-use`）
