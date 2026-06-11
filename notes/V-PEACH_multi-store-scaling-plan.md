@@ -11,7 +11,7 @@ parent:
 # 店舗増減の GUI 対応 — 実装計画（V-PEACH / V-MINT2.0）
 
 > ステータス: **実装計画（確定・着手前）** / 作成 2026-06-01 / 最終更新 2026-06-11
-> 進捗: **P1 ✅ 完了（2026-06-11・MCP 適用済み）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／P2〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
+> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／P0 ⏸️ 保留（初回 subtree push 時に実施）／P3〜P7 ⬜ 未着手。最新は §6 進捗帳票を参照。
 > 開発・運用方針（2026-06-11 追加）: 本改修は **当面 obsidian-vault ローカル `multi-store` ブランチでのみ進め**（§5-1）、既存版（V-MINT `v2` / V-PEACH `main`）へのバグフィックスは `main` ブランチから従来どおり `/vmint-deploy`・`/vpeach-deploy` で対応する（§5-2）。Supabase 上の SQL 実行は **Supabase MCP 経由で Claude Code が直接実行**する運用に切替え、つーくんの手作業実行をなくす（§5-3）。
 > 対象: V-MINT2.0・V-PEACH 両アプリ（`stores` テーブル共有のため一体で実装）
 > ゴール: 新店舗オープン／既存店舗の閉店を、つーくん（管理者）が **GUI からできる限り完結** して扱えるようにする。SQL 手作業ゼロ・1 か所登録で両アプリ反映。
@@ -414,7 +414,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 |------|:----:|:------:|------|
 | MCP セットアップ完了 | ✅ | 2026-06-11 | §5-3-5 チェックリスト 全 ✅ |
 | P1 マイグレーション（DDL／SEED）を MCP 経由で実行 | ✅ | 2026-06-11 | migration `multi_store_p1_stores_shift_rules_app_ui_settings`。既存 RPC 4 本の正常応答確認済み |
-| P2 行ベース新 RPC（`*_v2`）作成・差分検証 | ⬜ | — | §6 P2 と連動。反復実行が多くここの恩恵が大きい |
+| P2 行ベース新 RPC（`*_v2`）作成・差分検証 | ✅ | 2026-06-11 | migration `multi_store_p2_rpc_v2_parallel`。全期間（202512〜202606）×3関数で差分ゼロ PASS |
 | P4 `create_store_atomic` RPC の定義 | ⬜ | — | §6 P4 と連動 |
 | P7 旧ピボット RPC の `DROP`・別名リネーム | ⬜ | — | §6 P7 と連動。**P6 完了が前提条件**（§5-2-3／§5-3-4 破壊的） |
 
@@ -447,7 +447,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 |-------|:----:|:------:|------|---------|
 | **P0** | ⏸️ | — | **デプロイブランチ準備（§5-2）**。A 案採用につき事前作成はせず、**P1 の初回 subtree push 時に V-MINT `v3` / V-PEACH `v2` を自動生成**。以後この改修の push 先を本番ブランチから切り離す | 両ブランチが生成され、Cloudflare で非本番（プレビュー）扱いと確認 |
 | **P1** | ✅ | 2026-06-11 | DB: `stores` に `is_active` / `display_order` / `store_type` / `closed_at` 追加。`pe_store_shift_rules`・`app_ui_settings` 新設＋既定値 SEED。既存 4 店舗を移行（`office` は `store_type='office'`）。実行は §5-3 MCP 経由 | マイグレーション適用・既存動作不変（後方互換） |
-| **P2** | ⬜ | — | RPC を 4-2（行ベース）へ再設計。**新形式を別名並走させ 4 店舗で旧出力と差分ゼロを検証**してから切替。検証クエリは MCP で反復実行（§5-3） | 既存 RPC 利用箇所が全て新形式で同値 |
+| **P2** | ✅ | 2026-06-11 | RPC を 4-2（行ベース）へ再設計。**新形式を別名並走させ 4 店舗で旧出力と差分ゼロを検証**してから切替。検証クエリは MCP で反復実行（§5-3） | 既存 RPC 利用箇所が全て新形式で同値 |
 | **P3** | ⬜ | — | フロント: `getStores()` 起点で店舗リスト・stock 辞書アクセス・色／名前マップを両アプリで動的化。`office` 特例を `store_type` 分岐へ。`shiftImporter` を `pe_store_shift_rules` 参照に刷新 | 4 店舗で全モード回帰なし |
 | **P4** | ⬜ | — | V-PEACH `SettingsApp` に店舗管理 GUI（追加ウィザード＝マスタ＋固定費＋シフトルール必須入力・一発確定で一括 upsert／`create_store_atomic` RPC・休止トグル・並べ替え・キー作成時ロック） | GUI から店舗追加→V-MINT 含む全モードに自動反映 |
 | **P5** | ⬜ | — | 休止店舗の全社一括表示トグル（`app_ui_settings` 連動）。`closed_at` 以降を集計から**明示除外**（按分分母含む）。`csvImporter` を `stores.name` 由来へ動的化 | 休止店舗の過去 PL/在庫が決算時に閲覧可・按分に休止店舗が混ざらない |
@@ -475,11 +475,11 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 - [x] 既存動作の回帰 — SQL/RPC レベルで確認済み（`fetch_stock_overview` 等 4 RPC が正常応答・additive のみで既存列不変）。アプリ画面のスモークはつーくん確認推奨
 - [x] ドキュメント同期（両 `supabase-er-diagram` / `architecture`）
 
-**P2 — RPC 行ベース化（実行・差分検証は §5-3 MCP 経由）**
-- [ ] 行ベース新関数を別名（`*_v2`）で作成（在庫概要 / 消費量 / request inventory）
-- [ ] 旧→新の出力差分ゼロ検証（4 店舗・全 period）
-- [ ] フロントの呼び出しを新関数へ切替（旧関数は残置）
-- [ ] ドキュメント同期（`supabase-er-diagram` の RPC 節）
+**P2 — RPC 行ベース化（実行・差分検証は §5-3 MCP 経由）** — ✅ 2026-06-11 完了（§5-4 体制の初運用: Sonnet 草案 → Fable レビュー・適用・検証・切替）
+- [x] 行ベース新関数を別名（`*_v2`）で作成 — `fetch_transfer_flavors_v2` / `fetch_request_inventory_data_v2` / `fetch_dashboard_stock_overview_v2` の3関数（`jsonb_object_agg` で店舗キー動的化。dashboard は固定4カラム→`stocks jsonb`）。`fetch_stock_overview` ほか10関数はハードコードなしのため v2 不要と判定
+- [x] 旧→新の出力差分ゼロ検証（4 店舗・全 period 202512〜202606）— 3関数×全期間で mismatch 0・全 PASS
+- [x] フロントの呼び出しを新関数へ切替（`src/api.js` 3箇所・旧関数は残置・vite build 確認済み）
+- [x] ドキュメント同期（`supabase-er-diagram` の RPC 節・`V-MINT2.0/DECISIONS` ADR-20260611-01 を Accepted 化）
 
 **P3 — フロント動的化**
 - [ ] `getStores()` 拡張（`is_active` / `display_order` / `store_type`）
