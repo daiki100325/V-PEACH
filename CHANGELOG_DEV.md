@@ -1,5 +1,12 @@
 # CHANGELOG_DEV
 
+## 2026-06-13
+- What: マルチストア改修 **P4 残のドキュメント同期** — `notes/V-PEACH_requirements.md`（対象拠点の動的化・PL拠点フィルター・設定モードに「店舗管理」サブモード追記＋R5〜R8 要件の詳細節新設）と `notes/V-PEACH_how-to-use.md`（1-3 に休止店舗トグルの使い方・2-6「店舗管理」節新設＝一覧操作/追加ウィザード3ステップ/休止トグル/閉店集計ルール）を実装済み機能に同期。コード変更なし
+- Why: P4 完了条件のうち「`requirements`/`how-to-use` ドキュメント同期」を消化（multi-store-scaling-plan §6-1 P4）。残は P4×P5 統合 e2e（§6-3）のみ
+- Files: `notes/V-PEACH_requirements.md`, `notes/V-PEACH_how-to-use.md`, `notes/V-PEACH_multi-store-scaling-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+- 補足: §5-4 体制（Sonnet サブエージェントがドラフト → Fable レビューで2点修正＝①`create_store_atomic` の insert 対象に `pe_store_settings_revisions` を追記 ②V-PEACH PL トグルは常時表示（「休止店舗存在時のみ出現」は V-MINT ダッシュボード側の仕様）と訂正）
+
 ## 2026-06-12
 - What: マルチストア改修 **P5 最終** — `csvImporter.js` の店舗名寄せを動的化。`detectStoreKeyFromFilename`・`decideHrmosSegmentClassification`・`parseHrmosSegmentsCsv` のハードコード（`STORE_NAME_JP` / `STORE_KEY_FROM_FILENAME_EN` 固定マップ・`SEGMENT_STORE_PATTERNS` 固定パターン）を削除し、呼び出し元から `stores` リストを引数で渡す動的解決に置き換え。InputApp は `this.stores`（App.vue が DB から取得済みの店舗リスト）を渡す。SettingsApp は `this.hmStoresDb`（同 getStores() 結果）を第3引数として追加。警告メッセージも `this.stores.map(s => s.name).join('・')` で動的化。
 - Why: 店舗追加・名称変更が SettingsApp GUI から可能になったのに、CSV 名寄せのハードコードが残っていた。新店舗を追加するたびに csvImporter.js を手修正する必要があるため、stores テーブル由来の動的解決に統一（multi-store-scaling-plan §6 P5）。
