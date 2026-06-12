@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-13
+- What: マルチストア改修 **P0 完了・P6 前半（本番マージ直前まで）** — `multi-store` ブランチから保険ブランチへ初回 subtree push（V-PEACH `v2` 新規生成・本番 `main` 無傷）。Cloudflare プレビュー `https://v2.v-peach.pages.dev/` の稼働確認済み（push 前に vite build PASS）。本番マージ（`v2→main`）と本番スモークは未実施＝つーくん GO 待ち
+- Why: P4×P5 完了を受け go-live 準備を本番反映直前まで進めるため（multi-store-scaling-plan §5-2／§6 P0・P6）
+- Files: なし（デプロイ操作のみ。`notes/V-PEACH_multi-store-scaling-plan.md` の進捗帳票を更新）
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-13
 - What: マルチストア改修 **P4・P5 完了** — §6-3 統合 e2e 全手順 PASS。①ウィザードでテスト店作成→`create_store_atomic` のアトミック性を SQL 確認（4テーブル 1+1+1+6 行・入力値完全一致）②両アプリ全モードにリロードのみで反映（P4 条件）③休止化→トグル両アプリ連動（`app_ui_settings` 共有）→「（休止）」付き過去 PL 閲覧→閉店翌月の集計・按分除外（P5 条件）④後片付け＝テストデータ 9 行を §5-3-4 承認フローで DELETE・残骸ゼロ・トグル OFF 復帰。仕様確認: 新店舗は作成直後から全モード表示（開店日カラムなし・適用開始月は設定世代のみ）・月次レコード無き月は PL 早期 return で集計影響ゼロ
 - Why: P4「GUI から店舗追加→全モード自動反映」・P5「休止店舗の決算閲覧・按分非混入」の完了条件を実機で検証するため（multi-store-scaling-plan §6-3）。次フェーズは P6（go-live）
 - Files: なし（検証のみ。`notes/V-PEACH_multi-store-scaling-plan.md` の進捗帳票を更新。e2e 中に発見した集計期間チップの修正は同日別エントリ）
