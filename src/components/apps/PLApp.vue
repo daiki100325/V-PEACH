@@ -75,9 +75,9 @@
                 class="border-t border-slate-100 pt-3 mt-3">
                 <div v-if="loadingPreview" class="text-xs text-slate-400">集計期間を取得中...</div>
                 <div v-else class="flex flex-wrap gap-2">
-                    <div v-for="sd in costPeriodPreview" :key="sd.storeKey"
+                    <div v-for="sd in visibleCostPeriodPreview" :key="sd.storeKey"
                         class="flex items-center gap-1.5 text-xs bg-slate-50 rounded-lg px-2.5 py-1.5">
-                        <span class="font-semibold text-slate-600">{{ sd.storeName }}</span>
+                        <span class="font-semibold text-slate-600">{{ sd.storeName }}{{ sd.isActive === false ? '（休止）' : '' }}</span>
                         <span v-if="sd.costReport" class="text-teal-600">
                             {{ formatDate(sd.costReport.start_date) }}〜{{ formatDate(sd.costReport.end_date) }}（{{ dayCount(sd.costReport) }}日）
                         </span>
@@ -507,6 +507,11 @@ export default {
         isAllStores() {
             return this.selectedStoreKey === 'all'
         },
+        // P5: 集計期間プレビューも displayColumns と同じトグル連動で休止店舗を出し分ける
+        // （データは閉店月まで集計対象のまま・チップ表示だけトグル OFF で隠す）
+        visibleCostPeriodPreview() {
+            return this.costPeriodPreview.filter(sd => this.showInactiveStores || sd.isActive !== false)
+        },
         displayColumns() {
             if (!this.isAllStores) {
                 return [{ key: 'single', label: null, pl: this.displayPL }]
@@ -659,6 +664,7 @@ export default {
                     openStores.map(async (s) => ({
                         storeKey: s.key,
                         storeName: s.name,
+                        isActive: s.isActive,
                         costReport: await getCostReportDates(s.key, periodKey)
                     }))
                 )

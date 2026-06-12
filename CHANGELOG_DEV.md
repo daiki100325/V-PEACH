@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-13
+- What: マルチストア改修 **P5 微修正（e2e フィードバック）** — PL 画面「各店舗の集計期間」プレビューを休止トグル連動に。`fetchCostPeriodPreview` の取得項目に `isActive` を追加し、新 computed `visibleCostPeriodPreview`（`showInactiveStores || isActive !== false`）でチップを出し分け。トグル ON 時は「（休止）」印付き表示（セレクタ・PL列と同一ルール）。集計データ自体は閉店月まで対象のまま（表示のみの変更）
+- Why: P4×P5 統合 e2e（§6-3 手順4）でつーくんが発見 — テスト店休止後、他は全て非表示になるのに集計期間チップだけ閉店月（6月）に残った。`isStoreOpenForPeriod`（閉店月まで営業扱い）のみでフィルタしておりトグルを見ていなかったため、`displayColumns` と同じトグル連動に統一
+- Files: `src/components/apps/PLApp.vue`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-13
 - What: マルチストア改修 **P4 残のドキュメント同期** — `notes/V-PEACH_requirements.md`（対象拠点の動的化・PL拠点フィルター・設定モードに「店舗管理」サブモード追記＋R5〜R8 要件の詳細節新設）と `notes/V-PEACH_how-to-use.md`（1-3 に休止店舗トグルの使い方・2-6「店舗管理」節新設＝一覧操作/追加ウィザード3ステップ/休止トグル/閉店集計ルール）を実装済み機能に同期。コード変更なし
 - Why: P4 完了条件のうち「`requirements`/`how-to-use` ドキュメント同期」を消化（multi-store-scaling-plan §6-1 P4）。残は P4×P5 統合 e2e（§6-3）のみ
 - Files: `notes/V-PEACH_requirements.md`, `notes/V-PEACH_how-to-use.md`, `notes/V-PEACH_multi-store-scaling-plan.md`
