@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-13
+- What: マルチストア改修 **P6 go-live 直前コードレビュー 一巡完了** — `multi-store` vs `main`（26 ファイル・+2913 行）の実差分を高リスク順にレビュー。**ブロッカー級バグはゼロ＝go-live 可能な品質**と判定。確認: storePLs 添字整合（`aggStores` 単一基準）・閉店除外の二重防御・`create_store_atomic` のアトミック性／サーバ側バリデーション・`payment_fee_rate` の %⇄小数往復一貫・書き込み境界のホワイトリスト・RPC v2 の `jsonb_object_agg` 動的キー化。観察事項4件（手数料率の上限なし／名寄せ対象に office 含む／getStores 失敗時の縮退／新店舗の stock JSON キー）はいずれも低重要度・任意対応
+- Why: 前回セッションがトークンリミットで途絶したコードレビューを、実コードを正本に再実行して go-live 判定を確定するため（multi-store-scaling-plan §6 P6）。結果を耐久ドキュメント化し再途絶に備えた
+- Files: `notes/V-PEACH_multi-store-code-review.md`（新規）, `notes/_index.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-code-review]], [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-13
 - What: マルチストア改修 **P0 完了・P6 前半（本番マージ直前まで）** — `multi-store` ブランチから保険ブランチへ初回 subtree push（V-PEACH `v2` 新規生成・本番 `main` 無傷）。Cloudflare プレビュー `https://v2.v-peach.pages.dev/` の稼働確認済み（push 前に vite build PASS）。本番マージ（`v2→main`）と本番スモークは未実施＝つーくん GO 待ち
 - Why: P4×P5 完了を受け go-live 準備を本番反映直前まで進めるため（multi-store-scaling-plan §5-2／§6 P0・P6）
 - Files: なし（デプロイ操作のみ。`notes/V-PEACH_multi-store-scaling-plan.md` の進捗帳票を更新）

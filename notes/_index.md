@@ -51,6 +51,7 @@ tags: [project/v-peach, type/hub]
 - [[V-PEACH/notes/V-PEACH_release-plan]] — リリース・検証手順
 - [[V-PEACH/notes/V-PEACH_how-to-use]] — 操作マニュアル（月次作業・随時作業の手順）
 - [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] — 店舗増減の GUI 対応 **実装計画**（V-MINT/V-PEACH 共通・確定/着手前・保険ブランチ v3/v2）
+- [[V-PEACH/notes/V-PEACH_multi-store-code-review]] — マルチストア改修 **go-live 直前コードレビュー**（2026-06-13・ブロッカーなし・観察事項4件）
 
 ## Notes（アーカイブ・`old/` 配下）
 
