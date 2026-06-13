@@ -163,7 +163,7 @@ parent: [[V-PEACH/notes/_index]]
 - **本番デプロイ完了**：`git subtree push --prefix=V-PEACH V-PEACH main` → Cloudflare Pages 本番反映済み
 
 ## 今後のロードマップ
-- **Phase 13: 店舗増減の GUI 対応（多店舗スケール対応）** — **実装ほぼ完了・go-live 直前（2026-06-13 時点）**。P1〜P5 完了（DB 拡張・行ベース RPC v2・フロント動的化・店舗管理 GUI・休止トグル/閉店除外）、go-live 直前コードレビューもブロッカーなしで通過。残は P6（保険ブランチ v3/v2 のプレビュー目視確認 → 本番 `v2→main`/`v3→v2` マージ → 本番スモーク）と P7（go-live 後の旧ピボット RPC 撤去）。詳細・進捗は [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] を正本、レビュー結果は [[V-PEACH/notes/V-PEACH_multi-store-code-review]] を参照
+- **Phase 13: 店舗増減の GUI 対応（多店舗スケール対応）** — **P1〜P6 完了＝go-live 達成（2026-06-13 本番反映・本番スモーク PASS）**。DB 拡張・行ベース RPC v2・フロント動的化・店舗管理 GUI・休止トグル/閉店除外をすべて実装し、本番 `subtree push`（V-MINT→`v2`・V-PEACH→`main`、両 fast-forward）→ Cloudflare 本番ビルド → 本番スモーク PASS。**残は P7（go-live 安定後の旧ピボット RPC 撤去・`*_v2` 正式名化。着手手順は scaling-plan §6-2-1）のみ。** 詳細・進捗は [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] を正本、レビュー結果は [[V-PEACH/notes/V-PEACH_multi-store-code-review]] を参照
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_history]] — Phase 番号体系の正史
