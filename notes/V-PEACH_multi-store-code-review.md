@@ -73,6 +73,7 @@ parent:
   - #3 getStores 失敗時の縮退 → スルー（リロードで即復帰するため）
 - §4-1（jsonb_object_agg）は設計で解決済み＝対応不要。
 - 残作業は plan §6-1 P6 のとおり: **§6-4 のプレビュー目視確認（つーくん）→ V-MINT `v3→v2` / V-PEACH `v2→main` マージ → 本番スモーク**。
+- **✅ 2026-06-13 go-live 完了**: localhost 目視確認（§6-4）全項目 PASS〔V-MINT で日付フォーマット・Vue warn の2バグ発見→即修正〕→ 本番 `subtree push`（V-MINT→`v2`・V-PEACH→`main`、両 fast-forward）→ 本番スモーク PASS。本レビューのブロッカーなし判断どおり無事故で稼働開始。残は P7（レガシー除去・scaling-plan §6-2-1）のみ。
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]

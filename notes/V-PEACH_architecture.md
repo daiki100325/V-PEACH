@@ -184,9 +184,9 @@ CREATE TABLE pe_benchmarks_revisions (
 ```
 > `pe_benchmarks_revisions` は5指標（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）を1行にフラット管理。2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。`pe_benchmarks` はフォールバック用シングルトン（`id=1`）。
 
-### マルチストア改修（Phase 13・go-live 直前 / `multi-store` ブランチ）
+### マルチストア改修（Phase 13・go-live 完了 2026-06-13 / `multi-store` ブランチ）
 
-> 店舗増減を GUI から完結させる改修。P1〜P5 実装済み・go-live 直前。正本: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]／レビュー: [[V-PEACH/notes/V-PEACH_multi-store-code-review]]。新テーブルの DDL 詳細は [[V-PEACH/notes/V-PEACH_supabase-er-diagram]] を参照。
+> 店舗増減を GUI から完結させる改修。P1〜P6 完了＝go-live 達成（2026-06-13・本番スモーク PASS）。残は P7（レガシー除去・scaling-plan §6-2-1）。正本: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]／レビュー: [[V-PEACH/notes/V-PEACH_multi-store-code-review]]。新テーブルの DDL 詳細は [[V-PEACH/notes/V-PEACH_supabase-er-diagram]] を参照。
 
 **`stores`（V-MINT 共有マスタ）への列追加（additive・既存動作不変）**
 - `is_active boolean` — 休止フラグ（休止＝店舗セレクタから既定で除外・トグルで表示）
