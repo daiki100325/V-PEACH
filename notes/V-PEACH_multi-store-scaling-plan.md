@@ -511,13 +511,13 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 - [x] V-PEACH → 本番 `main` 反映 ✅ 2026-06-13 — `git subtree push --prefix=V-PEACH V-PEACH main`。fast-forward（`cd5733f..7d8ac49`）・diverge なし
 - [x] 本番スモーク（PIN + 1 店舗 PL + 在庫 1 モード）✅ 2026-06-13 — つーくん PASS（V-PEACH PL 直近月売上/営業利益が従来どおり・V-MINT 在庫1モード 4店舗表示・コンソール赤エラーなし）
 
-**P7 — レガシー除去（go-live 後）** → §6-2
-- [ ] 旧ピボット RPC 関数を `DROP`（§5-3 MCP 経由・破壊的ルール）
-- [ ] 別名（`*_v2`）を正式名へリネーム／統一
-- [ ] キー正規化（`baba`→`baba_main`）の要否判断・整理
-- [ ] 不要カラム・移行用シムの撤去
+**P7 — レガシー除去（go-live 後）** → 着手手順は §6-2-1（対象名・手順を確定済み）
+- [ ] 旧ピボット RPC 3関数を `DROP`（`fetch_transfer_flavors` / `fetch_request_inventory_data` / `fetch_dashboard_stock_overview` の旧 CASE 版。各 `(integer)`。§5-3 MCP 経由・破壊的ルール）
+- [ ] `*_v2` 3関数を正式名へリネーム＋フロント `api.js` 追従（§6-2-1 手順2・両アプリ計6呼び出し）
+- [ ] キー正規化シム `normalizeStoreKey`（`baba`→`baba_main`・両アプリ `api.js`）の要否判断・整理
+- [ ] 取得失敗時の固定店舗フォールバック（`App.vue` `stores` 初期値・`api.js` フォールバック）の要否判断
 - [ ] 破壊的後片付けマイグレーション適用・本番回帰
-- [ ] ER 図 / `architecture` notes の最終同期
+- [ ] ER 図 / `architecture` notes / `supabase-er-diagram` の最終同期
 
 ### 6-2. P7 レガシー除去の対象（go-live 後にのみ実施）
 
@@ -525,12 +525,26 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 
 | 対象 | 残置理由（互換） | 除去内容 |
 |------|----------------|---------|
-| 旧ピボット RPC（`fetch_stock_overview` 等の CASE 版） | go-live まで本番フロントが使用 | 新 `*_v2` へ完全移行後に `DROP FUNCTION` |
-| RPC 別名 `*_v2` | 並走検証用の暫定名 | 正式名へリネーム（または旧名を置換）し命名を一本化 |
-| キー正規化 `baba`→`baba_main` | UI キーと DB `store_key` の歴史的不一致 | 整理可能か判断（リスク高なら据え置き可・要記録） |
-| 移行用シム・暫定フォールバック | 切替期間の保険 | 不要分を削除 |
+| 旧ピボット RPC 3関数（`fetch_transfer_flavors` / `fetch_request_inventory_data` / `fetch_dashboard_stock_overview` の CASE 版） | go-live まで本番フロントが使用 | 新 `*_v2` へ完全移行後に `DROP FUNCTION`。※`fetch_stock_overview` ほか10関数は P2 で「ハードコードなし＝v2 不要」と判定済み＝**据え置き（DROP 対象外）** |
+| RPC 別名 `*_v2` 3関数 | 並走検証用の暫定名 | 正式名へリネーム（旧名 DROP 後）し命名を一本化＋フロント `api.js` 追従 |
+| キー正規化シム `normalizeStoreKey`（`baba`→`baba_main`） | UI キーと DB `store_key` の歴史的不一致（両アプリ `api.js` 冒頭） | 整理可能か判断（リスク高なら据え置き可・要記録） |
+| 取得失敗時の固定店舗フォールバック | `getStores()` 失敗時に現行4店舗で継続する保険 | go-live 安定後の要否判断（据え置きも可） |
 
 > **鉄則:** P7 は破壊的変更を含むため、**P6（go-live）とスモーク確認の完了を前提条件**とする。共有 DB ゆえ、本番フロントが旧 RPC を参照しなくなったことを確認してから着手する。MCP 経由実行時は §5-3-4 の破壊的ルール（対象行数 SELECT・FK 影響・ロールバック手順）をセットで提示してから承認・実行する。
+
+### 6-2-1. P7 実施手順（着手時チェックリスト）
+
+> **前提（着手可否の判断）**: P6 go-live（2026-06-13）から**数日間、本番が新実装で無事故**であることを確認してから着手する。本番フロント（`v2`/`main`）はすでに `*_v2` を呼んでいる（P2 でフロント切替済み）ため、旧 CASE 版 RPC は**どのフロントからも参照されていない**状態になっているはず。着手前に下記「手順0」で裏取りする。
+> ⚠️ 全工程 `multi-store` ブランチで実施し、検証後に §5-2-4 と同じ subtree push で本番反映。SQL は §5-3 MCP 経由・破壊的ルール（§5-3-4）適用。
+
+| # | 手順 | 期待結果／注意 |
+|---|------|---------------|
+| 0 | **参照ゼロ確認**: 旧3関数（`fetch_transfer_flavors` / `fetch_request_inventory_data` / `fetch_dashboard_stock_overview`）がフロントから呼ばれていないことを grep で再確認（`*_v2` のみ呼んでいるはず） | 両アプリ `api.js` は `*_v2` のみ呼び出し。旧名の呼び出しが残っていたら P7 中止して切替漏れを修正 |
+| 1 | **旧RPC DROP**（破壊的・§5-3-4 ルール）: `DROP FUNCTION IF EXISTS fetch_transfer_flavors(integer); fetch_request_inventory_data(integer); fetch_dashboard_stock_overview(integer);` をマイグレーションファイル化して MCP 実行 | 3関数削除・`*_v2` は残存。本番フロントは `*_v2` 利用継続のため無影響 |
+| 2 | **`*_v2` リネーム**: `ALTER FUNCTION fetch_transfer_flavors_v2(integer) RENAME TO fetch_transfer_flavors;`（他2関数も同様）→ 両アプリ `api.js` の `.rpc('..._v2', ...)` 計6箇所（V-MINT: 在庫概要/移動/ダッシュボード、V-PEACH: 該当箇所）を正式名に置換 → 両アプリ vite build | リネーム後、フロントが正式名を呼ぶ。**DB リネームとフロント追従は同一 push に含める**（時間差で壊さない） |
+| 3 | **シム要否判断**: `normalizeStoreKey`（`baba`→`baba_main`）は DB `store_key` に `baba` が存在せず UI も `baba_main` 統一済みなら撤去可。ただし localStorage 旧ドラフトや過去データに `baba` が残る懸念があれば**据え置き＋ DECISIONS に記録**（YAGNI・低リスク優先） | 撤去 or 据え置きを判断し記録。フォールバック配列も同様に判断 |
+| 4 | **本番反映＋回帰**: §5-2-4 と同じ手順で V-MINT→`v2`・V-PEACH→`main` へ subtree push → 本番スモーク（PL 1モード＋在庫1モード＋移動/発注/ダッシュボードが正式名 RPC で正常応答） | 本番回帰なし |
+| 5 | **ドキュメント最終同期**: `supabase-er-diagram`（RPC 節を正式名へ・`*_v2` 表記撤去）／`architecture`（RPC 行ベース化を確定表現に）／本書 §6 表 P7 を ✅／`CHANGELOG_DEV`（両アプリ） | 帳票と実体が一致・`*_v2` 表記が文書から消える |
 
 ### 6-3. P4×P5 統合 e2e 手順（次回再開時はここから）
 
