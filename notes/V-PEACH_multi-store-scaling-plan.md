@@ -11,7 +11,7 @@ parent:
 # 店舗増減の GUI 対応 — 実装計画（V-PEACH / V-MINT2.0）
 
 > ステータス: **実装計画（確定・着手前）** / 作成 2026-06-01 / 最終更新 2026-06-11
-> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／**P0 ✅ 完了（2026-06-13）**（保険ブランチ V-MINT `v3`／V-PEACH `v2` を subtree push で新規生成・両プレビュー稼働確認・本番ブランチ無傷）／**P3 ✅ 完了（2026-06-12）**（2026-06-11 全実装タスク完了〔§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証〕→ 2026-06-12 つーくんの画面スモーク全項目 PASS: V-MINT ダッシュボード/棚卸し/移動/発注/office特例・V-PEACH PL/シフトCSV取込〔馬場2号店 遅番土日祝補正含む〕）／**P4 ✅ 完了（2026-06-13）**（前半: `create_store_atomic` RPC・店舗管理セクション／後半: 追加ウィザード／2026-06-13 統合 e2e PASS＝GUI 追加→両アプリ反映・`requirements`/`how-to-use` ドキュメント同期済み）／**P5 ✅ 完了（2026-06-13）**（休止表示トグル両アプリ・`closed_at` 翌月以降の集計除外〔按分分母含む〕・csvImporter 動的化／2026-06-13 統合 e2e PASS＝休止化→トグル連動→決算閲覧→翌月除外。e2e で発見した PL 集計期間チップの出し分け漏れを修正済み）／**P6 🟡 進行中**（2026-06-13 保険ブランチ push＋Cloudflare プレビュー稼働確認まで完了。**残は本番マージ＋本番スモークのみ＝つーくん GO 待ち**）／P7 ⬜ 未着手。**次回再開時は P6 本番マージ（§5-2-4）から**。最新は §6 進捗帳票を参照。
+> 進捗: **P1・P2 ✅ 完了（2026-06-11）**／**P0 ✅ 完了（2026-06-13）**（保険ブランチ V-MINT `v3`／V-PEACH `v2` を subtree push で新規生成・両プレビュー稼働確認・本番ブランチ無傷）／**P3 ✅ 完了（2026-06-12）**（2026-06-11 全実装タスク完了〔§5-4 体制で Sonnet×2＋Opus×1 サブエージェント並列実装 → Fable レビュー・ビルド検証〕→ 2026-06-12 つーくんの画面スモーク全項目 PASS: V-MINT ダッシュボード/棚卸し/移動/発注/office特例・V-PEACH PL/シフトCSV取込〔馬場2号店 遅番土日祝補正含む〕）／**P4 ✅ 完了（2026-06-13）**（前半: `create_store_atomic` RPC・店舗管理セクション／後半: 追加ウィザード／2026-06-13 統合 e2e PASS＝GUI 追加→両アプリ反映・`requirements`/`how-to-use` ドキュメント同期済み）／**P5 ✅ 完了（2026-06-13）**（休止表示トグル両アプリ・`closed_at` 翌月以降の集計除外〔按分分母含む〕・csvImporter 動的化／2026-06-13 統合 e2e PASS＝休止化→トグル連動→決算閲覧→翌月除外。e2e で発見した PL 集計期間チップの出し分け漏れを修正済み）／**P6 ✅ 完了（2026-06-13）**（localhost 目視確認〔§6-4〕全項目 PASS→本番 push〔V-MINT→`v2` `e0a00c9..905df89`・V-PEACH→`main` `cd5733f..7d8ac49`、両 fast-forward〕→ Cloudflare 本番ビルド → **本番スモーク PASS**。**マルチストア改修 go-live 完了**）／**P7 ⬜ 未着手（go-live 後のレガシー除去・§6-2）**。**次回再開時は P7 着手判断から**（旧ピボット RPC `DROP`・`*_v2` リネーム等。破壊的のため §5-3-4 ルール適用）。最新は §6 進捗帳票を参照。
 > 開発・運用方針（2026-06-11 追加）: 本改修は **当面 obsidian-vault ローカル `multi-store` ブランチでのみ進め**（§5-1）、既存版（V-MINT `v2` / V-PEACH `main`）へのバグフィックスは `main` ブランチから従来どおり `/vmint-deploy`・`/vpeach-deploy` で対応する（§5-2）。Supabase 上の SQL 実行は **Supabase MCP 経由で Claude Code が直接実行**する運用に切替え、つーくんの手作業実行をなくす（§5-3）。
 > 対象: V-MINT2.0・V-PEACH 両アプリ（`stores` テーブル共有のため一体で実装）
 > ゴール: 新店舗オープン／既存店舗の閉店を、つーくん（管理者）が **GUI からできる限り完結** して扱えるようにする。SQL 手作業ゼロ・1 か所登録で両アプリ反映。
@@ -451,7 +451,7 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 | **P3** | ✅ | 2026-06-12 | フロント: `getStores()` 起点で店舗リスト・stock 辞書アクセス・色／名前マップを両アプリで動的化。`office` 特例を `store_type` 分岐へ。`shiftImporter` を `pe_store_shift_rules` 参照に刷新 | 4 店舗で全モード回帰なし |
 | **P4** | ✅ | 2026-06-13 | V-PEACH `SettingsApp` に店舗管理 GUI（追加ウィザード＝マスタ＋固定費＋シフトルール必須入力・一発確定で一括 upsert／`create_store_atomic` RPC・休止トグル・並べ替え・キー作成時ロック） | GUI から店舗追加→V-MINT 含む全モードに自動反映 |
 | **P5** | ✅ | 2026-06-13 | 休止店舗の全社一括表示トグル（`app_ui_settings` 連動）。`closed_at` 以降を集計から**明示除外**（按分分母含む）。`csvImporter` を `stores.name` 由来へ動的化 | 休止店舗の過去 PL/在庫が決算時に閲覧可・按分に休止店舗が混ざらない |
-| **P6** | 🟡 | — | **本番反映（go-live）**。全テスト完了後に V-MINT `v3→v2`、V-PEACH `v2→main` をマージ（§5-2-4）。2026-06-13: 保険ブランチ push・プレビュー稼働確認まで完了＝**本番マージ直前で停止中（つーくん GO 待ち）** | 本番 URL に反映・スモーク確認完了 |
+| **P6** | ✅ | 2026-06-13 | **本番反映（go-live）完了**。`multi-store` HEAD から本番へ直接 subtree push（V-MINT→`v2` `e0a00c9..905df89`／V-PEACH→`main` `cd5733f..7d8ac49`、両 fast-forward・diverge なし）→ Cloudflare 本番ビルド → **本番スモーク PASS**（V-PEACH PL 直近月売上/営業利益・V-MINT 在庫1モード・コンソール赤エラーなし） | 本番 URL に反映・スモーク確認完了 ✅ |
 | **P7** | ⬜ | — | **レガシー除去（go-live 後）**。別名並走で残した旧ピボット RPC・移行用シム・不要カラムを破壊的マイグレーションで撤去（§6-2）。実行は §5-3 MCP 経由（破壊的ルール適用） | 旧要素を全削除・本番回帰なし・ドキュメント最終同期 |
 
 > **検証戦略:** P2 が最大の回帰リスク。新形式 RPC を別名関数で並走させ、既存 4 店舗で旧出力と JSON 差分ゼロを確認してから切替えるのが安全。
@@ -504,12 +504,12 @@ git -C "C:\Obsidian Vault" push V-PEACH V-PEACH/v2:main
 - [x] `csvImporter` の名寄せを `stores.name` 由来へ動的化 ✅ 2026-06-12 — `STORE_NAME_JP`/`STORE_KEY_FROM_FILENAME_EN`/`SEGMENT_STORE_PATTERNS` の固定マップ撤廃。`detectStoreKeyFromFilename(filename, stores)`・`decideHrmosSegmentClassification(segmentName, stores)` に店舗リスト引数を追加（純粋関数維持・名前の長い順チェックで誤マッチ防止）。旧コードがレガシーキー `'baba'` を返していた P3 以来の潜在バグも修正。旧エイリアス「馬場地区基本店」は実データ（`pe_hrmos_segments` 全14区分）に存在しないことを SQL で裏取り済み＝回帰ゼロ
 - [x] 休止店舗の決算閲覧 e2e 確認 ✅ 2026-06-13 — §6-3 手順4〜7 PASS（休止化＝確認ダイアログ→`closed_at` 自動設定→既定で両アプリ非表示／トグル ON が `app_ui_settings` 共有で両アプリ連動／「（休止）」印付きで過去 PL 閲覧可／閉店翌月は集計・按分分母から除外）。e2e で PL「集計期間」チップの出し分け漏れを発見しトグル連動に修正（`visibleCostPeriodPreview`）。手順8 後片付け: テストデータ 9 行を §5-3-4 承認フロー（対象行数 SELECT・FK 12 箇所 0 行確認・ロールバック手順提示→承認）で DELETE・残骸ゼロ確認・トグル OFF 復帰
 
-**P6 — 本番反映（go-live）** — 🟡 2026-06-13 保険ブランチ push＋プレビュー確認まで完了（本番マージは つーくん GO 待ち）
+**P6 — 本番反映（go-live）** — ✅ 2026-06-13 完了（本番 push → Cloudflare ビルド → 本番スモーク PASS）
 - [x] `test-plan` 全件 done を確認 ✅ 2026-06-13（実体は P3 画面スモーク全項目 PASS〔2026-06-12〕＋ §6-3 P4×P5 統合 e2e 全手順 PASS〔2026-06-13〕）
 - [x] localhost dev サーバーでつーくん最終確認 ✅ 2026-06-13 — §6-4 全項目 PASS（V-MINT: 日付フォーマット・Vue warn バグ発見→即修正済み／V-PEACH: 初回全項目 PASS。集計期間チップ=合計非表示は仕様どおり確認）
-- [ ] V-MINT `v3 → v2` マージ
-- [ ] V-PEACH `v2 → main` マージ
-- [ ] 本番スモーク（PIN + 1 店舗 PL + 在庫 1 モード）
+- [x] V-MINT → 本番 `v2` 反映 ✅ 2026-06-13 — `multi-store` HEAD（コミット `3361cfc`）から `git subtree push --prefix=V-MINT2.0 V-MINT v2`。fast-forward（`e0a00c9..905df89`）・diverge なし。※保険 `v3` 経由でなく直接 push（今回バグ修正が `v3` 未反映のため。プラン §5-2-4 が許容する方式）
+- [x] V-PEACH → 本番 `main` 反映 ✅ 2026-06-13 — `git subtree push --prefix=V-PEACH V-PEACH main`。fast-forward（`cd5733f..7d8ac49`）・diverge なし
+- [x] 本番スモーク（PIN + 1 店舗 PL + 在庫 1 モード）✅ 2026-06-13 — つーくん PASS（V-PEACH PL 直近月売上/営業利益が従来どおり・V-MINT 在庫1モード 4店舗表示・コンソール赤エラーなし）
 
 **P7 — レガシー除去（go-live 後）** → §6-2
 - [ ] 旧ピボット RPC 関数を `DROP`（§5-3 MCP 経由・破壊的ルール）

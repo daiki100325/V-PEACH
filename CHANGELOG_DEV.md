@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-13
+- What: **マルチストア改修 P6 本番反映（go-live）完了** — `multi-store` HEAD（`3361cfc`）から本番ブランチへ直接 subtree push。V-PEACH→`main`（`cd5733f..7d8ac49`、fast-forward）。同時に V-MINT2.0→`v2`（`e0a00c9..905df89`）も実施。両 diverge なし。保険ブランチ（v3/v2）経由でなく直接 push したのは go-live 直前バグ修正が保険ブランチ未反映のため（プラン §5-2-4 が許容する `subtree push 本番` 方式）。Cloudflare 本番ビルド → **本番スモーク PASS**（V-PEACH PL 直近月売上/営業利益が従来どおり・V-MINT 在庫1モード 4店舗表示・コンソール赤エラーなし）。**P6 ✅ クローズ＝P1〜P6 完了で go-live 達成**。残は P7（レガシー除去・§6-2）のみ
+- Why: §6-4 localhost 目視確認 全項目 PASS を受け、go-live（§5-2-4）を実行するため
+- Files: なし（デプロイ操作のみ）。帳票: `notes/V-PEACH_multi-store-scaling-plan.md`（§6 表 P6・§6-1 P6・§6-4・冒頭サマリー）
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]
+
+## 2026-06-13
 - What: **P6 目視確認（§6-4）全項目 PASS** — localhost dev サーバー（V-MINT :5173 / V-PEACH :5174）で実施。V-MINT で2バグ発見→即修正（①実施日 mm/dd/yyyy 表示→`color:transparent` + Vue オーバーレイで yyyy/mm/dd 固定、② `requestCurrentStoreName` Vue warn → RequestApp watch→emit 追加）。V-PEACH は初回全項目 PASS。集計期間チップが合計選択時に非表示なのは仕様どおりと確認。**残は本番マージ（§5-2-4）のみ**
 - Why: P6 go-live 直前の最終スモーク（§6-4）実施のため
 - Files: `V-MINT2.0/src/components/apps/InventoryApp.vue`, `V-MINT2.0/src/components/apps/TransferApp.vue`, `V-MINT2.0/src/components/apps/RequestApp.vue`, `V-MINT2.0/src/App.vue`, `notes/V-PEACH_multi-store-scaling-plan.md`
