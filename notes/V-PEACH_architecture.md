@@ -33,8 +33,9 @@ V-PEACH/
 │   │   ├── finance.js           # PL計算・変動費計算・3ヶ月平均ロジック・人件費新方式関数（calcWeightedSlots/calcStoreLaborCost/calcRyoOpportunityCost）
 │   │   ├── periods.js           # 期間キー操作ユーティリティ
 │   │   ├── csvImporter.js       # Airメイト/Airレジ/HRMOS シフト・スタッフ・勤務区分 CSV 解析・Shift-JIS デコード・ヘッダー内容で種別自動判定
-│   │   ├── shiftImporter.js     # HRMOS シフト計算（店舗×日付×シフトタイプ正規化・オーラス分解・りょーさん枠＝埋まらない早番/遅番）
-│   │   └── jpHolidaysClient.js  # holidays-jp API クライアント + Supabase キャッシュ + 30日経過時バックグラウンド更新
+│   │   ├── shiftImporter.js     # HRMOS シフト計算（店舗×日付×シフトタイプ正規化・オーラス分解・りょーさん枠）。枠時間は pe_store_shift_rules 参照（Phase 13 P3 で店舗ハードコード撤廃）
+│   │   ├── jpHolidaysClient.js  # holidays-jp API クライアント + Supabase キャッシュ + 30日経過時バックグラウンド更新
+│   │   └── storeFilters.js      # Phase 13 P5: 休止店舗の選択肢フィルタ・閉店翌月以降の集計除外（closedMonthOf / isStoreOpenForPeriod / selectableStores）
 │   └── components/
 │       ├── PortalMenu.vue       # 3モードカード選択画面
 │       ├── CurrencyInput.vue    # 金額入力（フォーカス時：数値のみ、ブラー時：カンマ区切り表示）
@@ -49,7 +50,7 @@ V-PEACH/
 │       └── apps/
 │           ├── PLApp.vue        # (1) PLモード（シングルページ・FLR比サマリー・人件費内訳表示・prefetchPeriods N+1削減）
 │           ├── InputApp.vue     # (2) 月次入力モード（CSV インポート 6 ステップ・人件費プレビュー統合・既存月再編集モード）
-│           └── SettingsApp.vue  # (3) 設定モード（バージョン管理・改定履歴・固定給月報酬/社長時給設定）
+│           └── SettingsApp.vue  # (3) 設定モード（店舗別固定費/全社費/ベンチマークの改定履歴・HRMOS マスタ管理・祝日マスタ・店舗管理〔一覧/名称編集/休止・再開/並べ替え/3ステップ追加ウィザード〕Phase 13）
 ├── supabase/
 │   ├── DB_MIGRATION.sql                            # Phase 1: pe_* 4テーブル作成
 │   ├── DB_MIGRATION_revision_20260517.sql          # Phase 5: 売上分離・カラム整理
@@ -60,6 +61,8 @@ V-PEACH/
 │   ├── DB_MIGRATION_daily_sales_cache_20260518.sql # Phase 7-2: pe_daily_sales_cache 作成
 │   ├── DB_MIGRATION_labor_cost_20260520.sql        # Phase 8: pe_monthly_records 4列追加・pe_monthly_company_records 新設・固定給/社長時給列追加
 │   ├── DB_MIGRATION_hrmos_masters_20260525.sql     # Phase 10: HRMOS シフト CSV 取込（pe_hrmos_staffs/segments + pe_jp_holidays/meta）
+│   ├── DB_MIGRATION_multi_store_p1_20260611.sql    # Phase 13 P1: stores 列追加・pe_store_shift_rules/app_ui_settings 新設（multi-store ブランチ管理）
+│   ├── DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql # Phase 13 P4: create_store_atomic RPC（multi-store ブランチ管理）
 │   ├── SEED_store_settings_defaults.sql            # フォールバック用デフォルト値投入
 │   ├── SEED_benchmarks_defaults_20260518.sql       # Phase 6: ベンチマーク初期値（5指標）
 │   └── SEED_daily_sales_cache_202512.sql           # Phase 7-2: 2025年12月分初回キャッシュ
@@ -180,6 +183,24 @@ CREATE TABLE pe_benchmarks_revisions (
 -- 旧カラム: gross_profit_margin / cost_ratio は 2026-05-18 に除外済み
 ```
 > `pe_benchmarks_revisions` は5指標（`f_ratio` / `l_ratio` / `r_ratio` / `operating_profit_margin` / `labor_rate`）を1行にフラット管理。2026-05-18 に `gross_profit_margin` / `cost_ratio` を除外し FLR 比 3 列を追加。`pe_benchmarks` はフォールバック用シングルトン（`id=1`）。
+
+### マルチストア改修（Phase 13・go-live 直前 / `multi-store` ブランチ）
+
+> 店舗増減を GUI から完結させる改修。P1〜P5 実装済み・go-live 直前。正本: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]／レビュー: [[V-PEACH/notes/V-PEACH_multi-store-code-review]]。新テーブルの DDL 詳細は [[V-PEACH/notes/V-PEACH_supabase-er-diagram]] を参照。
+
+**`stores`（V-MINT 共有マスタ）への列追加（additive・既存動作不変）**
+- `is_active boolean` — 休止フラグ（休止＝店舗セレクタから既定で除外・トグルで表示）
+- `display_order int` — 表示順（GUI 並べ替え）
+- `store_type text` — `shop` / `office`。暗黙の `key==='office'` 比較を撲滅し `store_type` 判定へ統一
+- `closed_at date` — 閉店日。翌月以降を PL 集計・人件費按分分母から除外（`storeFilters.js`）
+
+**新テーブル**: `pe_store_shift_rules`（店舗別シフト枠時間の世代管理・shiftImporter 参照先）／`app_ui_settings`（休止トグルの両アプリ共有シングルトン）。
+
+**RPC `create_store_atomic(p_store_key, p_name, p_effective_from, p_settings jsonb, p_shift_rules jsonb)`**（V-PEACH 初の RPC）
+- 新店舗追加ウィザード（一発確定）のサーバ側トランザクション。`stores`＋`pe_store_settings`（現行値）＋`pe_store_settings_revisions`（初期世代）＋`pe_store_shift_rules`（6行）を一括 insert・失敗時は全体ロールバック。
+- サーバ側バリデーション: `store_key` 正規表現（`^[a-z][a-z0-9_]{1,29}$`）・重複拒否／固定費5項目必須・非負／シフト early・middle・late × weekday・holiday の6パターン必須。`display_order` は既存最大+1 自動採番・`store_type='shop'` 固定。
+
+**RPC 行ベース化（P2・実体は V-MINT2.0 `supabase/rpc_v2.sql`）**: 在庫系 RPC のピボット（固定店舗キー CASE）を `jsonb_object_agg` の動的キー JSON に再設計し、店舗数非依存に（以後の店舗追加で RPC 改修ゼロ）。旧 RPC は go-live まで別名並走（`*_v2`）、P7 で撤去予定。
 
 ## 財務ロジック（src/utils/finance.js）
 

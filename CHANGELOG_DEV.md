@@ -1,6 +1,12 @@
 # CHANGELOG_DEV
 
 ## 2026-06-13
+- What: **基本ドキュメントのマルチストア改修（Phase 13）反映漏れを一括是正**（ドキュメントのみ）。`history`＝Phase 13 を「計画中」→「P1〜P5 完了・go-live 直前」へ（現況ノート・節見出し・進捗サマリー・タイムラインに実装実績を追記）。`architecture`＝`stores` 4列追加・`pe_store_shift_rules`/`app_ui_settings`・`create_store_atomic` RPC・RPC v2 行ベース化を DB 設計に追加、ディレクトリ節に `storeFilters.js`・`shiftImporter` ルール参照化・`SettingsApp` 店舗管理 GUI・P1/P4 マイグレを反映。`supabase-er-diagram`＝`pe_store_shift_rules`/`app_ui_settings` の「予定/未参照」記述を実装済みへ更新＋P4 マイグレを履歴表に追加。`finance-spec`＝`calcSlotsFromShifts` シグネチャ更新・馬場2号店補正を `pe_store_shift_rules` データ化として記述。`release-plan`＝Phase 13 ロードマップを go-live 直前ステータスへ。**`requirements`/`how-to-use` は P4 で既に反映済み・無修正**
+- Why: マルチストア改修 P1〜P5 完了に対し、`scaling-plan`/`code-review` 以外の基本文書がコード現況に追従しておらず stale だったため（つーくん依頼の文書点検）。V-CHART/notes も点検 → official-forms/release-plan/requirements とも 06-11 UI 変更（変更実施年月日・申請者情報/日付出力セクション・範囲指定一括適用）に同期済みで**更新漏れなし**と確認
+- Files: `notes/V-PEACH_history.md`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_supabase-er-diagram.md`, `notes/V-PEACH_finance-spec.md`, `notes/V-PEACH_release-plan.md`
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[V-PEACH/notes/V-PEACH_multi-store-code-review]]
+
+## 2026-06-13
 - What: マルチストア改修 **P6 go-live 直前コードレビュー 一巡完了** — `multi-store` vs `main`（26 ファイル・+2913 行）の実差分を高リスク順にレビュー。**ブロッカー級バグはゼロ＝go-live 可能な品質**と判定。確認: storePLs 添字整合（`aggStores` 単一基準）・閉店除外の二重防御・`create_store_atomic` のアトミック性／サーバ側バリデーション・`payment_fee_rate` の %⇄小数往復一貫・書き込み境界のホワイトリスト・RPC v2 の `jsonb_object_agg` 動的キー化。観察事項4件（手数料率の上限なし／名寄せ対象に office 含む／getStores 失敗時の縮退／新店舗の stock JSON キー）はいずれも低重要度・任意対応
 - Why: 前回セッションがトークンリミットで途絶したコードレビューを、実コードを正本に再実行して go-live 判定を確定するため（multi-store-scaling-plan §6 P6）。結果を耐久ドキュメント化し再途絶に備えた
 - Files: `notes/V-PEACH_multi-store-code-review.md`（新規）, `notes/_index.md`

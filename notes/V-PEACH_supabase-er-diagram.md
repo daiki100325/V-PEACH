@@ -34,8 +34,8 @@ parent:
 | `pe_hrmos_segments` | マスタ | Phase 10（2026-05-25） | HRMOS 勤務区分マスタ（勤務区分ID PK・store_id・shift_type・default_hours・is_payroll_target） |
 | `pe_jp_holidays` | キャッシュ | Phase 10（2026-05-25） | 日本国民の祝日キャッシュ（holiday_date PK）。holidays-jp API から取得 |
 | `pe_jp_holidays_meta` | メタ | Phase 10（2026-05-25） | 祝日 API 取得状況（シングルトン `id=1`：last_fetched_at / last_fetch_status / last_fetch_error） |
-| `pe_store_shift_rules` | マスタ（改定履歴） | マルチストア P1（2026-06-11） | 店舗別シフト枠時間。店舗 × shift_type × day_type × `effective_from`（YYYYMM）で 6.0/7.5h を世代管理。P3 で `shiftImporter.js` の参照先になる予定（現時点フロント未参照） |
-| `app_ui_settings` | UI 状態（共有・中立） | マルチストア P1（2026-06-11） | 両アプリ共有 UI 状態シングルトン（`id=1`・`show_inactive_stores`）。V-MINT も読み書きするため `pe_` なしの中立名前空間 |
+| `pe_store_shift_rules` | マスタ（改定履歴） | マルチストア P1（2026-06-11） | 店舗別シフト枠時間。店舗 × shift_type × day_type × `effective_from`（YYYYMM）で 6.0/7.5h を世代管理。P3（2026-06-11）で `shiftImporter.js` のハードコードを撤廃しこのテーブル参照に置換済み |
+| `app_ui_settings` | UI 状態（共有・中立） | マルチストア P1（2026-06-11） | 両アプリ共有 UI 状態シングルトン（`id=1`・`show_inactive_stores`）。V-MINT も読み書きするため `pe_` なしの中立名前空間。P5（2026-06-12）で両アプリの「休止店舗も表示」トグルが連動済み |
 
 ### 廃止済み（Phase 5 で削除）
 
@@ -278,7 +278,7 @@ flowchart TD
 
 ### app_ui_settings（両アプリ共有 UI 状態・マルチストア P1 / 2026-06-11 追加）
 - シングルトン（`id=1` CHECK）。`show_inactive_stores`: 「休止店舗も表示」トグルの全社一括状態（R3）。
-- V-MINT も読み書きするため `pe_` プレフィックスなしの中立名前空間。P5 で両アプリのトグルがこの 1 行に連動予定。**現時点ではフロント未参照**。
+- V-MINT も読み書きするため `pe_` プレフィックスなしの中立名前空間。P5（2026-06-12）で両アプリのトグル（V-PEACH PL セレクタ横・V-MINT ダッシュボード）がこの 1 行に連動済み（楽観更新＋失敗ロールバック）。V-MINT 側トグルは休止店舗が存在するときのみ出現。
 
 ### V-MINT 参照の結合（アプリ層）
 
@@ -370,6 +370,7 @@ ALLOW ALL TO anon USING (true) WITH CHECK (true);
 | `supabase/SEED_benchmarks_defaults_20260518.sql` | Phase 6: ベンチマーク 5 指標の初期値投入（`pe_benchmarks` シングルトン） |
 | `supabase/SEED_daily_sales_cache_202512.sql` | Phase 7-2: 2025年12月分 Airレジ日次キャッシュ初回投入（3店舗 × 25日 = 75行） |
 | `supabase/DB_MIGRATION_multi_store_p1_20260611.sql`（`multi-store` ブランチ管理） | マルチストア P1: `stores` に `is_active`/`display_order`/`store_type`/`closed_at` 追加、`pe_store_shift_rules`・`app_ui_settings` 新設＋RLS＋SEED。Supabase MCP（migration `multi_store_p1_stores_shift_rules_app_ui_settings`）で 2026-06-11 適用済み |
+| `supabase/DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql`（`multi-store` ブランチ管理） | マルチストア P4: `create_store_atomic` RPC 新設（新店舗追加ウィザードのサーバ側トランザクション）。Supabase MCP（migration `multi_store_p4_create_store_atomic`）で 2026-06-11 適用済み。※行ベース新 RPC `*_v2`（P2）は V-MINT2.0 側 `supabase/rpc_v2.sql` で管理 |
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_architecture]]

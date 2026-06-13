@@ -6,7 +6,7 @@ parent: [[V-PEACH/notes/_index]]
 # V-PEACH 損益計算書（PL）の読み方と運用ガイド
 
 > 対象読者：経営層
-> 最終更新：2026-05-25（HRMOS シフト CSV 取込による人件費自動算出 実装完了後）
+> 最終更新：2026-06-13（マルチストア改修 P3：シフト枠時間を店舗別ルール `pe_store_shift_rules` に一般化。計算結果は従来と不変＝初期世代 SEED が現行値を再現）
 
 ---
 
@@ -438,12 +438,17 @@ Step 7: 確認・保存
 vangvieng_shifts_YYYYMM.csv（Shift_JIS）
   ↓ readShiftJisFile() → parseHrmosShiftsCsv()  [csvImporter.js]
   ↓ [{ staffId, date, segmentId }, ...]  raw行配列
-  ↓ calcSlotsFromShifts(rows, staffsById, segmentsById, holidaySet, targetPeriodKey)
+  ↓ calcSlotsFromShifts(rows, staffsById, segmentsById, holidaySet, targetPeriodKey, storeKeys, shiftRules)
     [shiftImporter.js]
+    ※ storeKeys（active な shop 店舗キー）と shiftRules（getStoreShiftRules() の全世代）は
+      呼び出し側 InputApp が getStores()/getStoreShiftRules() で取得して渡す（P3 で店舗ハードコード撤廃）
     1. 各行を「店舗×日付×シフトタイプ」に正規化
        - is_payroll_target=false（倉庫業務/営業中/特殊枠）はスキップ
-       - allin（オールイン）→ 早番7.5h + 遅番(6h or 土日祝馬場2号店7.5h) に分解
-       - 馬場2号店の遅番は土日祝 → 7.5h に補正
+       - 枠時間（早/中/遅 × 平日/土日祝）は pe_store_shift_rules の対象月有効世代から取得
+         （effective_from <= periodKey の最新。未定義時は segment.default_hours へフォールバック）
+       - allin（オールイン）→ 早番 + 遅番 に分解（各枠時間もルールから取得）
+       - 馬場2号店の遅番×土日祝=7.5h 補正は pe_store_shift_rules の初期世代 SEED で再現
+         （旧ハードコードの `applyBaba2ndLateHolidayBoost` は撤廃済み・計算結果は不変）
     2. 「埋まっていない早番/遅番」をりょーさん枠として算出
        （店舗の営業日 = その店舗にレコードが1件以上ある日。中番は対象外）
     3. バイト枠を集計（role='part_time' のみ。fixed_salary・owner_ryo は除外）

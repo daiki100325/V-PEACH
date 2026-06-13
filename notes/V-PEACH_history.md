@@ -14,7 +14,7 @@ parent: [[V-PEACH/notes/_index]]
 - V-PEACH リポジトリ: `daiki100325/V-PEACH`（本番ブランチ: `main`）
 - 共用 Supabase プロジェクト: `moejgsremxdksmzrowpw`
 
-> **現況（2026-06-01）: V-PEACH は Phase 0〜12 をすべて完了し、正式リリース済み（本番稼働中）。** 以降は §8-2 の発展計画（Phase 13: 多店舗スケール対応）へ。
+> **現況（2026-06-13）: V-PEACH は Phase 0〜12 をすべて完了し、正式リリース済み（本番稼働中）。** §8-2 の発展計画 **Phase 13（多店舗スケール対応）は P1〜P5 実装完了・go-live 直前**（P6 本番マージは つーくん GO 待ち）。
 
 ---
 
@@ -440,10 +440,12 @@ V-MINT は「現場の実態を数値化するツール」であり、財務 PL 
 
 ### 8-2. 今後の発展計画
 
-#### Phase 13: 店舗増減の GUI 対応 — 多店舗スケール対応（計画中）
+#### Phase 13: 店舗増減の GUI 対応 — 多店舗スケール対応（実装ほぼ完了・go-live 直前）
 
-**状態: 計画確定（2026-06-01）／実装は 2026-06-02 以降**
-**正本: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]（実装計画・進捗帳票）**
+**状態: P1〜P5 実装完了（2026-06-11〜13）／go-live 直前（P6 本番マージ＋スモークが つーくん GO 待ち）／P7 レガシー除去は go-live 後**
+**正本: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]]（実装計画・進捗帳票）／レビュー: [[V-PEACH/notes/V-PEACH_multi-store-code-review]]（go-live 直前コードレビュー・ブロッカーなし）**
+
+> **進捗サマリー（2026-06-13）**: P1（DB: `stores` 4列追加・`pe_store_shift_rules`/`app_ui_settings` 新設）→ P2（在庫系 RPC を `jsonb_object_agg` 行ベース化・旧出力と差分ゼロ検証）→ P3（フロント動的化: `getStores()` 起点・stock 辞書アクセス・色/名前マップ・`shiftImporter` を `pe_store_shift_rules` 参照に）→ P4（V-PEACH `SettingsApp` に店舗管理 GUI＋3ステップ追加ウィザード・`create_store_atomic` RPC）→ P5（休止トグル両アプリ連動・閉店翌月以降の集計除外）をすべて完了。統合 e2e 全手順 PASS・go-live 直前コードレビューもブロッカーなしで通過。残は P6（保険ブランチ v3/v2 プレビュー目視 → 本番 `v3→v2`/`v2→main` マージ → スモーク）と P7（旧ピボット RPC 撤去）。
 
 V-MINT 2.0・V-PEACH はともに、店舗（`baba_main` / `nakano` / `baba_2nd` / `office`）が **DB・RPC・フロントの 3 層にハードコード**されている。そのため新店舗オープン時は Supabase RPC のピボット定義からフロントの店舗キー直アクセスまで広範囲の改修が必要で、店舗事業のスケールに追従できない。Phase 13 では、店舗の増減を **管理者が GUI から完結**して扱える構造へ移行する。
 
@@ -616,6 +618,13 @@ V-MINT が棚卸しデータを正確に蓄積し続けているからこそ、F
     - DB/RPC/フロントの店舗ハードコードを解消し、店舗マスタ管理を V-PEACH に集約
     - V-MINT/V-PEACH 両アプリ対応・保険ブランチ（V-MINT=v3 / V-PEACH=v2）で実装予定
     - 実装は 2026-06-02 以降。正本: V-PEACH_multi-store-scaling-plan
+
+2026-06-11〜13
+  Phase 13 実装（P1〜P5 完了）→ go-live 直前
+    - 06-11: P1 DB拡張（stores 4列・pe_store_shift_rules・app_ui_settings）／P2 RPC 行ベース化（jsonb_object_agg・旧出力と差分ゼロ）／P3 フロント動的化（getStores 起点・stock 辞書アクセス・shiftImporter ルール参照化）
+    - 06-12: P4 店舗管理 GUI・追加ウィザード・create_store_atomic RPC／P5 休止トグル・閉店除外／画面スモーク全項目 PASS
+    - 06-13: P4×P5 統合 e2e 全手順 PASS／保険ブランチ v3/v2 プレビュー稼働確認（本番 URL 無傷）／go-live 直前コードレビュー＝ブロッカーなし
+    - 残: P6 本番マージ＋スモーク（つーくん GO 待ち）・P7 旧ピボット RPC 撤去（go-live 後）
 ```
 
 ### 14. 本プロジェクトが示したこと
