@@ -1,5 +1,11 @@
 # CHANGELOG_DEV
 
+## 2026-06-14
+- What: 設定 > 店舗管理「新店舗を追加」ボタンの「＋」二重表示を解消 — SVG プラスアイコンとテキスト先頭の全角「＋」が重複していたため、テキスト側の「＋」を削除し SVG アイコンのみ残した
+- Why: アイコンとテキストで＋が二重に出て視覚的に違和感があったため
+- Files: `src/components/apps/SettingsApp.vue`
+- Related: [[V-PEACH/notes/_index]]
+
 ## 2026-06-13
 - What: **マルチストア改修 P6 本番反映（go-live）完了** — `multi-store` HEAD（`3361cfc`）から本番ブランチへ直接 subtree push。V-PEACH→`main`（`cd5733f..7d8ac49`、fast-forward）。同時に V-MINT2.0→`v2`（`e0a00c9..905df89`）も実施。両 diverge なし。保険ブランチ（v3/v2）経由でなく直接 push したのは go-live 直前バグ修正が保険ブランチ未反映のため（プラン §5-2-4 が許容する `subtree push 本番` 方式）。Cloudflare 本番ビルド → **本番スモーク PASS**（V-PEACH PL 直近月売上/営業利益が従来どおり・V-MINT 在庫1モード 4店舗表示・コンソール赤エラーなし）。**P6 ✅ クローズ＝P1〜P6 完了で go-live 達成**。残は P7（レガシー除去・§6-2）のみ
 - Why: §6-4 localhost 目視確認 全項目 PASS を受け、go-live（§5-2-4）を実行するため
