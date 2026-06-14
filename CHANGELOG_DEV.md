@@ -4,7 +4,7 @@
 - What: go-live 完了に伴い `multi-store` ブランチを削除し `main` 一本運用へ復帰した旨を scaling-plan §5-1-7 に追記（実作業: ff マージ→本番反映→`git branch -d multi-store`）
 - Why: 本改修専用の二系統ブランチ運用が役目を終えたため、発端ドキュメントに完了を明記
 - Files: `notes/V-PEACH_multi-store-scaling-plan.md`
-- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[GIT_SYNCTHING_POLICY]]
+- Related: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]], [[_Global/notes/Global_git-syncthing-policy]]
 
 ## 2026-06-14
 - What: 設定 > 店舗管理「新店舗を追加」ボタンの「＋」二重表示を解消 — SVG プラスアイコンとテキスト先頭の全角「＋」が重複していたため、テキスト側の「＋」を削除し SVG アイコンのみ残した
