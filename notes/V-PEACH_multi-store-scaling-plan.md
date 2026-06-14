@@ -268,6 +268,7 @@ git -C "C:\Obsidian Vault" merge main
 - [x] 既定ブランチが `main`、マルチストア作業は明示的に `multi-store` チェックアウト、を運用ルールとして本書 §5-1-2 で合意
 - [x] `.claude/commands/vmint-deploy.md` / `vpeach-deploy.md` 冒頭に「現在ブランチが `main` か」ガードを追加（§5-1-4 案 1・2026-06-11。両ファイルは未追跡運用のため git 管理外のまま）
 - [x] `multi-store` ブランチで初回コミット（P1 マイグレーション SQL `V-PEACH/supabase/DB_MIGRATION_multi_store_p1_20260611.sql`・2026-06-11）
+- [x] **go-live 完了に伴い `multi-store` ブランチを削除（2026-06-14）**。`multi-store` を `main` に ff マージ → 本番（V-PEACH `main` 等）へ反映済みで役目を終えたため `git branch -d multi-store` で削除し、**`main` 一本運用へ復帰**。§5-1-2 の二系統運用は本改修専用の一時措置であり、ここで終了。今後の通常デプロイは `main` から `/vpeach-deploy`・`/vmint-deploy` で行う。
 
 ### 5-2. デプロイ ブランチ戦略（保険ブランチ v3 / v2 → 本番）
 
