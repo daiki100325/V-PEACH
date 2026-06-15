@@ -174,12 +174,15 @@ export default {
                     const fileDate = dateFromFilename(this.files[i].name)
                     try {
                         const res = await callParseApprovalPdf(this.files[i].base64, this.kind)
-                        // ファイル単位でブランド名を引き継ぐ（新フォーマットのセル結合で空欄になった行の保険）。
-                        // 認可日はファイル名から導出し、行が持っていなければ初期値として使う。
+                        // ファイル単位でセル結合列（ブランド名・製造国）を引き継ぐ（新フォーマットで
+                        // 同ブランド内の2行目以降が空欄になる保険）。認可日はファイル名から導出し初期値に使う。
                         let lastBrand = ''
+                        let lastOrigin = ''
                         for (const r of (res?.rows || [])) {
                             if (r.brand && r.brand.toString().trim()) lastBrand = r.brand.toString().trim()
                             else r.brand = lastBrand
+                            if (r.origin_country && r.origin_country.toString().trim()) lastOrigin = r.origin_country.toString().trim()
+                            else r.origin_country = lastOrigin
                             r._fileDate = fileDate
                             raw.push(r)
                         }

@@ -1,5 +1,13 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: 新フォーマットで製造国が空欄になる不具合を修正）
+- What: 新フォーマット PDF の取込で **製造国（`origin_country`）だけが空欄**になる不具合を修正。原因は、財務省の新フォーマットでは左側グルーピング列のうち **ブランド名だけでなく製造国も同一ブランド内でセル結合**されており、2行目以降が空欄で返るため。ブランド名にしか入れていなかったキャリーフォワード補完を製造国にも適用した。
+  - `parse-approval-pdf/index.ts`: プロンプトのセル結合補完指示を「ブランド名・製造国など左側グルーピング列」に一般化（brand も origin_country も直前行の値を引き継ぐよう明記）。Edge Function **v5** をデプロイ。
+  - `ApprovalUpdate.vue`: ファイル単位キャリーフォワードに `lastOrigin` を追加し、空欄の `origin_country` を直前行の値で補完（ブランド名と同じ二重防御）。
+- Why: 製造国がセル結合で 2 行目以降空欄になり、ブランド名の補完だけでは取りこぼしていたため。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`, `src/components/apps/approval/ApprovalUpdate.vue`, `notes/V-PEACH_architecture.md`, `notes/V-PEACH_requirements.md`, `notes/V-PEACH_how-to-use.md`
+- Related: [[V-PEACH/notes/V-PEACH_approval-update-reqs]], [[V-PEACH/notes/V-PEACH_requirements]]
+
 ## 2026-06-15（認可状況: 最終更新日時表示・新PDFフォーマット対応・認可日プレフィル・重複判定厳密化）
 - What: `notes/V-PEACH_approval-update-reqs.md` の4要件を実装。
   - **§1 最終更新日時の常時表示**: `api.js` に `getApprovalLastUpdated()` を新設（`pe_approval_items.updated_at` と `pe_approval_price_history.created_at` の新しい方を返す）。`ApprovalApp.vue` のヘッダー右に「最終更新日時: YYYY-MM-DD HH:MM」を常時表示し、更新確定後（`@updated` イベント）に自動再取得。
