@@ -103,6 +103,21 @@ const sizeKey = s => {
     const m = (s || '').toString().normalize('NFKC').match(/([\d.]+)\s*g/i)
     return m ? String(parseFloat(m[1])) : norm(s)
 }
+// 新フォーマット（2026-04-17以降）はブランド名と銘柄名の列が分離。既存DBの命名（"ブランド名 銘柄名"）に
+// 合わせるため、銘柄名がブランド名で始まっていなければブランド名を前置して完全名称を作る（スマート前置）。
+// 旧フォーマット（銘柄名が既にブランド名を含む）では前置しない＝ブランド名の二重化を防ぐ。
+const buildProductName = (brand, name) => {
+    const b = (brand || '').toString().trim()
+    const n = (name || '').toString().trim()
+    if (!b) return n
+    if (!n) return b
+    return norm(n).startsWith(norm(b)) ? n : `${b} ${n}`
+}
+// アップロードPDFのファイル名先頭 YYYYMMDD（認可日）を YYYY-MM-DD に変換。該当なしは空文字。
+const dateFromFilename = name => {
+    const m = (name || '').toString().match(/^(\d{4})(\d{2})(\d{2})/)
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : ''
+}
 
 export default {
     name: 'ApprovalUpdate',
@@ -156,9 +171,18 @@ export default {
                 const failed = []
                 for (let i = 0; i < this.files.length; i++) {
                     this.progress = `${i + 1}/${this.files.length}`
+                    const fileDate = dateFromFilename(this.files[i].name)
                     try {
                         const res = await callParseApprovalPdf(this.files[i].base64, this.kind)
-                        for (const r of (res?.rows || [])) raw.push(r)
+                        // ファイル単位でブランド名を引き継ぐ（新フォーマットのセル結合で空欄になった行の保険）。
+                        // 認可日はファイル名から導出し、行が持っていなければ初期値として使う。
+                        let lastBrand = ''
+                        for (const r of (res?.rows || [])) {
+                            if (r.brand && r.brand.toString().trim()) lastBrand = r.brand.toString().trim()
+                            else r.brand = lastBrand
+                            r._fileDate = fileDate
+                            raw.push(r)
+                        }
                     } catch (e) {
                         failed.push(`${this.files[i].name}: ${e.message || e}`)
                     }
@@ -167,19 +191,22 @@ export default {
                 const seen = new Set()
                 const extracted = []
                 for (const r of raw) {
-                    const dk = norm(r.product_name) + '|' + sizeKey(r.package_size)
+                    // ブランド名前置で完全名称を組み立ててから重複キーを作る（別ブランドの同名銘柄の誤統合を防ぐ）
+                    const productName = buildProductName(r.brand, r.product_name)
+                    const dk = norm(productName) + '|' + sizeKey(r.package_size)
                     if (seen.has(dk)) continue
                     seen.add(dk)
                     extracted.push({
                         brand: r.brand || '',
-                        product_name: r.product_name || '',
+                        product_name: productName,
                         package_size: r.package_size || '',
                         origin_country: r.origin_country || '',
-                        approval_date: r.approval_date || '',
+                        // 認可日（新規）・変更日（変更）はファイル名の YYYYMMDD を初期値にプレフィル
+                        approval_date: r.approval_date || r._fileDate || '',
                         price: r.price ?? null,
                         price_before: r.price_before ?? null,
                         price_after: r.price_after ?? null,
-                        changed_on: r.changed_on || '',
+                        changed_on: r.changed_on || r._fileDate || '',
                         item_id: null,
                         matchLabel: '',
                         exists: false,
@@ -206,17 +233,20 @@ export default {
                 for (const row of extracted) {
                     const cands = nameIndex.get(norm(row.product_name)) || []
                     row._cands = cands
-                    // 1) 名前＋重量(g)の一致を優先 → 2) 名前が一意なら容量差を無視して採用
-                    let cand = cands.find(c => sizeKey(c.package_size) === sizeKey(row.package_size))
-                    if (!cand && cands.length === 1) cand = cands[0]
-                    if (cand) {
-                        if (this.kind === 'change') {
+                    // 銘柄名＋容量(重量g)の両方一致を最優先
+                    const sizeMatch = cands.find(c => sizeKey(c.package_size) === sizeKey(row.package_size))
+                    if (this.kind === 'change') {
+                        // 変更認可: 1) 名前＋容量一致 → 2) 名前が一意なら容量差を無視して紐付け
+                        const cand = sizeMatch || (cands.length === 1 ? cands[0] : null)
+                        if (cand) {
                             row.item_id = cand.id
                             row.matchLabel = `${cand.product_name}（${cand.package_size || '-'}）`
                             if (row.price_before == null) row.price_before = cand.current_price
-                        } else {
-                            row.exists = true   // 新規だが既存と一致 → 重複
                         }
+                    } else {
+                        // 新規認可: 銘柄名＋容量の両方が一致した時のみ『重複（追加不要）』。
+                        // 同名でも容量が違えば別商品として新規追加する（reqs §4）。
+                        if (sizeMatch) row.exists = true
                     }
                 }
                 this.rows = extracted
@@ -257,6 +287,7 @@ export default {
                 this.rows = []
                 this.files = []
                 if (this.$refs.fileInput) this.$refs.fileInput.value = ''
+                this.$emit('updated')   // 親（ApprovalApp）の最終更新日時表示を更新させる
             } catch (e) {
                 this.error = '反映に失敗しました: ' + (e.message || String(e))
             } finally {

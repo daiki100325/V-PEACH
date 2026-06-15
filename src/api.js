@@ -825,6 +825,28 @@ export async function getApprovalPriceHistory(itemId) {
 }
 
 /**
+ * 認可データの「最終更新日時」を取得する。
+ * 運用上「その日までの未反映分を全部反映させる」ため、DB が最後に触られた時刻が見えれば
+ * どの月日までのデータが入っているかが自明になる（notes/V-PEACH_approval-update-reqs.md §1）。
+ * 新規 INSERT・変更 UPDATE はいずれも items.updated_at を now() で更新するため基本はそれで足りるが、
+ * 履歴のみ追加されるケースも拾えるよう history.created_at とも比較し、新しい方を返す。
+ * @returns {Promise<string|null>} ISO 文字列 or null（データなし）
+ */
+export async function getApprovalLastUpdated() {
+  requireSupabase()
+  const [itemsRes, histRes] = await Promise.all([
+    supabase.from('pe_approval_items').select('updated_at').order('updated_at', { ascending: false }).limit(1),
+    supabase.from('pe_approval_price_history').select('created_at').order('created_at', { ascending: false }).limit(1),
+  ])
+  if (itemsRes.error) throw itemsRes.error
+  if (histRes.error) throw histRes.error
+  const candidates = [itemsRes.data?.[0]?.updated_at, histRes.data?.[0]?.created_at].filter(Boolean)
+  if (candidates.length === 0) return null
+  // ISO 8601 は辞書順 = 時系列順。最も新しい1件を返す
+  return candidates.sort().pop()
+}
+
+/**
  * 新規認可: 銘柄を一括 INSERT（プレビュー確定時）
  * @param {Array} rows [{ brand, product_name, package_size, origin_country, approval_date, current_price }, ...]
  * @returns {number} 追加件数

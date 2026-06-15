@@ -340,6 +340,7 @@ V-PEACH は原則テーブル CRUD のみだが、マルチストア P4（2026-0
 | `getApprovalBrands` | `pe_approval_items`（RPC `get_approval_brands`） | distinct ブランド一覧（昇順） |
 | `getApprovalItems({ brand, search, sortKey, sortDir, limit })` | `pe_approval_items` | 認可銘柄の検索・絞り込み取得（`.range()` 分割取得で PostgREST 1000行上限を回避） |
 | `getApprovalPriceHistory(itemId)` | `pe_approval_price_history` | 銘柄の価格変更履歴（新→旧順） |
+| `getApprovalLastUpdated()` | `pe_approval_items` + `pe_approval_price_history` | 最終更新日時（items.updated_at と history.created_at の新しい方）。認可状況ヘッダー表示用 |
 | `insertApprovalItems(rows)` | `pe_approval_items` | 新規認可銘柄の一括 INSERT（ブランド正規化あり） |
 | `applyApprovalChanges(changes)` | `pe_approval_items` + `pe_approval_price_history` | 変更認可: 現行価格更新＋履歴追加 |
 | `callParseApprovalPdf(pdfBase64, kind)` | Edge Function `parse-approval-pdf` | 財務省 PDF → Gemini 構造化抽出 |

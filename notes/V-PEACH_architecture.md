@@ -53,7 +53,7 @@ V-PEACH/
 │           ├── SettingsApp.vue  # (3) 設定モード（店舗別固定費/全社費/ベンチマークの改定履歴・HRMOS マスタ管理・祝日マスタ・店舗管理〔一覧/名称編集/休止・再開/並べ替え/3ステップ追加ウィザード〕Phase 13）
 │           ├── ApprovalApp.vue  # (4) 認可状況モード（閲覧/更新サブタブ・2026-06-15 新設）
 │           └── approval/
-│               ├── ApprovalBrowse.vue  # 閲覧サブモード（FAB 絞り込み・ブランドセレクト・検索・並び替え・段階表示・行展開で価格履歴）
+│               ├── ApprovalBrowse.vue  # 閲覧サブモード（FAB 絞り込み・ブランド複数選択チェックボックス〔OR検索〕・検索・並び替え・段階表示・行展開で価格履歴）
 │               └── ApprovalUpdate.vue  # 更新サブモード（新規認可/変更認可トグル・PDF アップロード→Edge Function→プレビュー→確定）
 ├── supabase/
 │   ├── DB_MIGRATION.sql                            # Phase 1: pe_* 4テーブル作成
@@ -268,7 +268,8 @@ git subtree push --prefix=V-PEACH V-PEACH main
 - **DB**: `pe_approval_items`（銘柄マスタ・現行価格）+ `pe_approval_price_history`（変更履歴）。RLS は他 `pe_*` と同じ anon 全許可。
 - **Edge Function `parse-approval-pdf`**（Deno・`supabase/functions/parse-approval-pdf/index.ts`）: 入力 `{ pdfBase64, kind: 'new'|'change' }`。Gemini `generateContent` に PDF を `inline_data`（`application/pdf`）でネイティブ入力し、`responseSchema` 付きで「パイプたばこ行のみ」を構造化抽出して `{ rows }` を返す。`GEMINI_API_KEY`／`GEMINI_MODEL`（既定 `gemini-2.5-flash`）は Edge Function secret。`verify_jwt: true`（anon JWT で認可）+ CORS 対応。DB 書込は持たず抽出専用。**100品目超の変更認可が 150s タイムアウトするため `thinkingConfig.thinkingBudget=0`（thinking 無効）＋ `maxOutputTokens=65536` を設定**（108行を ~40s で抽出）。
 - **変更認可のマッチング**（`ApprovalUpdate.vue`）: 既存銘柄を全件ロードし、**銘柄名(NFKC正規化)＋重量(g 数値)** で突合（ブランドの大小・granularity やソース間の容器表記揺れ＝DB`ﾊﾟｳﾁ` vs PDF`箱` に非依存）。名前が一意なら容量差を無視して採用、複数サイズで曖昧なら手動リンク候補を提示。実データで 108/108 自動マッチを確認。
-- **フロント**: `src/components/apps/ApprovalApp.vue`（閲覧/更新タブ）→ `approval/ApprovalBrowse.vue`・`approval/ApprovalUpdate.vue`。API は `src/api.js` の `getApprovalItems` / `getApprovalBrands` / `getApprovalPriceHistory` / `insertApprovalItems` / `applyApprovalChanges` / `callParseApprovalPdf`。
+- **フロント**: `src/components/apps/ApprovalApp.vue`（閲覧/更新タブ＋ヘッダー右に**最終更新日時**を常時表示。更新確定の `@updated` イベントで再取得）→ `approval/ApprovalBrowse.vue`（ブランドは複数選択チェックボックス＝OR 検索）・`approval/ApprovalUpdate.vue`。API は `src/api.js` の `getApprovalItems` / `getApprovalBrands` / `getApprovalPriceHistory` / `getApprovalLastUpdated` / `insertApprovalItems` / `applyApprovalChanges` / `callParseApprovalPdf`。
+- **新フォーマット対応（2026-04-17 以降）**（`ApprovalUpdate.vue`）: 財務省 PDF がブランド名と銘柄名の列を分離。①ブランド名列のセル結合で空欄になる行は直前ブランドで補完（Gemini プロンプト＋フロントのファイル単位キャリーフォワードの二重防御）。②`product_name` は既存命名（"ブランド名 銘柄名"）に合わせ**スマート前置**（`buildProductName`：銘柄名がブランド名で始まらなければ前置・既に含むなら二重化しない）で復元。③ファイル名先頭 `YYYYMMDD`（`dateFromFilename`）を認可日/変更日の初期値にプレフィル。④新規認可の重複判定は「銘柄名＋容量(重量g)」両一致時のみ。
 - **抽出 → 確定の分離**: Edge Function は PDF→JSON のみ。プレビューでの手修正後、DB 書込はフロントの anon クライアントから実行（既存パターン踏襲）。
 - **初期投入**: `scripts/seed_approval_items.mjs`（CSV 整形 + supabase-js bulk insert・再現可能な記録）。
 - 判断詳細: [[V-PEACH/DECISIONS]] ADR-20260615-01。

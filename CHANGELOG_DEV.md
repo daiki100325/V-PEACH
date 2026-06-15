@@ -1,5 +1,16 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: 最終更新日時表示・新PDFフォーマット対応・認可日プレフィル・重複判定厳密化）
+- What: `notes/V-PEACH_approval-update-reqs.md` の4要件を実装。
+  - **§1 最終更新日時の常時表示**: `api.js` に `getApprovalLastUpdated()` を新設（`pe_approval_items.updated_at` と `pe_approval_price_history.created_at` の新しい方を返す）。`ApprovalApp.vue` のヘッダー右に「最終更新日時: YYYY-MM-DD HH:MM」を常時表示し、更新確定後（`@updated` イベント）に自動再取得。
+  - **§2 新フォーマット（2026-04-17以降）対応**: 財務省PDFがブランド名と銘柄名の列を分離した件に対応。①ブランド名列のセル結合で空欄になる行を**直前ブランドで補完**（Edge Function プロンプト＋`ApprovalUpdate.vue` のファイル単位キャリーフォワードの二重防御）。②`product_name` を**スマート前置**で復元（`buildProductName`）：銘柄名がブランド名で始まらなければ `ブランド名+空白+銘柄名`、既に含むなら前置しない（旧フォーマットでの二重化防止）。重複キー算出も前置後の完全名称で行い別ブランド同名銘柄の誤統合を防止。
+  - **§3 認可日のファイル名プレフィル**: `dateFromFilename` でファイル名先頭 `YYYYMMDD` を `YYYY-MM-DD` 化し、新規の `approval_date`／変更の `changed_on` 初期値にセット（手修正可）。
+  - **§4 重複判定の厳密化**: 新規認可の重複判定を「銘柄名（NFKC正規化）＋容量（重量g）」の両方一致時のみに変更。同名でも容量違いは別商品として新規追加。変更認可のマッチング（名前一意なら容量差無視）は従来どおり維持。
+- Why: ①どの月日まで反映済みか一目で把握したい、②財務省PDFの新フォーマットでブランド名が欠落・銘柄名が不完全になる、③認可日の手入力が手間、④同名・容量違いを別商品として扱いたい、という運用要望。
+- Files: `src/api.js`（getApprovalLastUpdated）, `src/components/apps/ApprovalApp.vue`（最終更新日時表示）, `src/components/apps/approval/ApprovalUpdate.vue`（buildProductName・dateFromFilename・キャリーフォワード・重複判定）, `supabase/functions/parse-approval-pdf/index.ts`（新フォーマット用プロンプト）, `notes/V-PEACH_requirements.md`
+- Related: [[V-PEACH/notes/V-PEACH_approval-update-reqs]], [[V-PEACH/notes/V-PEACH_requirements]], [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
+- 運用: Edge Function `parse-approval-pdf` のプロンプト変更は**再デプロイが必要**（`supabase functions deploy parse-approval-pdf`）。未デプロイでもフロントの `buildProductName`＋キャリーフォワードが保険として機能する。
+
 ## 2026-06-15（認可状況: ブランド絞り込みの複数選択・OR検索対応）
 - What: 認可状況の閲覧モードで、ブランドを複数選択してOR検索できるように改修。
   - `ApprovalBrowse.vue`: ブランド選択 UI を単一の `<select>` から、チェックボックスのリスト（スクロール領域 `max-h-40`）に変更し、配列で複数のブランドを持てるように修正。
