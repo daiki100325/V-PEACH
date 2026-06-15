@@ -1,5 +1,12 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: PDFの和暦日付を西暦へ正しく変換）
+- What: Edge Function **v12**。変更認可の `changed_on` が `2008-06-01` になる不具合を修正。財務省PDFの日付は**和暦（元号）表記**で、`8.6.1`（令和8年6月1日）を Gemini が2008年と誤変換していた。
+  - プロンプトに「日付は必ず和暦→西暦に変換（令和 = 2018+N・例『8.6.1』→2026-06-01／平成 = 1988+N）」を明記。`approval_date`・`changed_on` 双方に適用（ROW_SCHEMA の説明も「西暦」と明示）。
+- Why: 令和8年が2008年扱いになり、変更日が18年ずれていた。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`
+- Related: [[V-PEACH/notes/V-PEACH_architecture]]
+
 ## 2026-06-15（認可状況: 主軸モデルを gemini-3.1-flash-lite に変更＝429 解消／7秒に高速化）
 - What: Edge Function **v10**。Gemini 主軸モデルを `gemini-2.5-flash`（RPD 20）→ **`gemini-3.1-flash-lite`（RPD 500）** に変更。
   - 無料枠 RPD: 3.1-flash-lite=500 / 2.5・3・3.5-flash=各20 / 3.1-pro=0(無料不可) / gemma=1.5K(ただしPDF・responseSchema非対応で使用不可)。RPD 20 では重いPDFで即枯れていた。
