@@ -36,6 +36,8 @@ parent:
 | `pe_jp_holidays_meta` | メタ | Phase 10（2026-05-25） | 祝日 API 取得状況（シングルトン `id=1`：last_fetched_at / last_fetch_status / last_fetch_error） |
 | `pe_store_shift_rules` | マスタ（改定履歴） | マルチストア P1（2026-06-11） | 店舗別シフト枠時間。店舗 × shift_type × day_type × `effective_from`（YYYYMM）で 6.0/7.5h を世代管理。P3（2026-06-11）で `shiftImporter.js` のハードコードを撤廃しこのテーブル参照に置換済み |
 | `app_ui_settings` | UI 状態（共有・中立） | マルチストア P1（2026-06-11） | 両アプリ共有 UI 状態シングルトン（`id=1`・`show_inactive_stores`）。V-MINT も読み書きするため `pe_` なしの中立名前空間。P5（2026-06-12）で両アプリの「休止店舗も表示」トグルが連動済み |
+| `pe_approval_items` | マスタ | 認可状況モード（2026-06-15） | 財務省認可済みパイプたばこ銘柄（brand・product_name・package_size・origin_country・approval_date・current_price）。`UNIQUE(brand,product_name,package_size)`。CSV 初期投入 5526 行 |
+| `pe_approval_price_history` | トランザクション | 認可状況モード（2026-06-15） | 認可銘柄の価格変更履歴（`item_id` FK・changed_on・price_before・price_after・source: csv_seed/pdf_new/pdf_change）。初期投入 1659 行 |
 
 ### 廃止済み（Phase 5 で削除）
 

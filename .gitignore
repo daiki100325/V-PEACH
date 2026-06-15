@@ -4,3 +4,7 @@ dist/
 .env*.local
 *.log
 .DS_Store
+# 実認可データ（財務省PDF・スプレッドCSV）は git に載せず Syncthing でバックアップ
+sample/
+# 使い捨て seed / 検証スクリプト（dev 専用）
+scripts/

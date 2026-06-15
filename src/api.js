@@ -746,3 +746,157 @@ export async function getCostPriceForPeriod(periodKey) {
   if (error) throw error
   return data ?? { price_flavor_per_g: 40, price_charcoal_per_kg: 600 }
 }
+
+// ─── 認可状況（pe_approval_items / pe_approval_price_history） ───────────────
+// 参照: notes/V-PEACH_requirements.md（認可状況モード）/ Edge Function: parse-approval-pdf
+
+/** ブランド表記の正規化（大文字化＋連続空白を1つ＋trim。Azure は Black 等のライン違いを統合）。
+ *  既存データの正規化方針（2026-06-15）と一致させ、新規取込でも表記揺れを防ぐ。 */
+export function normalizeBrand(b) {
+  if (!b) return b
+  const up = String(b).replace(/\s+/g, ' ').trim().toUpperCase()
+  return up.startsWith('AZURE HOOKAH TOBACCO') ? 'AZURE HOOKAH TOBACCO' : up
+}
+
+/** 認可済み銘柄の distinct ブランド一覧（昇順）。
+ *  PostgREST の行上限（既定 1000）で全銘柄を取り切れず distinct が欠ける問題を避けるため、
+ *  サーバー側 DISTINCT の RPC `get_approval_brands` を使う。 */
+export async function getApprovalBrands() {
+  requireSupabase()
+  const { data, error } = await supabase.rpc('get_approval_brands')
+  if (error) throw error
+  return (data || []).map(r => r.brand)
+}
+
+/**
+ * 認可済み銘柄を取得（ブランド絞り込み・銘柄名部分一致検索・並び替え）
+ * @param {object} opts
+ * @param {string} [opts.brand]   完全一致するブランド名
+ * @param {string} [opts.search]  product_name の部分一致（ilike）
+ * @param {'product_name'|'approval_date'} [opts.sortKey] 並び替えキー（既定 product_name）
+ * @param {'asc'|'desc'} [opts.sortDir] 並び順（既定 asc）
+ * @param {number} [opts.limit]   取得上限（既定 500）
+ */
+export async function getApprovalItems({ brand, search, sortKey = 'product_name', sortDir = 'asc', limit = 10000 } = {}) {
+  requireSupabase()
+  // PostgREST は 1 リクエスト最大 1000 行で固定キャップ。limit が 1000 を超える場合は
+  // .range() で 1000 件ずつ分割取得して結合する。
+  const PAGE = 1000
+  const asc = sortDir !== 'desc'
+  const buildQuery = () => {
+    let q = supabase.from('pe_approval_items').select('*')
+    if (brand) q = q.eq('brand', brand)
+    if (search && search.trim()) q = q.ilike('product_name', `%${search.trim()}%`)
+    if (sortKey === 'approval_date') {
+      q = q.order('approval_date', { ascending: asc, nullsFirst: false }).order('product_name', { ascending: true })
+    } else {
+      q = q.order('product_name', { ascending: asc }).order('brand', { ascending: true })
+    }
+    return q
+  }
+  const all = []
+  for (let from = 0; from < limit; from += PAGE) {
+    const to = Math.min(from + PAGE, limit) - 1
+    const { data, error } = await buildQuery().range(from, to)
+    if (error) throw error
+    const chunk = data || []
+    all.push(...chunk)
+    if (chunk.length < (to - from + 1)) break  // 最終ページに到達
+  }
+  return all
+}
+
+/** 指定銘柄の価格変更履歴（新しい順） */
+export async function getApprovalPriceHistory(itemId) {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('pe_approval_price_history')
+    .select('*')
+    .eq('item_id', itemId)
+    .order('changed_on', { ascending: false, nullsFirst: false })
+  if (error) throw error
+  return data || []
+}
+
+/**
+ * 新規認可: 銘柄を一括 INSERT（プレビュー確定時）
+ * @param {Array} rows [{ brand, product_name, package_size, origin_country, approval_date, current_price }, ...]
+ * @returns {number} 追加件数
+ */
+export async function insertApprovalItems(rows) {
+  requireSupabase()
+  if (!rows || rows.length === 0) return 0
+  // 既存 DB ブランドの「正規化キー → 正式表記」マップを作り、新規挿入のブランドを DB 表記へ統一する。
+  // （同一ブランドが正規化後に既存と一致するなら、その DB 表記をそのまま採用＝表記揺れの再発を防ぐ）
+  const canonical = new Map()
+  try {
+    const brands = await getApprovalBrands()
+    for (const b of brands) canonical.set(normalizeBrand(b), b)
+  } catch { /* 取得失敗時は normalizeBrand のみで継続 */ }
+  const toCanonicalBrand = (b) => {
+    const nb = normalizeBrand(b)
+    return canonical.get(nb) || nb
+  }
+  const payload = rows.map(r => ({
+    brand: toCanonicalBrand(r.brand),
+    product_name: r.product_name,
+    package_size: r.package_size || null,
+    origin_country: r.origin_country || null,
+    approval_date: r.approval_date || null,
+    current_price: r.current_price ?? null,
+    tobacco_class: 'パイプたばこ'
+  }))
+  const { data, error } = await supabase
+    .from('pe_approval_items')
+    .insert(payload)
+    .select('id')
+  if (error) throw error
+  return (data || []).length
+}
+
+/**
+ * 変更認可: 既存銘柄の現行価格更新 + 履歴追加（プレビュー確定時）
+ * @param {Array} changes [{ item_id, price_before, price_after, changed_on }, ...]
+ */
+export async function applyApprovalChanges(changes) {
+  requireSupabase()
+  if (!changes || changes.length === 0) return 0
+  for (const c of changes) {
+    const { error: upErr } = await supabase
+      .from('pe_approval_items')
+      .update({ current_price: c.price_after, updated_at: new Date().toISOString() })
+      .eq('id', c.item_id)
+    if (upErr) throw upErr
+    const { error: hErr } = await supabase
+      .from('pe_approval_price_history')
+      .insert({
+        item_id: c.item_id,
+        changed_on: c.changed_on || null,
+        price_before: c.price_before ?? null,
+        price_after: c.price_after ?? null,
+        source: 'pdf_change'
+      })
+    if (hErr) throw hErr
+  }
+  return changes.length
+}
+
+/**
+ * 財務省 PDF を Edge Function（Gemini）で構造化抽出する
+ * @param {string} pdfBase64  PDF の base64（data URL ヘッダなし）
+ * @param {'new'|'change'} kind
+ * @returns {{ rows: Array }} 抽出結果
+ */
+export async function callParseApprovalPdf(pdfBase64, kind) {
+  requireSupabase()
+  const { data, error } = await supabase.functions.invoke('parse-approval-pdf', {
+    body: { pdfBase64, kind }
+  })
+  if (error) {
+    // Edge Function が非200を返した場合、本文のエラーメッセージを拾う
+    let detail = error.message
+    try { const ctx = await error.context?.json(); if (ctx?.error) detail = ctx.error } catch { /* noop */ }
+    throw new Error(detail)
+  }
+  return data
+}

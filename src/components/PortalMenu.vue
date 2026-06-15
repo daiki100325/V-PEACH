@@ -68,6 +68,28 @@
                 </div>
             </button>
 
+            <!-- 認可状況 -->
+            <button @click="$emit('open-approval')"
+                class="group bg-white rounded-3xl p-8 border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-colors transition-transform transition-shadow duration-300 text-left flex flex-col h-full focus:outline-none focus:ring-4 focus:ring-indigo-500/20 active:scale-95">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-6 shadow-inner group-hover:bg-indigo-600 transition-colors duration-300">
+                    <svg class="w-8 h-8 text-indigo-600 group-hover:text-white transition-colors duration-300"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+                        </path>
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">認可状況</h3>
+                <p class="text-slate-500 font-medium leading-relaxed flex-grow">認可済みパイプたばこ銘柄の閲覧・PDF取込更新を行います。</p>
+                <div class="mt-6 flex items-center text-indigo-600 font-bold text-sm bg-indigo-50 px-4 py-2 rounded-full self-start">
+                    <span>開く</span>
+                    <svg class="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </button>
+
             <!-- 設定 -->
             <button @click="$emit('open-settings')"
                 class="group bg-white rounded-3xl p-8 border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-colors transition-transform transition-shadow duration-300 text-left flex flex-col h-full focus:outline-none focus:ring-4 focus:ring-slate-500/20 active:scale-95">
@@ -91,6 +113,7 @@
                 </div>
             </button>
 
+
         </div>
     </div>
 </template>
@@ -100,7 +123,7 @@ import { checkHolidaysCoverage, forceRefreshHolidays } from '../utils/jpHolidays
 
 export default {
     name: 'PortalMenu',
-    emits: ['open-pl', 'open-input', 'open-settings'],
+    emits: ['open-pl', 'open-input', 'open-settings', 'open-approval'],
     data() {
         return {
             holidayCoverage: { currentYearOk: true, nextYearOk: true },  // 未チェック時は banner 出さない

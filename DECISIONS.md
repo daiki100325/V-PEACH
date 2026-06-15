@@ -1,5 +1,35 @@
 # DECISIONS
 
+## ADR-20260615-01: 認可状況モードの PDF 抽出は Gemini Edge Function、データは正規化2テーブル
+- Status: Accepted
+- Date: 2026-06-15
+- Owners: daiki100325
+
+### Context
+- 認可済みパイプたばこ銘柄を Google スプレッドシートで属人管理しており、財務省が随時公表する PDF（新規認可・変更認可）を手動転記していた。Supabase 一元管理 + アプリからの閲覧/更新が必要。
+- 財務省 PDF はテキスト層が壊れている：`pdftotext` で `Unknown filter 'Crypt'`、かつカスタムフォントでグリフずれ（`Casdagli`→`&DVGDJOL`、`mm`→`PP`）。決定論的テキスト抽出（pdf.js 等）は非現実的。
+- CSV は変更履歴が可変長ペア（変更日・変更前定価 ×N）で繰り返す形。
+
+### Decision
+- **PDF 抽出 = Gemini（Edge Function `parse-approval-pdf`）**。PDF を `inline_data`（`application/pdf`）でネイティブ入力し、`responseSchema` 付きで「製造たばこの区分＝パイプたばこの行のみ」を構造化 JSON 抽出。API キーは Edge Function secret `GEMINI_API_KEY` で秘匿（フロント非露出）。Anthropic 鍵管理を避ける方針（Erika ADR-20260507-01）と IOA の Gemini 運用に倣う。
+- **更新フロー = 抽出 → プレビュー（手修正可）→ 確定**。LLM 誤抽出の安全弁。変更認可は `(brand, product_name, package_size)` 正規化キーで既存銘柄にマッチング、未マッチは手動リンク or 削除。
+- **データ = 正規化2テーブル**：`pe_approval_items`（銘柄マスタ・現行価格）+ `pe_approval_price_history`（変更履歴）。ブランド絞り込み・銘柄検索・履歴表示に最適。
+- **初期投入**：既存 CSV を `scripts/seed_approval_items.mjs` で整形し supabase-js で bulk insert（items=5526 / history=1659）。`current_price` = 小売定価 ?? pair1価格（日付なし＝現行）?? null。
+
+### Alternatives
+- pdf.js 決定論パース → テキスト層が壊れており却下。
+- Claude API → 鍵管理コスト + 従量課金。Gemini 無料枠中心の IOA 実績を優先。
+- 単一テーブル + JSONB 履歴 → 履歴クエリ・集計が弱く却下。
+- 即時自動反映 → 誤抽出がそのまま本番に入るため却下（プレビュー必須）。
+
+### Consequences
+- Positive: 財務省 PDF の表レイアウト変化にも頑健。手動転記を廃止。履歴を正規化で保持。
+- Negative: Edge Function に `GEMINI_API_KEY` 設定が必要（未設定だと更新サブモードが動かない）。LLM 抽出はコスト（微小・月数回）とレイテンシを伴う。変更認可のマッチングは表記揺れで未マッチが出る（手動リンクで吸収）。
+
+### Links
+- Related note: [[V-PEACH/notes/V-PEACH_requirements]], [[V-PEACH/notes/V-PEACH_architecture]]
+- Source: `supabase/functions/parse-approval-pdf/index.ts`, `supabase/DB_MIGRATION_approval_status_20260615.sql`, `scripts/seed_approval_items.mjs`
+
 ## ADR-20260611-01: マルチストア改修期間中の Supabase 操作を MCP 経由に切替（Claude Code 直接実行）
 - Status: Accepted
 - Date: 2026-06-11

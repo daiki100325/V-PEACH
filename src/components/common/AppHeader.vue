@@ -41,14 +41,15 @@ export default {
     emits: ['return-to-portal'],
     computed: {
         modeLabel() {
-            const labels = { pl: '経営PL', input: '月次入力', settings: '設定' }
+            const labels = { pl: '経営PL', input: '月次入力', settings: '設定', approval: '認可状況' }
             return labels[this.appMode] || 'V-PEACH'
         },
         modeAccentColor() {
             const colors = {
                 pl: 'bg-teal-600',
                 input: 'bg-brand-600',
-                settings: 'bg-slate-600'
+                settings: 'bg-slate-600',
+                approval: 'bg-indigo-600'
             }
             return colors[this.appMode] || 'bg-slate-600'
         }

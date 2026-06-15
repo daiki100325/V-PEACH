@@ -20,6 +20,7 @@
                     @open-pl="openPLApp"
                     @open-input="openInputApp"
                     @open-settings="openSettingsApp"
+                    @open-approval="openApprovalApp"
                 />
             </transition>
         </main>
@@ -54,6 +55,12 @@
             :stores="stores"
             @update:loading="loading = $event"
             @update:loadingMessage="loadingMessage = $event"
+        />
+
+        <!-- 認可状況 App -->
+        <ApprovalApp
+            v-if="appMode === 'approval'"
+            ref="approvalApp"
         />
 
         <!-- Footer -->
@@ -91,12 +98,13 @@ import PortalMenu from './components/PortalMenu.vue'
 import PLApp from './components/apps/PLApp.vue'
 import InputApp from './components/apps/InputApp.vue'
 import SettingsApp from './components/apps/SettingsApp.vue'
+import ApprovalApp from './components/apps/ApprovalApp.vue'
 
 export default {
     name: 'App',
     components: {
         PinAuth, LoadingOverlay, AppHeader, AppFooter, ConfirmDialog,
-        PortalMenu, PLApp, InputApp, SettingsApp
+        PortalMenu, PLApp, InputApp, SettingsApp, ApprovalApp
     },
     provide() {
         return {
@@ -194,6 +202,10 @@ export default {
         },
         openSettingsApp() {
             this.appMode = 'settings'
+            this.pushHistoryState()
+        },
+        openApprovalApp() {
+            this.appMode = 'approval'
             this.pushHistoryState()
         },
         async returnToPortal() {

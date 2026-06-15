@@ -254,6 +254,18 @@ git subtree push --prefix=V-PEACH V-PEACH main
 - 全 `pe_*` テーブルで RLS 有効（anon 全許可ポリシー）。URL非公開・PIN認証前提のため全許可で既存動作を維持
 - ER 図・V-MINT との参照関係: [[V-PEACH/notes/V-PEACH_supabase-er-diagram]]
 
+## 認可状況モード（2026-06-15）
+
+認可済みパイプたばこ銘柄の閲覧・更新モード。本アプリで初めて **Supabase Edge Function** を導入した。
+
+- **DB**: `pe_approval_items`（銘柄マスタ・現行価格）+ `pe_approval_price_history`（変更履歴）。RLS は他 `pe_*` と同じ anon 全許可。
+- **Edge Function `parse-approval-pdf`**（Deno・`supabase/functions/parse-approval-pdf/index.ts`）: 入力 `{ pdfBase64, kind: 'new'|'change' }`。Gemini `generateContent` に PDF を `inline_data`（`application/pdf`）でネイティブ入力し、`responseSchema` 付きで「パイプたばこ行のみ」を構造化抽出して `{ rows }` を返す。`GEMINI_API_KEY`／`GEMINI_MODEL`（既定 `gemini-2.5-flash`）は Edge Function secret。`verify_jwt: true`（anon JWT で認可）+ CORS 対応。DB 書込は持たず抽出専用。**100品目超の変更認可が 150s タイムアウトするため `thinkingConfig.thinkingBudget=0`（thinking 無効）＋ `maxOutputTokens=65536` を設定**（108行を ~40s で抽出）。
+- **変更認可のマッチング**（`ApprovalUpdate.vue`）: 既存銘柄を全件ロードし、**銘柄名(NFKC正規化)＋重量(g 数値)** で突合（ブランドの大小・granularity やソース間の容器表記揺れ＝DB`ﾊﾟｳﾁ` vs PDF`箱` に非依存）。名前が一意なら容量差を無視して採用、複数サイズで曖昧なら手動リンク候補を提示。実データで 108/108 自動マッチを確認。
+- **フロント**: `src/components/apps/ApprovalApp.vue`（閲覧/更新タブ）→ `approval/ApprovalBrowse.vue`・`approval/ApprovalUpdate.vue`。API は `src/api.js` の `getApprovalItems` / `getApprovalBrands` / `getApprovalPriceHistory` / `insertApprovalItems` / `applyApprovalChanges` / `callParseApprovalPdf`。
+- **抽出 → 確定の分離**: Edge Function は PDF→JSON のみ。プレビューでの手修正後、DB 書込はフロントの anon クライアントから実行（既存パターン踏襲）。
+- **初期投入**: `scripts/seed_approval_items.mjs`（CSV 整形 + supabase-js bulk insert・再現可能な記録）。
+- 判断詳細: [[V-PEACH/DECISIONS]] ADR-20260615-01。
+
 ## Related
 - [[V-PEACH/DECISIONS]]
 - [[V-PEACH/notes/V-PEACH_requirements]]

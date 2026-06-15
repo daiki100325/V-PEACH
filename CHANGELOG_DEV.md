@@ -1,5 +1,43 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: 新規ブランドのDB表記統一＋複数PDFアップロード対応）
+- What: ①**新規認可の挿入時にブランドを DB の正式表記へ統一**。`insertApprovalItems` が既存ブランドの「正規化キー→正式表記」マップ（`getApprovalBrands`）を作り、挿入ブランドを `normalizeBrand` 後に既存表記へスナップ（表記揺れの再発防止）。※変更認可は既存行の `item_id` を更新するだけなので元々 DB 表記のまま。②**更新サブモードを複数PDFアップロードに対応**。`<input multiple>` + 逐次解析（Gemini を同時多発させずレート制限に配慮）＋進捗表示（n/N）＋PDF間の重複（同名・同重量）除去。1ファイル失敗しても成功分でプレビュー続行（警告表示）。
+- Why: 新規ブランドが既存と微妙に違う表記で入るのを防ぎたい／複数の認可PDFをまとめて取り込みたいという要望。
+- Files: `src/api.js`（insertApprovalItems 正式表記スナップ）, `src/components/apps/approval/ApprovalUpdate.vue`（files[] 逐次解析・進捗・重複除去）
+- Related: [[V-PEACH/notes/V-PEACH_requirements]], [[V-PEACH/notes/V-PEACH_architecture]]
+
+## 2026-06-15（認可状況: Edge Function 高速化＋変更認可マッチング堅牢化・E2E検証）
+- What: ①`GEMINI_API_KEY` 設定後に E2E 検証。新規認可PDF→3行(11.7s)・変更認可PDF→108行 抽出を確認。②変更認可（108品目）が **Edge Function 150s タイムアウト**になったため、Gemini の **thinking 無効化**（`thinkingConfig.thinkingBudget=0`）＋ `maxOutputTokens=65536` で **39.5s に短縮**（v3 デプロイ）。③変更認可のマッチングを堅牢化：ブランドの大小・granularity やソース間の容器表記揺れ（DB`ﾊﾟｳﾁ` vs PDF`箱`）に依存しないよう、**銘柄名(NFKC正規化)＋重量(g数値)** で突合する方式へ変更。容器名一致では 62/108 だったマッチが **重量ベースで 108/108 自動マッチ**に改善（実データ検証）。
+- Why: 100品目超の変更認可で生成が 150s を超えてタイムアウトしていた。また brand 正規化（UPPERCASE）後は `.eq('brand', ...)` の候補取得が大小不一致で全外れになり、容器表記の食い違いも相まって手動リンクだらけになっていた。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`（thinking 無効化・maxOutputTokens）, `src/components/apps/approval/ApprovalUpdate.vue`（全件ロード＋name(NFKC)+weight マッチング・手動リンク候補）
+- Related: [[V-PEACH/notes/V-PEACH_architecture]], [[V-PEACH/DECISIONS]] ADR-20260615-01
+- 運用: Edge Function secret `GEMINI_API_KEY` 設定済み（IOA と共用）。
+
+## 2026-06-15（認可状況: 閲覧の表示上限を撤廃・全件対応）
+- What: 閲覧の表示上限 500 を撤廃。`getApprovalItems` を `.range()` の **1000 件ずつ分割取得**に変更し、PostgREST の 1 リクエスト 1000 行固定キャップ（`.limit(6000)` でも 1000 しか返らないことを実測）を回避して全件（5526）取得可能に。閲覧 UI は DOM 負荷対策で **200 件初期表示＋「もっと見る」(+300)** の段階描画にした。
+- Why: つーくんから表示上限拡張の要望。単純な limit 増では PostgREST のキャップに阻まれるため分割取得が必要だった。
+- Files: `src/api.js`（getApprovalItems 分割取得）, `src/components/apps/approval/ApprovalBrowse.vue`（renderLimit 段階表示）, `notes/V-PEACH_requirements`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## 2026-06-15（認可状況: ブランド一覧バグ修正＋表記正規化）
+- What: ①ブランド絞り込みが **26件しか出ない**バグを修正。原因は `getApprovalBrands` の `.select('brand')` が PostgREST 行上限（1000）で頭打ちになり distinct が欠けていたこと。サーバー側 DISTINCT の RPC `get_approval_brands` を新設して全件取得に変更。②ブランド表記揺れ（大文字小文字・空白）を統合：全ブランドを **UPPERCASE＋空白正規化** し、`Azure hookah tobacco Black` 等のライン違いを `AZURE HOOKAH TOBACCO` に統合（distinct 133→**119**）。新規 PDF 取込・再seed でも崩れないよう `api.js normalizeBrand` / seed に正規化を焼き込み。
+- Why: 上限で大半のブランドが欠落していた。加えて同一ブランドが大小・空白差で別扱いになりフィルタが冗長だった。
+- Files: `src/api.js`（`get_approval_brands` RPC 利用・`normalizeBrand`・insert 正規化）, `scripts/seed_approval_items.mjs`（normalizeBrand）, `supabase/DB_MIGRATION_approval_status_20260615.sql`（RPC＋正規化 UPDATE 記録）
+- Related: [[V-PEACH/DECISIONS]] ADR-20260615-01
+
+## 2026-06-15（認可状況モード UI 改善）
+- What: ①閲覧の絞り込み/検索を**右下 FAB ＋スライドアップ・パネル**（IORI 参照）へ移設し、**並び替え**（名前 昇順/降順・認可日 昇順/降順）を追加（`getApprovalItems` に `sortKey`/`sortDir` 追加）。②トップメニューのカード順を **認可状況 → 設定**（設定を常に最後）に変更。③認可状況カードの色を `brand`（オレンジ＝月次入力と同系）から **indigo** に変更し差別化（ヘッダーアクセント・モード内タブ/ボタンも indigo 統一）。
+- Why: 絞り込み UI の常時占有を避けモバイルで操作しやすく、並び替えニーズに対応。月次入力カードと色が被って区別しづらかったため。
+- Files: `src/components/apps/approval/ApprovalBrowse.vue`, `src/api.js`（getApprovalItems 並び替え）, `src/components/PortalMenu.vue`（順序・色）, `src/components/common/AppHeader.vue`（accent）, `src/components/apps/ApprovalApp.vue`, `src/components/apps/approval/ApprovalUpdate.vue`（indigo 統一）
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]
+
+## 2026-06-15
+- What: 新モード **「認可状況」**（サブモード 閲覧 / 更新）を新設。財務省に認可されたパイプたばこ銘柄を Supabase で一元管理し、閲覧（ブランド絞り込み・銘柄名 ilike 検索・価格履歴展開）と更新（財務省 PDF アップロード → Gemini で構造化抽出 → プレビュー編集 → 確定で DB 反映）を可能にした。新規 DB 2 テーブル（`pe_approval_items` / `pe_approval_price_history`）+ Edge Function `parse-approval-pdf`（Gemini・PDF ネイティブ入力）+ 既存 Google スプレッド CSV を初期投入（items=5526 / history=1659）。**「製造たばこの区分」が「パイプたばこ」の行のみ**対象（他区分は捨象）。
+- Why: 認可済み銘柄が Google スプレッドシートで属人管理されており、財務省 PDF（新規・変更）の手動転記が負担・ミス源だった。財務省 PDF はテキスト層が壊れている（`Crypt` filter／カスタムフォントで文字化け）ため決定論パース不可 → Gemini に PDF を直接読ませる方式を採用。
+- Files: `supabase/DB_MIGRATION_approval_status_20260615.sql`（記録）, `supabase/functions/parse-approval-pdf/index.ts`, `scripts/seed_approval_items.mjs`, `src/api.js`（認可状況 API 群）, `src/components/apps/ApprovalApp.vue`, `src/components/apps/approval/ApprovalBrowse.vue`, `src/components/apps/approval/ApprovalUpdate.vue`, `src/App.vue`, `src/components/PortalMenu.vue`, `src/components/common/AppHeader.vue`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]], [[V-PEACH/notes/V-PEACH_architecture]], [[V-PEACH/notes/V-PEACH_supabase-er-diagram]], [[V-PEACH/DECISIONS]]（ADR-20260615-01）
+- ⚠ 運用前提: Edge Function 動作には Supabase の Edge Function secret `GEMINI_API_KEY` の設定が必要。
+
 ## 2026-06-14
 - What: go-live 完了に伴い `multi-store` ブランチを削除し `main` 一本運用へ復帰した旨を scaling-plan §5-1-7 に追記（実作業: ff マージ→本番反映→`git branch -d multi-store`）
 - Why: 本改修専用の二系統ブランチ運用が役目を終えたため、発端ドキュメントに完了を明記

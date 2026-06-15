@@ -172,6 +172,20 @@ InputApp.vue の月次入力は **CSV インポートのみ**。各店舗の Air
 
 > Source: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] §2（R1〜R8）・§4-4
 
+### 認可状況モード（2026-06-15 新設）
+
+財務省に認可された**パイプたばこ銘柄**を Supabase で一元管理する。従来 Google スプレッドシートで属人管理し、財務省 PDF を手動転記していたものを置換。**「製造たばこの区分」が「パイプたばこ」の行のみ**対象（紙巻・葉巻等は捨象）。
+
+- **サブモード「閲覧」**: `pe_approval_items` の一覧。**右下 FAB（絞り込み）をタップでスライドアップ・パネル**（IORI 参照）が開き、ブランド絞り込み（distinct セレクト）・銘柄名の部分一致検索（`ilike`）・**並び替え**（名前 昇順/降順・認可日 昇順/降順）を操作。行展開で価格変更履歴（`pe_approval_price_history`）。**全件取得**（PostgREST の 1 リクエスト 1000 行上限を `.range()` の分割取得で回避）。DOM 負荷対策で **200 件ずつ「もっと見る」(+300)** の段階表示。アクティブな条件があると FAB にリング表示。
+- **サブモード「更新」**: 財務省 PDF（新規認可 / 変更認可をトグルで選択・**複数ファイル可**）をアップロード → Edge Function `parse-approval-pdf`（Gemini）でパイプたばこ行のみ構造化抽出（複数PDFは逐次解析・進捗 n/N 表示・PDF間の同名同重量を重複除去）→ **プレビュー（手修正・行削除可）** → 確定で DB 反映。新規挿入時はブランドを既存 DB の正式表記へ統一（`normalizeBrand`＋既存表記スナップ）。
+  - 新規認可: 各行を新規銘柄として INSERT（既存と `(brand, product_name, package_size)` 一致は重複として除外）。
+  - 変更認可: 抽出行を既存銘柄に正規化キーでマッチング。マッチ行は現行価格を更新し履歴を追加。未マッチ行は手動リンク（同ブランド候補から選択）または削除。
+- **データモデル**: 正規化2テーブル（銘柄マスタ + 価格履歴）。`current_price` 導出規則は CSV 由来データで「小売定価 ?? pair1価格（日付なし＝現行）?? null」。
+- **PDF 抽出の前提**: 財務省 PDF はテキスト層が壊れている（`Crypt` filter／カスタムフォント）ため LLM 方式を採用。詳細は [[V-PEACH/DECISIONS]] ADR-20260615-01。
+- **運用前提**: Edge Function に Supabase secret `GEMINI_API_KEY` の設定が必要。
+
+> Source: [[V-PEACH/DECISIONS]] ADR-20260615-01 ／ `src/components/apps/ApprovalApp.vue`・`supabase/functions/parse-approval-pdf/`
+
 ## Related
 - [[V-PEACH/DECISIONS]]
 - [[V-PEACH/CHANGELOG_DEV]]
