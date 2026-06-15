@@ -60,6 +60,8 @@ async function callGeminiModel(apiKey: string, model: string, payload: unknown, 
     }
     if (res.ok) return { ok: true as const, data: await res.json() }
     const detail = await res.text()
+    // 失敗詳細をログに残す（get_logs で PerDay/PerMinute 等のクォータ種別を Gemini 枠消費なしに確認できる）
+    console.error(`[parse-approval-pdf] ${model} HTTP ${res.status}: ${detail.slice(0, 300)}`)
     // 429（レート制限）・503（高負荷）・その他 5xx はリトライ可能。それ以外（4xx）は即失敗。
     const retryable = res.status === 429 || res.status >= 500
     const wait = parseRetryAfterMs(detail)

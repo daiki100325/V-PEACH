@@ -1,5 +1,14 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: 429 の原因を特定＝Gemini 無料枠の枯渇／失敗詳細をログ出力）
+- What: 502/429 の原因を確定。Edge Function **v9** で失敗時に `console.error` で Gemini 生エラーを出力（観測性向上）。
+  - 502 本文 `detail` に決定的証拠: `Quota exceeded for metric: ...free_tier_input_token_count, limit: 0, model: gemini-2.5-pro`。
+  - **Gemini 無料枠（入力トークン）の枯渇**が原因。認可 PDF は入力トークンが重く無料枠をすぐ消費。**2.5-pro は無料枠 limit:0＝無料では使用不可**。
+- Why: retry/fallback でも 429 が解消しなかったため根本原因を切り分け。無料枠の構造的上限はコードでは吸収不可と判明。
+- 結論/対応: **恒久解決はキーの GCP プロジェクトで課金（従量課金）有効化**（無料枠上限撤廃・2.5-pro 解禁・コスト僅少）。詳細は [[V-PEACH/TROUBLESHOOTING]]「Gemini 無料枠の枯渇」。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`（console.error 追加）, `TROUBLESHOOTING.md`
+- Related: [[V-PEACH/TROUBLESHOOTING]], [[V-PEACH/DECISIONS]] ADR-20260615-02
+
 ## 2026-06-15（認可状況: 429 が断続発生するため retry 予算を強化＋全体待機予算ガードを追加）
 - What: 共用 `GEMINI_API_KEY`（IORI と同一）で 429（分あたり TPM）が断続発生する実態を踏まえ、`parse-approval-pdf` の耐性を強化（Edge Function **v7** デプロイ）。
   - **同一モデルの retry を 2→3 回**、**backoff 上限を 30s→60s**（分あたり枠は最大60sで回復するため）。

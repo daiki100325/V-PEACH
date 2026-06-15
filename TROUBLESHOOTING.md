@@ -1,5 +1,37 @@
 # TROUBLESHOOTING
 
+## Case: 認可状況の PDF 取込が 429 / 502 になる（Gemini 無料枠の枯渇）
+- Date: 2026-06-15
+- Severity: Medium
+- Owner: daiki
+
+### Symptoms
+- 「更新」タブで PDF をアップロード → `POST .../parse-approval-pdf 502 (Bad Gateway)`。本文は `Gemini エラー (429)（全モデルがレート制限/高負荷で失敗しました…）`。
+- 時間を空けても（40分以上）再発。「200成功 → 数分後に 429」も発生。
+
+### Cause
+- Gemini の **無料枠（free tier）クォータ超過**。502 本文 `detail` に決定的な証拠：
+  ```
+  Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count,
+  limit: 0, model: gemini-2.5-pro
+  ```
+- 認可 PDF は**入力トークンが重い**ため、無料枠の入力トークン量をすぐ消費する。
+- **`gemini-2.5-pro` は無料枠 `limit: 0`**＝無料では一切使えない。→ `GEMINI_MODEL_FALLBACKS` に 2.5-pro を入れても free キーでは無意味。
+- retry+backoff・フォールバック（[[V-PEACH/DECISIONS]] ADR-20260615-02）は一過性の分あたり 429 には有効だが、**無料枠そのものの枯渇は構造的問題**で吸収できない。
+
+### Fix
+- **恒久解決＝キーの GCP プロジェクトで課金（従量課金）を有効化**する。無料枠トークン上限が撤廃され 429 が実質消滅、2.5-pro も使用可になる。コストは僅少（flash 入力 ~$0.10〜0.30/1M トークン・PDF 1回 数万トークン＝月数円〜十数円規模）。
+- 暫定: 無料枠は時間で回復するが、重い PDF では再枯渇しやすい。フォールバックを使うなら **free で使えるモデルのみ**にする（2.5-pro は除外）。
+
+### Prevention / 切り分け手順
+- 502 の **レスポンス本文 `detail`** に Gemini の生エラー（quota metric・`limit`・`retryDelay`）が入る。まずここを見る（`error` だけでなく `detail` を確認）。
+- 検証時の連打に注意：1リクエストでも内部 retry で複数回 API を叩く。検証は最小限に。
+- `model` フィールドでどのモデルが成功したか確認できる（フォールバック発火の判定に使う）。
+
+### Links
+- Source: `supabase/functions/parse-approval-pdf/index.ts`（v9: 失敗詳細を `console.error` 出力）
+- Related: [[V-PEACH/DECISIONS]] ADR-20260615-02, [[V-PEACH/notes/V-PEACH_architecture]]
+
 ## Case: flavors テーブルの行が外部キー制約で削除できない
 - Date: 2026-06-11
 - Severity: Low
