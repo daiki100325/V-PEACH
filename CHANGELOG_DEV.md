@@ -1,5 +1,14 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: 429 が断続発生するため retry 予算を強化＋全体待機予算ガードを追加）
+- What: 共用 `GEMINI_API_KEY`（IORI と同一）で 429（分あたり TPM）が断続発生する実態を踏まえ、`parse-approval-pdf` の耐性を強化（Edge Function **v7** デプロイ）。
+  - **同一モデルの retry を 2→3 回**、**backoff 上限を 30s→60s**（分あたり枠は最大60sで回復するため）。
+  - **全体待機予算 `GLOBAL_BUDGET_MS=90s` を新設**。待機後にこの予算を超える場合は再試行・モデル切替を行わず打ち切る（フォールバック有効時に「3モデル×リトライ×待機」で Edge Function の ~150s 制限を超えないための安全ガード）。`callGeminiModel` に `deadline` を渡して各 `sleep` 前にチェック。
+- Why: 40分空けても 429、かつ「200成功→直後429」のパターンを実測。日次枯渇ではなく**分あたり TPM＋共用キー競合**が原因と判明（[[V-PEACH/DECISIONS]] ADR-20260615-02 に追記）。フォールバック（B案）併用時の暴走防止も必要だった。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`, `DECISIONS.md`(ADR-20260615-02 追記), `notes/V-PEACH_architecture.md`
+- Related: [[V-PEACH/DECISIONS]] ADR-20260615-02
+- 運用: フォールバックを使う場合は Edge Function secret `GEMINI_MODEL_FALLBACKS=gemini-2.0-flash,gemini-2.5-pro` を設定（既定 OFF）。恒久解決は V-PEACH 専用 API キーへの差替（IORI との競合解消）。
+
 ## 2026-06-15（認可状況: parse-approval-pdf に retry+backoff＋控えめモデルフォールバックを追加）
 - What: Edge Function `parse-approval-pdf` に Gemini の **429/503/5xx 耐性**を追加（Edge Function **v6** デプロイ）。
   - **同一モデルで retry+backoff**（最大2回・`retryDelay`/`Please retry in Xs` をパース・既定5s/上限30s）。

@@ -10,7 +10,8 @@
 - IOA `erika-cloud/src/gemini.js` は多段モデルフォールバック（flash-lite→gemma 等）を実装済みだが、**会話用途**。V-PEACH は **PDF構造化抽出**で精度がシビア（価格・容量・セル結合の誤読は preview で気づきにくい）。
 
 ### Decision
-- **同一モデルで retry+backoff を最優先**（429/503/5xx を最大2回・`retryDelay`/`Please retry in Xs` をパース・既定5s/上限30s）。精度を一切変えずに一過性スパイクを吸収。
+- **同一モデルで retry+backoff を最優先**（429/503/5xx を最大3回・`retryDelay`/`Please retry in Xs` をパース・既定5s/上限60s）。精度を一切変えずに一過性スパイクを吸収。
+- **全体待機予算 `GLOBAL_BUDGET_MS=90s`**：待機後にこれを超える場合は再試行・モデル切替を打ち切る（フォールバック有効時の「3モデル×リトライ×待機」が Edge Function ~150s 制限を超えるのを防ぐ）。2026-06-15 に 429 が断続発生（200成功→直後429＝分あたり TPM＋共用キー競合）を実測し retry 2→3回/上限30→60s に強化。
 - **フォールバックは控えめ・env 駆動・既定 OFF**（`GEMINI_MODEL_FALLBACKS` 空）。有効化する場合も **「PDF入力＋responseSchema 対応」モデルのみ**許容（`gemini-2.0-flash` / `gemini-2.5-pro` 等）。**gemma 等テキスト専用は PDF 不可・構造化非対応のため不可**。
 - 主軸は `gemini-2.5-flash` 固定。`thinkingConfig`（thinking 無効・タイムアウト回避）は 2.5-flash 系のみ付与（pro は無効化不可・2.0 は非搭載で 400 回避）。
 - 全モデル失敗時はレート制限を示す日本語ヒント付き 502。応答 `model` に成功モデル名を返す。

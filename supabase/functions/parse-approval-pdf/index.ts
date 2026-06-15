@@ -27,38 +27,44 @@ const MODELS: string[] = (() => {
 })()
 
 // 同一モデルでの最大リトライ回数（初回 + この回数）。429/503/5xx のみ対象。
-const MAX_RETRIES_PER_MODEL = 2
+const MAX_RETRIES_PER_MODEL = 3
+
+// 全体の待機予算。これを超えるなら追加の待機・モデル切替を行わない
+// （Edge Function の ~150s 制限に余裕を持たせ、最後の抽出呼び出し分の時間を残す）。
+const GLOBAL_BUDGET_MS = 90_000
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 // 429/503 応答から待機秒数を推定する。`retryDelay:"12s"` / `Please retry in 12.3s` を拾い、
-// 取れなければ既定 5s。上限 30s（Edge Function 全体のタイムアウトを超えないため）。
+// 取れなければ既定 5s。上限 60s（分あたり枠は最大60s待てば回復する／予算ガードで全体時間は別途制限）。
 function parseRetryAfterMs(detail: string): number {
   const s = String(detail || "")
   const m = s.match(/retry(?:Delay)?["\s:]*([0-9.]+)\s*s/i) || s.match(/retry in\s+([0-9.]+)\s*s/i)
   const sec = m ? Number(m[1]) : NaN
   const ms = Number.isFinite(sec) && sec > 0 ? Math.ceil(sec * 1000) : 5000
-  return Math.min(ms, 30_000)
+  return Math.min(ms, 60_000)
 }
 
 // 1モデルへ generateContent を投げる（同一モデルで retry 込み）。
 // 返り値: { ok:true, data } | { ok:false, status, detail, retryable }
-async function callGeminiModel(apiKey: string, model: string, payload: unknown) {
+async function callGeminiModel(apiKey: string, model: string, payload: unknown, deadline: number) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
   for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
     let res: Response
     try {
       res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
     } catch (e) {
-      // ネットワーク例外はリトライ可能扱い
-      if (attempt < MAX_RETRIES_PER_MODEL) { await sleep(5000); continue }
+      // ネットワーク例外はリトライ可能扱い（待機予算が残っている場合のみ）
+      if (attempt < MAX_RETRIES_PER_MODEL && Date.now() + 5000 <= deadline) { await sleep(5000); continue }
       return { ok: false as const, status: 0, detail: `Gemini 呼び出し失敗: ${e}`, retryable: true }
     }
     if (res.ok) return { ok: true as const, data: await res.json() }
     const detail = await res.text()
     // 429（レート制限）・503（高負荷）・その他 5xx はリトライ可能。それ以外（4xx）は即失敗。
     const retryable = res.status === 429 || res.status >= 500
-    if (retryable && attempt < MAX_RETRIES_PER_MODEL) { await sleep(parseRetryAfterMs(detail)); continue }
+    const wait = parseRetryAfterMs(detail)
+    // 待機後も予算内に収まる場合のみ同一モデルで再試行。超過するならこのモデルは諦め次へ委ねる。
+    if (retryable && attempt < MAX_RETRIES_PER_MODEL && Date.now() + wait <= deadline) { await sleep(wait); continue }
     return { ok: false as const, status: res.status, detail, retryable }
   }
   return { ok: false as const, status: 0, detail: "unknown", retryable: false }
@@ -155,12 +161,14 @@ Deno.serve(async (req: Request) => {
   let usedModel = ""
   let lastStatus = 0
   let lastDetail = "unknown"
+  const deadline = Date.now() + GLOBAL_BUDGET_MS
   for (const model of MODELS) {
-    const r = await callGeminiModel(apiKey, model, buildPayload(model, kind, pdfBase64))
+    const r = await callGeminiModel(apiKey, model, buildPayload(model, kind, pdfBase64), deadline)
     if (r.ok) { data = r.data; usedModel = model; break }
     lastStatus = r.status
     lastDetail = r.detail
     if (!r.retryable) break
+    if (Date.now() > deadline) break  // 待機予算超過：以降のフォールバックは試さない
   }
   if (data === null) {
     const hint = (lastStatus === 429 || lastStatus >= 500)
