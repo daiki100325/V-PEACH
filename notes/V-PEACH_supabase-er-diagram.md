@@ -337,6 +337,12 @@ V-PEACH は原則テーブル CRUD のみだが、マルチストア P4（2026-0
 | `getHrmosSegments` / `upsertHrmosSegments` / `updateHrmosSegment` | `pe_hrmos_segments` | HRMOS 勤務区分マスタ CRUD（自動判定不可レコードの手動上書き対応） |
 | `getJpHolidays(yearOrRange)` / `upsertJpHolidays(rows)` | `pe_jp_holidays` | 祝日キャッシュ参照・バルク upsert |
 | `getJpHolidaysMeta` / `updateJpHolidaysMeta` | `pe_jp_holidays_meta` | 祝日 API 最終取得状況の参照・更新 |
+| `getApprovalBrands` | `pe_approval_items`（RPC `get_approval_brands`） | distinct ブランド一覧（昇順） |
+| `getApprovalItems({ brand, search, sortKey, sortDir, limit })` | `pe_approval_items` | 認可銘柄の検索・絞り込み取得（`.range()` 分割取得で PostgREST 1000行上限を回避） |
+| `getApprovalPriceHistory(itemId)` | `pe_approval_price_history` | 銘柄の価格変更履歴（新→旧順） |
+| `insertApprovalItems(rows)` | `pe_approval_items` | 新規認可銘柄の一括 INSERT（ブランド正規化あり） |
+| `applyApprovalChanges(changes)` | `pe_approval_items` + `pe_approval_price_history` | 変更認可: 現行価格更新＋履歴追加 |
+| `callParseApprovalPdf(pdfBase64, kind)` | Edge Function `parse-approval-pdf` | 財務省 PDF → Gemini 構造化抽出 |
 
 ## store_key 対応（UI ↔ DB）
 
@@ -371,8 +377,9 @@ ALLOW ALL TO anon USING (true) WITH CHECK (true);
 | `supabase/SEED_store_settings_defaults.sql` | フォールバック用デフォルト値投入（`pe_store_settings_revisions` 未適用期間の 0 落ち防止） |
 | `supabase/SEED_benchmarks_defaults_20260518.sql` | Phase 6: ベンチマーク 5 指標の初期値投入（`pe_benchmarks` シングルトン） |
 | `supabase/SEED_daily_sales_cache_202512.sql` | Phase 7-2: 2025年12月分 Airレジ日次キャッシュ初回投入（3店舗 × 25日 = 75行） |
-| `supabase/DB_MIGRATION_multi_store_p1_20260611.sql`（`multi-store` ブランチ管理） | マルチストア P1: `stores` に `is_active`/`display_order`/`store_type`/`closed_at` 追加、`pe_store_shift_rules`・`app_ui_settings` 新設＋RLS＋SEED。Supabase MCP（migration `multi_store_p1_stores_shift_rules_app_ui_settings`）で 2026-06-11 適用済み |
-| `supabase/DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql`（`multi-store` ブランチ管理） | マルチストア P4: `create_store_atomic` RPC 新設（新店舗追加ウィザードのサーバ側トランザクション）。Supabase MCP（migration `multi_store_p4_create_store_atomic`）で 2026-06-11 適用済み。※行ベース新 RPC `*_v2`（P2）は V-MINT2.0 側 `supabase/rpc_v2.sql` で管理 |
+| `supabase/DB_MIGRATION_multi_store_p1_20260611.sql` | マルチストア P1: `stores` に `is_active`/`display_order`/`store_type`/`closed_at` 追加、`pe_store_shift_rules`・`app_ui_settings` 新設＋RLS＋SEED。Supabase MCP で 2026-06-11 適用済み |
+| `supabase/DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql` | マルチストア P4: `create_store_atomic` RPC 新設（新店舗追加ウィザードのサーバ側トランザクション）。Supabase MCP で 2026-06-11 適用済み。※行ベース新 RPC `*_v2`（P2）は V-MINT2.0 側 `supabase/rpc_v2.sql` で管理 |
+| `supabase/DB_MIGRATION_approval_status_20260615.sql` | 認可状況モード: `pe_approval_items`・`pe_approval_price_history` 新設＋RLS＋`get_approval_brands` RPC。2026-06-15 適用 |
 
 ## Related
 - [[V-PEACH/notes/V-PEACH_architecture]]

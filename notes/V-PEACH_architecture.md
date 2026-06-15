@@ -25,7 +25,7 @@ parent: [[V-PEACH/notes/_index]]
 ```
 V-PEACH/
 ├── src/
-│   ├── App.vue                  # ルート（3モード切替）
+│   ├── App.vue                  # ルート（4モード切替）
 │   ├── api.js                   # Supabase CRUD（pe_テーブル + V-MINT読み取り）
 │   ├── main.js
 │   ├── style.css
@@ -37,7 +37,7 @@ V-PEACH/
 │   │   ├── jpHolidaysClient.js  # holidays-jp API クライアント + Supabase キャッシュ + 30日経過時バックグラウンド更新
 │   │   └── storeFilters.js      # Phase 13 P5: 休止店舗の選択肢フィルタ・閉店翌月以降の集計除外（closedMonthOf / isStoreOpenForPeriod / selectableStores）
 │   └── components/
-│       ├── PortalMenu.vue       # 3モードカード選択画面
+│       ├── PortalMenu.vue       # 4モードカード選択画面
 │       ├── CurrencyInput.vue    # 金額入力（フォーカス時：数値のみ、ブラー時：カンマ区切り表示）
 │       ├── StoreCsvUpload.vue   # 店舗単位 CSV アップロード（複数選択・ヘッダー内容で Airメイト/Airレジ 自動判定・削除ボタン）
 │       ├── common/
@@ -50,7 +50,11 @@ V-PEACH/
 │       └── apps/
 │           ├── PLApp.vue        # (1) PLモード（シングルページ・FLR比サマリー・人件費内訳表示・prefetchPeriods N+1削減）
 │           ├── InputApp.vue     # (2) 月次入力モード（CSV インポート 6 ステップ・人件費プレビュー統合・既存月再編集モード）
-│           └── SettingsApp.vue  # (3) 設定モード（店舗別固定費/全社費/ベンチマークの改定履歴・HRMOS マスタ管理・祝日マスタ・店舗管理〔一覧/名称編集/休止・再開/並べ替え/3ステップ追加ウィザード〕Phase 13）
+│           ├── SettingsApp.vue  # (3) 設定モード（店舗別固定費/全社費/ベンチマークの改定履歴・HRMOS マスタ管理・祝日マスタ・店舗管理〔一覧/名称編集/休止・再開/並べ替え/3ステップ追加ウィザード〕Phase 13）
+│           ├── ApprovalApp.vue  # (4) 認可状況モード（閲覧/更新サブタブ・2026-06-15 新設）
+│           └── approval/
+│               ├── ApprovalBrowse.vue  # 閲覧サブモード（FAB 絞り込み・ブランドセレクト・検索・並び替え・段階表示・行展開で価格履歴）
+│               └── ApprovalUpdate.vue  # 更新サブモード（新規認可/変更認可トグル・PDF アップロード→Edge Function→プレビュー→確定）
 ├── supabase/
 │   ├── DB_MIGRATION.sql                            # Phase 1: pe_* 4テーブル作成
 │   ├── DB_MIGRATION_revision_20260517.sql          # Phase 5: 売上分離・カラム整理
@@ -61,11 +65,14 @@ V-PEACH/
 │   ├── DB_MIGRATION_daily_sales_cache_20260518.sql # Phase 7-2: pe_daily_sales_cache 作成
 │   ├── DB_MIGRATION_labor_cost_20260520.sql        # Phase 8: pe_monthly_records 4列追加・pe_monthly_company_records 新設・固定給/社長時給列追加
 │   ├── DB_MIGRATION_hrmos_masters_20260525.sql     # Phase 10: HRMOS シフト CSV 取込（pe_hrmos_staffs/segments + pe_jp_holidays/meta）
-│   ├── DB_MIGRATION_multi_store_p1_20260611.sql    # Phase 13 P1: stores 列追加・pe_store_shift_rules/app_ui_settings 新設（multi-store ブランチ管理）
-│   ├── DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql # Phase 13 P4: create_store_atomic RPC（multi-store ブランチ管理）
+│   ├── DB_MIGRATION_multi_store_p1_20260611.sql    # Phase 13 P1: stores 列追加・pe_store_shift_rules/app_ui_settings 新設
+│   ├── DB_MIGRATION_multi_store_p4_create_store_atomic_20260611.sql # Phase 13 P4: create_store_atomic RPC
+│   ├── DB_MIGRATION_approval_status_20260615.sql   # 認可状況モード: pe_approval_items / pe_approval_price_history / get_approval_brands RPC
 │   ├── SEED_store_settings_defaults.sql            # フォールバック用デフォルト値投入
 │   ├── SEED_benchmarks_defaults_20260518.sql       # Phase 6: ベンチマーク初期値（5指標）
-│   └── SEED_daily_sales_cache_202512.sql           # Phase 7-2: 2025年12月分初回キャッシュ
+│   ├── SEED_daily_sales_cache_202512.sql           # Phase 7-2: 2025年12月分初回キャッシュ
+│   └── functions/
+│       └── parse-approval-pdf/                     # Edge Function: 財務省 PDF → Gemini 構造化抽出（パイプたばこ行のみ）
 └── .env.local                   # 環境変数（gitignore済み）
 ```
 
@@ -245,7 +252,7 @@ git subtree push --prefix=V-PEACH V-PEACH main
 - Supabase 上の SQL／RPC は **Claude Code が Supabase MCP 経由で直接実行**する（Supabase Studio での手作業実行は廃止）。
 - 運用ルール: 読み取りは自由／書き込み（additive）は承認後／破壊的（DROP・TRUNCATE 等）は対象件数 SELECT＋FK 影響＋ロールバック手順をセットで承認後に実行。正本: [[V-PEACH/notes/V-PEACH_multi-store-scaling-plan]] §5-3。
 - 接続設定は `C:\Obsidian Vault\.mcp.json`（PAT を含むため gitignore 済み・未追跡）。
-- マルチストア改修中のコード変更は obsidian-vault ローカル `multi-store` ブランチのみで行う（同プラン §5-1）。`/vpeach-deploy`・`/vmint-deploy` は冒頭のブランチガードで `main` 以外なら中止する。
+- マルチストア改修は完了済み（2026-06-14 に `multi-store` ブランチを `main` へ ff マージ→削除・`main` 一本運用に復帰）。通常デプロイは `main` から `/vpeach-deploy`・`/vmint-deploy` で行う。
 
 ## Context
 - Supabase プロジェクトは V-MINT 2.0 と共用（moejgsremxdksmzrowpw）

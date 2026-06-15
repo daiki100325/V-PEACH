@@ -81,12 +81,19 @@
 
                 <!-- ブランド -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1.5">ブランド</label>
-                    <select v-model="selectedBrand" @change="loadItems"
-                        class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
-                        <option value="">すべてのブランド（{{ brands.length }}）</option>
-                        <option v-for="b in brands" :key="b" :value="b">{{ b }}</option>
-                    </select>
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5">ブランド（複数選択可）</label>
+                    <div class="max-h-40 overflow-y-auto rounded-xl border border-slate-200 p-2 space-y-1">
+                        <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                            <input type="checkbox" :checked="selectedBrand.length === 0" @change="selectedBrand = []; loadItems()" 
+                                class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                            <span class="text-sm font-medium" :class="selectedBrand.length === 0 ? 'text-indigo-600' : 'text-slate-600'">すべてのブランド（{{ brands.length }}）</span>
+                        </label>
+                        <label v-for="b in brands" :key="b" class="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                            <input type="checkbox" :value="b" v-model="selectedBrand" @change="loadItems" 
+                                class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                            <span class="text-sm text-slate-600">{{ b }}</span>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- 銘柄名検索 -->
@@ -133,7 +140,7 @@ export default {
     data() {
         return {
             brands: [],
-            selectedBrand: '',
+            selectedBrand: [],
             search: '',
             sortKey: 'product_name',
             sortDir: 'asc',
@@ -158,7 +165,7 @@ export default {
             return this.items.slice(0, this.renderLimit)
         },
         hasActiveFilters() {
-            return !!this.selectedBrand || !!this.search || this.sortKey !== 'product_name' || this.sortDir !== 'asc'
+            return this.selectedBrand.length > 0 || !!this.search || this.sortKey !== 'product_name' || this.sortDir !== 'asc'
         },
         sortLabel() {
             const opt = this.sortOptions.find(o => o.key === this.sortKey && o.dir === this.sortDir)
@@ -204,7 +211,7 @@ export default {
             this.loadItems()
         },
         resetFilters() {
-            this.selectedBrand = ''
+            this.selectedBrand = []
             this.search = ''
             this.sortKey = 'product_name'
             this.sortDir = 'asc'

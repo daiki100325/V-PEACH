@@ -14,7 +14,7 @@ parent: [[V-PEACH/notes/_index]]
 - V-PEACH リポジトリ: `daiki100325/V-PEACH`（本番ブランチ: `main`）
 - 共用 Supabase プロジェクト: `moejgsremxdksmzrowpw`
 
-> **現況（2026-06-13）: V-PEACH は Phase 0〜12 をすべて完了し、正式リリース済み（本番稼働中）。** §8-2 の発展計画 **Phase 13（多店舗スケール対応）は P1〜P6 完了＝go-live 達成（2026-06-13 本番反映・本番スモーク PASS）**。残は P7（旧ピボット RPC 撤去等のレガシー除去・go-live 安定後）のみ。
+> **現況（2026-06-15）: V-PEACH は Phase 0〜12 をすべて完了し、正式リリース済み（本番稼働中）。** §8-2 の発展計画 **Phase 13（多店舗スケール対応）は P1〜P6 完了＝go-live 達成（2026-06-13 本番反映・本番スモーク PASS）**。残は P7（レガシー除去・go-live 安定後）のみ。**Phase 14（認可状況モード）は 2026-06-15 に完了**。
 
 ---
 
@@ -466,6 +466,22 @@ V-MINT 2.0・V-PEACH はともに、店舗（`baba_main` / `nakano` / `baba_2nd`
 
 > この計画は「現場ツール（V-MINT）と経営ダッシュボード（V-PEACH）が同一 Supabase を共用する」という本システムの強みを、**多店舗展開というスケール要件にそのまま活かす**ものである。店舗が増えても 1 か所の登録で現場・経営の両アプリが追従する構造を目指す。
 
+#### Phase 14: 認可状況モード — パイプたばこ銘柄の一元管理（2026-06-15 完了）
+
+**状態: 完了（2026-06-15）**
+
+従来 Google スプレッドシートで属人管理し、財務省 PDF を手動転記していた**パイプたばこ認可銘柄の一覧**を V-PEACH に統合した。ポータルメニューに 4 番目のモード「認可状況」を追加し、閲覧と更新の 2 サブモードで構成。
+
+**閲覧サブモード**: `pe_approval_items` の全銘柄一覧（5526 件）を FAB パネルからブランド絞り込み・銘柄名検索・並び替え。PostgREST の 1000 行上限を `.range()` 分割取得で回避し全件取得。DOM 負荷対策として 200 件ずつ段階表示。行展開で `pe_approval_price_history` の変更履歴を表示。
+
+**更新サブモード**: 財務省 PDF（新規認可 / 変更認可）をアップロード → Edge Function `parse-approval-pdf`（Gemini 構造化抽出・パイプたばこ行のみ）→ プレビュー（手修正・行削除可）→ 確定で DB 反映。V-PEACH で初めて **Supabase Edge Function** を導入。
+
+**技術的特徴**:
+- Edge Function は Gemini にネイティブ PDF 入力し `responseSchema` で構造化。`thinkingBudget=0` でタイムアウトを回避
+- 変更認可のマッチングは銘柄名 NFKC 正規化＋重量 g 数値で突合（ブランド揺れ・容器表記揺れに非依存）
+- 新規挿入時のブランド表記は `normalizeBrand` ＋ 既存 DB 表記スナップで統一
+- 判断詳細: [[V-PEACH/DECISIONS]] ADR-20260615-01
+
 ---
 
 ### 9. V-PEACH の全体アーキテクチャ
@@ -487,7 +503,11 @@ V-MINT 2.0・V-PEACH はともに、店舗（`baba_main` / `nakano` / `baba_2nd`
   │   ├── pe_benchmarks_revisions    ← FLR・利益率目標値の改定履歴
   │   ├── pe_daily_sales_cache       ← Airレジ日別売上キャッシュ
   │   ├── pe_hrmos_staffs            ← HRMOSスタッフマスタ
-  │   └── pe_jp_holidays             ← 日本祝日キャッシュ
+  │   ├── pe_jp_holidays             ← 日本祝日キャッシュ
+  │   ├── pe_approval_items          ← 財務省認可パイプたばこ銘柄
+  │   └── pe_approval_price_history  ← 認可銘柄の価格変更履歴
+  ├─ Edge Functions
+  │   └── parse-approval-pdf         ← 財務省 PDF → Gemini 構造化抽出
   └─ V-MINT テーブル群（読み取り専用参照）
       ├── cost_reports               ← フレーバー消費・炭消費・販売数
       ├── flavor_brand_sales         ← 物販実績
@@ -625,6 +645,13 @@ V-MINT が棚卸しデータを正確に蓄積し続けているからこそ、F
     - 06-12: P4 店舗管理 GUI・追加ウィザード・create_store_atomic RPC／P5 休止トグル・閉店除外／画面スモーク全項目 PASS
     - 06-13: P4×P5 統合 e2e 全手順 PASS／go-live 直前コードレビュー＝ブロッカーなし／P6 go-live（localhost 目視確認全項目 PASS → 本番 subtree push〔V-MINT→v2・V-PEACH→main、両 fast-forward〕→ 本番スモーク PASS）
     - 残: P7 旧ピボット RPC 撤去・*_v2 正式名化（go-live 安定後・scaling-plan §6-2-1）
+
+2026-06-15
+  Phase 14: 認可状況モード新設
+    - 財務省認可パイプたばこ銘柄の閲覧・更新機能。DB: pe_approval_items / pe_approval_price_history（CSV 初期投入 5526行+1659行）
+    - Edge Function `parse-approval-pdf`（Gemini 構造化抽出）を V-PEACH 初の Supabase Edge Function として導入
+    - フロント: ApprovalApp.vue（閲覧/更新サブタブ）、ApprovalBrowse.vue（FAB 絞り込み・段階表示）、ApprovalUpdate.vue（PDF→AI抽出→プレビュー→確定）
+    - ポータルメニュー 3→４モード、AppHeaderに認可状況モード追加
 ```
 
 ### 14. 本プロジェクトが示したこと

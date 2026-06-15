@@ -771,7 +771,7 @@ export async function getApprovalBrands() {
 /**
  * 認可済み銘柄を取得（ブランド絞り込み・銘柄名部分一致検索・並び替え）
  * @param {object} opts
- * @param {string} [opts.brand]   完全一致するブランド名
+ * @param {string|string[]} [opts.brand]   完全一致するブランド名、またはブランド名の配列
  * @param {string} [opts.search]  product_name の部分一致（ilike）
  * @param {'product_name'|'approval_date'} [opts.sortKey] 並び替えキー（既定 product_name）
  * @param {'asc'|'desc'} [opts.sortDir] 並び順（既定 asc）
@@ -785,7 +785,13 @@ export async function getApprovalItems({ brand, search, sortKey = 'product_name'
   const asc = sortDir !== 'desc'
   const buildQuery = () => {
     let q = supabase.from('pe_approval_items').select('*')
-    if (brand) q = q.eq('brand', brand)
+    if (brand) {
+      if (Array.isArray(brand) && brand.length > 0) {
+        q = q.in('brand', brand)
+      } else if (typeof brand === 'string') {
+        q = q.eq('brand', brand)
+      }
+    }
     if (search && search.trim()) q = q.ilike('product_name', `%${search.trim()}%`)
     if (sortKey === 'approval_date') {
       q = q.order('approval_date', { ascending: asc, nullsFirst: false }).order('product_name', { ascending: true })
