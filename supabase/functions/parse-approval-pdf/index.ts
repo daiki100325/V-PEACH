@@ -11,13 +11,16 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-// モデル選定（精度最優先・主軸は 2.5-flash）。
-// GEMINI_MODEL_FALLBACKS は既定 OFF（空）。429/503 が常態化する場合のみ
-// 「PDF入力＋responseSchema 対応」モデルだけをカンマ区切りで指定する（例: gemini-2.0-flash,gemini-2.5-pro）。
-// ※ gemma 等のテキスト専用モデルは PDF 不可・responseSchema 非対応のため指定しないこと。
+// モデル選定（無料枠前提・課金なし）。Google AI Studio 無料枠の RPD（1日あたり）が決め手:
+//   gemini-3.1-flash-lite = RPD 500（突出）, gemini-2.5/3/3.5-flash = 各 20, gemini-3.1-pro = 0（無料不可）。
+//   旧主軸 gemini-2.5-flash は RPD 20 しかなく、重い PDF 取込ですぐ枯れて 429 になっていた（free_tier_input_token_count 超過）。
+// → 主軸を gemini-3.1-flash-lite（RPD 500・RPM 15・TPM 250K）へ。フォールバックは精度重視のフル flash
+//   （gemini-3.5-flash → gemini-2.5-flash・各 RPD 20 の独立枠）。GEMINI_MODEL / GEMINI_MODEL_FALLBACKS で上書き可。
+// 制約: フォールバックは「PDF入力＋responseSchema 対応」モデルのみ。gemma 系はテキスト専用（PDF/構造化不可）で除外。
+//       gemini-3.1-pro は無料枠 0 のため無料運用では指定しない（課金時のみ有効）。
 const MODELS: string[] = (() => {
-  const primary = (Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash").trim()
-  const fallbacks = (Deno.env.get("GEMINI_MODEL_FALLBACKS") ?? "").split(",").map((s) => s.trim())
+  const primary = (Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash-lite").trim()
+  const fallbacks = (Deno.env.get("GEMINI_MODEL_FALLBACKS") ?? "gemini-3.5-flash,gemini-2.5-flash").split(",").map((s) => s.trim())
   const seen = new Set<string>()
   const out: string[] = []
   for (const m of [primary, ...fallbacks]) {
@@ -72,8 +75,8 @@ async function callGeminiModel(apiKey: string, model: string, payload: unknown, 
   return { ok: false as const, status: 0, detail: "unknown", retryable: false }
 }
 
-// モデル別の generationConfig を組む。thinking 無効化（タイムアウト回避）は 2.5-flash 系のみ対応。
-// pro は thinking 無効化不可・2.0 は thinking 非搭載のため、付けると 400 になりうる→付与しない。
+// モデル別の generationConfig を組む。thinking 無効化（タイムアウト回避・抽出に不要）は flash 系のみ付与。
+// pro/gemma には付けない（pro は無効化不可・gemma は非対応で 400 を招くため）。
 function buildPayload(model: string, kind: string, pdfBase64: string) {
   const generationConfig: Record<string, unknown> = {
     responseMimeType: "application/json",
@@ -81,7 +84,7 @@ function buildPayload(model: string, kind: string, pdfBase64: string) {
     temperature: 0,
     maxOutputTokens: 65536,
   }
-  if (/2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 }
+  if (/flash/i.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 }
   return {
     contents: [{ parts: [{ inline_data: { mime_type: "application/pdf", data: pdfBase64 } }, { text: buildPrompt(kind) }] }],
     generationConfig,
@@ -156,8 +159,8 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "PDF が大きすぎます（~9MB 以下にしてください）" }), { status: 413, headers: { ...CORS, "Content-Type": "application/json" } })
   }
 
-  // モデルを順に試行: 各モデルで retry+backoff（429/503/5xx）→ なお失敗ならフォールバック先へ。
-  // リトライ不能（4xx 非429・例: 不正リクエスト）はモデルを変えても無駄なので即中断する。
+  // モデルを順に試行: 各モデルで retry+backoff（429/503/5xx）→ なお失敗なら（4xx 含め）次のフォールバック先へ。
+  // モデルにより PDF/responseSchema の対応差があるため、4xx でも別モデルなら成功しうる前提で委ねる。
   // deno-lint-ignore no-explicit-any — Gemini 応答は any（元実装踏襲）
   let data: any = null
   let usedModel = ""
@@ -169,7 +172,7 @@ Deno.serve(async (req: Request) => {
     if (r.ok) { data = r.data; usedModel = model; break }
     lastStatus = r.status
     lastDetail = r.detail
-    if (!r.retryable) break
+    // 非リトライ系（4xx 等）でも別モデルなら成功しうる（PDF/responseSchema の対応差）ので次モデルへ委ねる。
     if (Date.now() > deadline) break  // 待機予算超過：以降のフォールバックは試さない
   }
   if (data === null) {

@@ -1,29 +1,32 @@
 # DECISIONS
 
-## ADR-20260615-02: parse-approval-pdf は「同一モデル retry+backoff ＋ 控えめフォールバック（既定OFF）」
+## ADR-20260615-02: parse-approval-pdf のモデル選定（無料枠 RPD 重視＝3.1-flash-lite 主軸）＋ retry/backoff/フォールバック
 - Status: Accepted
 - Date: 2026-06-15
 - Owners: daiki100325
 
 ### Context
-- 共用 `GEMINI_API_KEY`（IORI/IOA と同一）の無料枠で、PDF 取込時に **429（分あたり TPM/RPM レート制限）・503（高負荷）** が頻発。PDF はトークンが大きく分あたり上限に張り付きやすい。
-- IOA `erika-cloud/src/gemini.js` は多段モデルフォールバック（flash-lite→gemma 等）を実装済みだが、**会話用途**。V-PEACH は **PDF構造化抽出**で精度がシビア（価格・容量・セル結合の誤読は preview で気づきにくい）。
+- 共用 `GEMINI_API_KEY`（IORI/IOA と同一）の無料枠で、PDF 取込時に **429** が頻発。当初は分あたり TPM と疑ったが、502 本文 `detail` で **`free_tier_input_token_count` 超過**＝無料枠の枯渇と確定（[[V-PEACH/TROUBLESHOOTING]]）。
+- Google AI Studio 無料枠の **RPD（1日あたり）が決定的に低い**: `gemini-2.5-flash`（旧主軸）=**20**、`gemini-3.5/3-flash`=各20、`gemini-2.5-flash-lite`=20、`gemini-3.1-pro`=**0（無料不可）**、対して **`gemini-3.1-flash-lite`=500**。重い認可 PDF を RPD 20 で回すと即枯れる。
+- IOA `erika-cloud/src/gemini.js` も同理由で `gemini-3.1-flash-lite` を主軸採用済み（会話用途）。V-PEACH は PDF 構造化抽出だが、lite でも temp0＋responseSchema 拘束で精度は実用十分（実測: 製造国/ブランド/価格すべて正確・7秒）。**追加課金はしない方針**。
 
 ### Decision
 - **同一モデルで retry+backoff を最優先**（429/503/5xx を最大3回・`retryDelay`/`Please retry in Xs` をパース・既定5s/上限60s）。精度を一切変えずに一過性スパイクを吸収。
 - **全体待機予算 `GLOBAL_BUDGET_MS=90s`**：待機後にこれを超える場合は再試行・モデル切替を打ち切る（フォールバック有効時の「3モデル×リトライ×待機」が Edge Function ~150s 制限を超えるのを防ぐ）。2026-06-15 に 429 が断続発生（200成功→直後429＝分あたり TPM＋共用キー競合）を実測し retry 2→3回/上限30→60s に強化。
-- **フォールバックは控えめ・env 駆動・既定 OFF**（`GEMINI_MODEL_FALLBACKS` 空）。有効化する場合も **「PDF入力＋responseSchema 対応」モデルのみ**許容（`gemini-2.0-flash` / `gemini-2.5-pro` 等）。**gemma 等テキスト専用は PDF 不可・構造化非対応のため不可**。
-- 主軸は `gemini-2.5-flash` 固定。`thinkingConfig`（thinking 無効・タイムアウト回避）は 2.5-flash 系のみ付与（pro は無効化不可・2.0 は非搭載で 400 回避）。
-- 全モデル失敗時はレート制限を示す日本語ヒント付き 502。応答 `model` に成功モデル名を返す。
+- **主軸を `gemini-3.1-flash-lite`（RPD 500）に変更**（旧 `gemini-2.5-flash` は RPD 20 で枯渇）。コード既定の主軸を更新。`GEMINI_MODEL` で上書き可。
+- **フォールバックは「PDF入力＋responseSchema 対応」のフル flash のみ**: 既定 `gemini-3.5-flash,gemini-2.5-flash`（各 RPD 20 の独立枠＝主軸が一時的に詰まった時の保険）。`gemma` 系はテキスト専用（PDF/構造化不可）で除外、`gemini-3.1-pro` は無料枠 0 で除外。`GEMINI_MODEL_FALLBACKS` で上書き可。
+- `thinkingConfig`（thinking 無効・タイムアウト回避＆抽出に不要）は **flash 系全般**（`/flash/i`）に付与（pro/gemma は除外）。
+- **4xx でも次モデルへフォールバック**（モデルにより PDF/responseSchema の対応差があるため）。全モデル失敗時はレート制限を示す日本語ヒント付き 502。応答 `model` に成功モデル名を返す。
 
 ### Alternatives
-- IOA のフルチェーンをそのまま流用 → gemma/lite は PDF・構造化・精度の点で不適、却下。
-- フォールバック既定 ON → 静かに低精度モデルへ落ちて誤データが入るリスク、却下（既定 OFF・必要時のみ）。
+- `gemini-2.5-flash` 主軸を維持 → RPD 20 で重い PDF だと即枯渇、却下。
+- 課金（paid tier）で無料枠上限を撤廃 → 最も確実だが**追加課金しない方針**のため不採用（必要になれば有効化で 2.5-pro も解禁できる）。
+- `gemma`（RPD 1.5K・TPM 無制限と魅力的）を採用 → テキスト専用で PDF/responseSchema 非対応、却下。
 - クライアント側リトライのみ → Edge Function 内集約の方が UX・一貫性で優る。
 
 ### Consequences
-- Positive: 一過性 429/503 に強くなり、精度は主軸モデル維持で不変。必要時だけ env でフォールバック解禁できる。
-- Negative: 分あたり制限が長く続くと内部リトライ（最大~60s）後に失敗する。フォールバック ON 時はモデル差で抽出傾向が変わりうる（preview で吸収）。
+- Positive: 主軸 RPD が 20→500 で 429 が実質解消。lite は高速（実測 7s／旧 2.5-flash は ~40〜61s）。精度も実用十分。課金不要。
+- Negative: lite は最上位モデルより理論精度は劣る（preview の手修正で吸収）。フル flash フォールバックも RPD 20 なので、主軸が枯れる規模の連続実行時は最終的に枯渇しうる（通常の月数回運用では問題なし）。
 
 ### Links
 - Related note: [[V-PEACH/notes/V-PEACH_architecture]]（認可状況モード）

@@ -1,5 +1,15 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: 主軸モデルを gemini-3.1-flash-lite に変更＝429 解消／7秒に高速化）
+- What: Edge Function **v10**。Gemini 主軸モデルを `gemini-2.5-flash`（RPD 20）→ **`gemini-3.1-flash-lite`（RPD 500）** に変更。
+  - 無料枠 RPD: 3.1-flash-lite=500 / 2.5・3・3.5-flash=各20 / 3.1-pro=0(無料不可) / gemma=1.5K(ただしPDF・responseSchema非対応で使用不可)。RPD 20 では重いPDFで即枯れていた。
+  - フォールバック既定を `gemini-3.5-flash,gemini-2.5-flash`（フル flash・各 RPD 20 の独立枠）に。`thinkingConfig` 付与条件を `/flash/i` に拡大。**4xx でも次モデルへフォールバック**（PDF/schema 対応差を考慮）。
+  - 実測: 3.1-flash-lite で `20260417_kouriteika.pdf`（25行）を **7.1秒**で抽出・製造国/ブランド/価格すべて正確（旧 2.5-flash は ~40〜61s）。
+- Why: 429 の真因は無料枠の枯渇で、主軸の RPD が低すぎた（[[V-PEACH/TROUBLESHOOTING]]）。課金しない方針のため、無料枠 RPD が突出して大きい 3.1-flash-lite を主軸に据えるのが最適解。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`, `DECISIONS.md`(ADR-02 改訂), `notes/V-PEACH_architecture.md`, `TROUBLESHOOTING.md`
+- Related: [[V-PEACH/DECISIONS]] ADR-20260615-02, [[V-PEACH/TROUBLESHOOTING]]
+- 運用: 既存の Edge Function secret `GEMINI_MODEL_FALLBACKS`（旧値 `gemini-2.0-flash,gemini-2.5-pro` は無料枠0/未提供で不適）は**削除**してコード既定に委ねるか、`gemini-3.5-flash,gemini-2.5-flash` に更新する。`GEMINI_MODEL` は未設定で可（既定が 3.1-flash-lite）。
+
 ## 2026-06-15（認可状況: 429 の原因を特定＝Gemini 無料枠の枯渇／失敗詳細をログ出力）
 - What: 502/429 の原因を確定。Edge Function **v9** で失敗時に `console.error` で Gemini 生エラーを出力（観測性向上）。
   - 502 本文 `detail` に決定的証拠: `Quota exceeded for metric: ...free_tier_input_token_count, limit: 0, model: gemini-2.5-pro`。
