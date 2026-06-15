@@ -1,5 +1,19 @@
 # CHANGELOG_DEV
 
+## 2026-06-16（認可状況/更新: 変更認可PDFの非2xx＝①150sタイムアウト＋②degenerate暴走を解消）
+- What: 「認可状況 > 更新（変更認可）」で `parse-approval-pdf` が **502/504/546（フロントには "Edge Function returned a non-2xx status code"）** を返す不具合を修正。Edge Function **v13→v16** で2段階に解決。実測で原因を3つ特定（令和対応v12もPDFもモデルも無罪）。
+  - **原因①（150sタイムアウト）**: **共用 `GEMINI_API_KEY`（IORIと同一）のレート制限 ＋ お人好しすぎる retry/fallback**。主軸 flash-lite が一瞬 429（RPM競合）→ retry待機（旧:最大60s×3・予算90s）で時間を溶かし → フォールバック先 **gemini-2.5-flash が 503『high demand』のまま 80秒以上ハング**（単一呼び出しで150s到達・RPD20即枯渇で429量産）→ 合計が **150sハード上限**を突破。
+  - **原因②（degenerate 暴走）**: flash-lite が変更認可PDFで **数字を MAX_TOKENS まで延々出力**（例 `price_before:5000000000…`）→ 16384トークンで切れて JSON 破綻 → 502。実測で **ROW_SCHEMA の description が引き金**と判明: `変更前/変更後` のような言い換えだと暴走（5/5）、PDFの**列見出しに一致**させた `現行小売定価/変更小売定価` だと **6/6 正常**（price_before=5000・price_after=5600 を 2〜3秒）。
+  - **原因③（price_after 取りこぼし）**: 旧プロンプトでは flash-lite が『変更小売定価』列（=price_after）を空にしていた。プロンプト＋schema を簡潔化＆列見出し一致で解消（thinking 有効化は逆効果＝degenerate を誘発するため**不採用**）。
+  - **対策（コード防御 v13）**: ①**フォールバックから gemini-2.5-flash を除外**（既定 `GEMINI_MODEL_FALLBACKS=gemini-3.5-flash` の1枚）。②**各呼び出しに AbortController**（`PER_CALL_TIMEOUT_MS=45s`・残り時間でクランプ）で 503ハングを強制中断。③**`HARD_DEADLINE_MS=120s`** で150s前に必ず502＋再試行案内。④retry `3→1`・backoff上限 `60s→10s`・待機予算 `90s→20s`。⑤`maxOutputTokens 65536→16384`。⑥502案内文を「混雑/レート制限。30秒〜1分おいて再試行」に。
+  - **対策（精度・安定 v14〜v16）**: ⑦`buildPrompt` を**大幅に簡潔化**（冗長プロンプトは flash-lite の誤読/暴走を誘発）。⑧変更認可プロンプトに **`現行小売定価`=price_before / `変更小売定価`=price_after の列対応を明記**。⑨**ROW_SCHEMA の description を PDF 列見出しに一致**（暴走の根治）。
+  - **最終検証（v16・本番エンドポイント）**: 変更認可 `20260520_kouriteikahenkou.pdf` を3回連続で **200・2.5〜4.4秒・4行・price_before=5000/price_after=5600/changed_on=2026-06-01 全正解**。新規 `20260417_kouriteika.pdf` も 200・9.0秒・25行正常（リグレッション無し）。
+- Why: 変更認可アップロードが毎回失敗（150s張り付き or 数字暴走でJSON破綻）していた。タイムアウトはコード防御で即死回避＋暴走モデル排除、取りこぼし/暴走はプロンプト・schema の簡潔化＋列見出し一致で根治。flash-lite(RPD 500)主軸は通常 2.5〜9秒で安定。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`, `TROUBLESHOOTING.md`, `DECISIONS.md`(ADR-20260615-02 追記)
+- Related: [[V-PEACH/TROUBLESHOOTING]], [[V-PEACH/DECISIONS]] ADR-20260615-02
+- 学び: flash-lite は **プロンプト/スキーマの冗長さ・言い換えに敏感**。抽出フィールドの description は**ソース文書の見出し語に揃える**と精度・安定が大幅に上がる。thinking 有効化は抽出用途では degenerate を誘発しうるため安易に使わない。
+- 恒久対応（任意・未実施）: **B案 V-PEACH 専用 Gemini APIキー**（IORIと別の無料枠バケットにして flash-lite の RPM 429 競合を解消）。Edge Function secret `GEMINI_API_KEY` 差替えのみ。C案（GCP従量課金）なら無料枠上限が全撤廃。
+
 ## 2026-06-15（認可状況: PDFの和暦日付を西暦へ正しく変換）
 - What: Edge Function **v12**。変更認可の `changed_on` が `2008-06-01` になる不具合を修正。財務省PDFの日付は**和暦（元号）表記**で、`8.6.1`（令和8年6月1日）を Gemini が2008年と誤変換していた。
   - プロンプトに「日付は必ず和暦→西暦に変換（令和 = 2018+N・例『8.6.1』→2026-06-01／平成 = 1988+N）」を明記。`approval_date`・`changed_on` 双方に適用（ROW_SCHEMA の説明も「西暦」と明示）。

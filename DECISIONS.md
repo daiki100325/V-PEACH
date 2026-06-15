@@ -28,6 +28,15 @@
 - Positive: 主軸 RPD が 20→500 で 429 が実質解消。lite は高速（実測 7s／旧 2.5-flash は ~40〜61s）。精度も実用十分。課金不要。
 - Negative: lite は最上位モデルより理論精度は劣る（preview の手修正で吸収）。フル flash フォールバックも RPD 20 なので、主軸が枯れる規模の連続実行時は最終的に枯渇しうる（通常の月数回運用では問題なし）。
 
+### Update（2026-06-16・v13）: 変更認可PDFの 150s タイムアウト対策で retry/fallback 方針を見直し
+- **背景**: 変更認可PDFで 502/504/546（フロントは "non-2xx"）が常発。実測で真因は「主軸 flash-lite の一時 429 → 待機 → フォールバック先 `gemini-2.5-flash` が共用キーで **503『high demand』81秒ハング**＋RPD20枯渇」で、**150s ハード上限を突破**していた（[[V-PEACH/TROUBLESHOOTING]]「変更認可PDFの取込が必ず失敗」）。実物PDFを flash-lite 単体に投げれば 2.4〜10秒で正常＝モデル/PDF/v12プロンプトは無罪。
+- **決定の改訂**:
+  - **フォールバックから `gemini-2.5-flash` を除外**。既定 `GEMINI_MODEL_FALLBACKS=gemini-3.5-flash` の1枚のみ（503ハング常習・RPD20のため保険として割に合わない）。
+  - **各呼び出しに `AbortController`／`PER_CALL_TIMEOUT_MS=45s`**（残り時間でクランプ）＝単一モデルのハングを強制中断。
+  - **`HARD_DEADLINE_MS=120s`** で全体を 150s 前に必ず打ち切り、502＋「混雑・再試行」案内で返す。
+  - retry `3→1`・backoff上限 `60s→10s`・待機予算 `GLOBAL_BUDGET_MS 90s→20s`（インタラクティブ取込は素早く諦める）。`maxOutputTokens 65536→16384`（暴走ガード）。
+- **トレードオフ**: 一過性スパイクを「粘って待つ」設計から「素早く諦めて明示」へ転換。レート制限そのものは無料運用ではコードで解消不能で、**恒久解決は V-PEACH 専用 APIキー（B案）or GCP課金（C案）**。今回は無料維持のコード防御を採用。
+
 ### Links
 - Related note: [[V-PEACH/notes/V-PEACH_architecture]]（認可状況モード）
 - Source: `supabase/functions/parse-approval-pdf/index.ts`, 参考: `IOA/erika-cloud/src/gemini.js`

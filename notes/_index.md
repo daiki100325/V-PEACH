@@ -14,8 +14,8 @@ tags: [project/v-peach, type/hub]
 - Owner: Vangvieng
 - Repo: [daiki100325/V-PEACH](https://github.com/daiki100325/V-PEACH)
 
-## 現在のステータス（2026-06-15）
-> 🎉 **Phase 0〜12 を全完了し、2026-06-01 に正式リリース・本番稼働開始。** **Phase 13（多店舗スケール対応）も P1〜P6 完了＝go-live 達成（2026-06-13）**。残は P7（レガシー除去・go-live 安定後）のみ。**認可状況モード（2026-06-15 新設）** で財務省認可パイプたばこ銘柄の閲覧・PDF 取込更新が可能に。
+## 現在のステータス（2026-06-16）
+> 🎉 **Phase 0〜12 を全完了し、2026-06-01 に正式リリース・本番稼働開始。** **Phase 13（多店舗スケール対応）も P1〜P6 完了＝go-live 達成（2026-06-13）**。残は P7（レガシー除去・go-live 安定後）のみ。**認可状況モード（2026-06-15 新設）** で財務省認可パイプたばこ銘柄の閲覧・PDF 取込更新が可能に。**2026-06-16: 変更認可PDFの 150s タイムアウト＋degenerate 暴走を解消し `parse-approval-pdf` を v16 に（更新フローが安定稼働）**。
 - Phase 0（セットアップ）: ✅ 完了
 - Phase 1（DBマイグレーション）: ✅ 完了（2026-05-16）
 - Phase 2（月次入力・設定モード）: ✅ 完了
@@ -47,7 +47,6 @@ tags: [project/v-peach, type/hub]
 - [[V-PEACH/notes/V-PEACH_architecture]] — スタック・DB設計・財務ロジック・デプロイフロー
 - [[V-PEACH/notes/V-PEACH_supabase-er-diagram]] — Supabase ER 図（pe_* + V-MINT 参照）
 - [[V-PEACH/notes/V-PEACH_finance-spec]] — 財務計算仕様詳細
-- [[V-PEACH/notes/V-PEACH_approval-update-reqs]] — 認可状況モード 追加要件（2026-06-15）
 - [[V-PEACH_test-plan]] — テスト計画・テストデータ投入手順
 - [[V-PEACH/notes/V-PEACH_release-plan]] — リリース・検証手順
 - [[V-PEACH/notes/V-PEACH_how-to-use]] — 操作マニュアル（月次作業・随時作業の手順）
@@ -64,6 +63,7 @@ tags: [project/v-peach, type/hub]
 - [[V-PEACH/notes/old/V-PEACH_shifts-csv-import-plan]] ✅ 完了 — HRMOS シフト CSV 取込の実装計画
 - [[V-PEACH/notes/old/V-PEACH_sales-import-plan]] ✅ 完了 — Airメイト/Airレジ CSV 自動取込の検討資料
 - [[V-PEACH/notes/old/V-PEACH_next-actions]] ✅ 完了 — 完了済みネクストアクション一覧（2026-05-25時点）
+- [[V-PEACH/notes/old/V-PEACH_approval-update-reqs]] ✅ 完了 — 認可状況モード 追加要件（2026-06-15。4要件すべて実装済み。現状は architecture/requirements/how-to-use に反映）
 
 ## Weekly Review
 - Wins:

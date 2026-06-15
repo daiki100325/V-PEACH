@@ -1,5 +1,43 @@
 # TROUBLESHOOTING
 
+## Case: 変更認可PDFの取込が必ず失敗（"Edge Function returned a non-2xx status code" / 150s タイムアウト）
+- Date: 2026-06-16
+- Severity: High
+- Owner: daiki
+
+### Symptoms
+- 「認可状況 > 更新」で**変更認可PDF**をアップロード → フロントに `抽出に失敗しました。20260520_kouriteikahenkou.pdf: Edge Function returned a non-2xx status code`。
+- 新規認可の小さいPDFは数秒で成功するのに、変更認可だけ毎回失敗。Edge Function ログは **502(106s) / 504(150s) / 546(150s) / たまに 200(116s)** と長時間張り付き。
+- 「令和対応(v12)の前は動いていた（変更日が2008年になる以外）」という体感。
+
+### Cause（実測で確定。v12プロンプトもPDFもモデルも無罪）
+- フロントの "Edge Function returned a non-2xx status code" は **supabase-js の汎用エラー文**で、真因（502/504/546）を隠す。`get_logs(edge-function)` で実ステータスを見るのが第一歩。
+- 真因は **共用 `GEMINI_API_KEY`（IORIと同一）のレート制限 ＋ お人好しすぎる retry/fallback** の合わせ技:
+  1. 主軸 `gemini-3.1-flash-lite` が一瞬 **429**（分あたり RPM を IORI と競合）
+  2. retry待機（旧: 最大60s×3・予算90s）で時間を溶かす
+  3. フォールバック先 **`gemini-2.5-flash` が共用キーで 503『high demand』のまま 81秒ハング**（単一呼び出しで150sに到達）＋ **RPD 20 即枯渇で 429**
+  4. 合計が Edge Function の **150s ハード上限**を突破 → 504/546/502
+- **切り分けの決め手**: 実物PDF（1ページ・4行）を flash-lite 単体に直接投げると **2.4〜10秒で正常抽出**。`gemini-2.5-flash` 単体は **81.3秒で503**（ローカル probe で実測）→ フォールバック先が主犯と判明。`90s待機 + 26s(3.5-flash) ≒ 116s` がログの 116914ms(200) と一致。
+
+### 二次原因: degenerate 暴走（数字が MAX_TOKENS まで伸びて JSON 破綻 → 502）
+- タイムアウト対策後、変更認可PDFで **502「Gemini 応答の JSON 解析に失敗」**（raw に `price_before:5000000000…` と数字が延々）。`finishReason=MAX_TOKENS`・出力 16369 トークン＝上限まで暴走。
+- **引き金は ROW_SCHEMA の `description`**（実測）。`変更前/変更後` のような言い換えだと flash-lite が price_after 列を取りこぼし、かつ数字を暴走出力（6回中5回）。**PDFの列見出しに一致**させた `現行小売定価/変更小売定価` にすると **6/6 正常**（2〜3秒・price_before=5000・price_after=5600）。
+- 併せて **プロンプトの冗長さ**も誤読/暴走を誘発。簡潔化で安定。**thinking 有効化は逆効果**（degenerate を誘発するため不採用）。
+
+### Fix（採用＝コード防御＋プロンプト/スキーマ簡潔化・課金なし・Edge Function v13→v16）
+- **タイムアウト対策（v13）**: ①フォールバックから `gemini-2.5-flash` を除外（既定 `GEMINI_MODEL_FALLBACKS=gemini-3.5-flash` の1枚）。②各呼び出しに `AbortController`（`PER_CALL_TIMEOUT_MS=45s`・残り時間クランプ）で503ハングを中断。③`HARD_DEADLINE_MS=120s` で150s前に502＋案内。④retry `3→1`・backoff上限 `60s→10s`・待機予算 `90s→20s`。⑤`maxOutputTokens 65536→16384`。
+- **精度・安定対策（v14〜v16）**: ⑥`buildPrompt` を大幅簡潔化。⑦変更認可に『現行小売定価』=price_before /『変更小売定価』=price_after の列対応を明記。⑧**ROW_SCHEMA description を PDF 列見出しに一致**（暴走の根治）。
+- **最終検証（v16）**: 変更認可PDFを本番で3回連続 200・2.5〜4.4秒・全項目正解。新規も 200・25行正常。
+
+### Prevention / 切り分け手順
+- フロントの非2xxエラーは文言で判断せず、必ず **`get_logs(edge-function)` で実ステータス（502/504/546）と実行時間**を確認。**150s張り付き＝タイムアウト**、`MAX_TOKENS`＋JSON破綻＝**degenerate暴走**、即429＝クォータ。
+- ローカル再現が最速: 実物PDFを base64 化し Edge Function と同一 payload で各モデルを個別計測（時間・`finishReason`・`candidatesTokenCount`）。暴走は出力トークン爆発、ハングは長時間後の503で判別。
+- **抽出フィールドの description は『ソース文書の見出し語』に揃える**（言い換えると誤読/暴走を招く）。プロンプトは簡潔に保つ。`gemini-2.5-flash` を安易にフォールバックへ戻さない（503ハング常習・RPD20）。thinking は抽出用途では安易に有効化しない。
+
+### Links
+- Source: `supabase/functions/parse-approval-pdf/index.ts`（v13: AbortController・HARD_DEADLINE・2.5-flash除外／v16: プロンプト＋ROW_SCHEMA 列見出し一致）
+- Related: [[V-PEACH/DECISIONS]] ADR-20260615-02, 下記「Gemini 無料枠の枯渇」ケース
+
 ## Case: 認可状況の PDF 取込が 429 / 502 になる（Gemini 無料枠の枯渇）
 - Date: 2026-06-15
 - Severity: Medium

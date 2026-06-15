@@ -185,7 +185,8 @@ InputApp.vue の月次入力は **CSV インポートのみ**。各店舗の Air
   - 変更認可: 抽出行を既存銘柄に正規化キーでマッチング（銘柄名＋重量g 一致を優先、名前が一意なら容量差を無視して紐付け）。マッチ行は現行価格を更新し履歴を追加。未マッチ行は手動リンク（同ブランド候補から選択）または削除。
 - **データモデル**: 正規化2テーブル（銘柄マスタ + 価格履歴）。`current_price` 導出規則は CSV 由来データで「小売定価 ?? pair1価格（日付なし＝現行）?? null」。
 - **PDF 抽出の前提**: 財務省 PDF はテキスト層が壊れている（`Crypt` filter／カスタムフォント）ため LLM 方式を採用。詳細は [[V-PEACH/DECISIONS]] ADR-20260615-01。
-- **運用前提**: Edge Function に Supabase secret `GEMINI_API_KEY` の設定が必要。
+- **運用前提**: Edge Function に Supabase secret `GEMINI_API_KEY`（IORI と共用）の設定が必要。主軸モデルは `gemini-3.1-flash-lite`（無料枠 RPD 500）、フォールバックは `gemini-3.5-flash`。
+- **堅牢性（2026-06-16・`parse-approval-pdf` v16）**: 共用キーのレート制限/混雑で **150s タイムアウトや数字暴走（JSON破綻）にならないよう**、各 Gemini 呼び出しに 45s の打ち切り・全体 120s 上限・暴走防止の出力上限を設定。プロンプト/スキーマは簡潔・PDF 列見出し一致を維持し、変更認可の `price_before`（現行小売定価）/`price_after`（変更小売定価）を安定抽出。混雑時はユーザーに「30秒〜1分おいて再試行」を案内。詳細: [[V-PEACH/TROUBLESHOOTING]]・[[V-PEACH/DECISIONS]] ADR-20260615-02。
 
 > Source: [[V-PEACH/DECISIONS]] ADR-20260615-01 ／ `src/components/apps/ApprovalApp.vue`・`supabase/functions/parse-approval-pdf/`
 

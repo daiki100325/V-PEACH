@@ -14,7 +14,7 @@ parent: [[V-PEACH/notes/_index]]
 - V-PEACH リポジトリ: `daiki100325/V-PEACH`（本番ブランチ: `main`）
 - 共用 Supabase プロジェクト: `moejgsremxdksmzrowpw`
 
-> **現況（2026-06-15）: V-PEACH は Phase 0〜12 をすべて完了し、正式リリース済み（本番稼働中）。** §8-2 の発展計画 **Phase 13（多店舗スケール対応）は P1〜P6 完了＝go-live 達成（2026-06-13 本番反映・本番スモーク PASS）**。残は P7（レガシー除去・go-live 安定後）のみ。**Phase 14（認可状況モード）は 2026-06-15 に完了**。
+> **現況（2026-06-16）: V-PEACH は Phase 0〜12 をすべて完了し、正式リリース済み（本番稼働中）。** §8-2 の発展計画 **Phase 13（多店舗スケール対応）は P1〜P6 完了＝go-live 達成（2026-06-13 本番反映・本番スモーク PASS）**。残は P7（レガシー除去・go-live 安定後）のみ。**Phase 14（認可状況モード）は 2026-06-15 に完了、2026-06-16 に更新フローの 150s タイムアウト＋degenerate 暴走を根治（`parse-approval-pdf` v16）**。
 
 ---
 
@@ -477,17 +477,27 @@ V-MINT 2.0・V-PEACH はともに、店舗（`baba_main` / `nakano` / `baba_2nd`
 **更新サブモード**: 財務省 PDF（新規認可 / 変更認可）をアップロード → Edge Function `parse-approval-pdf`（Gemini 構造化抽出・パイプたばこ行のみ）→ プレビュー（手修正・行削除可）→ 確定で DB 反映。V-PEACH で初めて **Supabase Edge Function** を導入。
 
 **技術的特徴**:
-- Edge Function は Gemini にネイティブ PDF 入力し `responseSchema` で構造化。`thinkingBudget=0` でタイムアウトを回避
+- Edge Function は Gemini にネイティブ PDF 入力し `responseSchema` で構造化。主軸 `gemini-3.1-flash-lite`（無料枠 RPD 500）・`thinkingBudget=0`
 - 変更認可のマッチングは銘柄名 NFKC 正規化＋重量 g 数値で突合（ブランド揺れ・容器表記揺れに非依存）
 - 新規挿入時のブランド表記は `normalizeBrand` ＋ 既存 DB 表記スナップで統一
 - 判断詳細: [[V-PEACH/DECISIONS]] ADR-20260615-01
 
-**同日の追加改修（2026-06-15・[[V-PEACH/notes/V-PEACH_approval-update-reqs]] 由来）**:
+**同日の追加改修（2026-06-15・[[V-PEACH/notes/old/V-PEACH_approval-update-reqs]] 由来）**:
 - **最終更新日時の常時表示**: ヘッダー右に「最終更新日時」を表示（`getApprovalLastUpdated`＝items.updated_at と history.created_at の新しい方）。更新確定後に自動再取得。
 - **新フォーマット対応（2026-04-17 以降）**: 財務省 PDF がブランド名と銘柄名の列を分離。セル結合で空欄になる**ブランド名・製造国**を直前行の値で補完（Gemini プロンプト＋フロントのファイル単位キャリーフォワードの二重防御）。`product_name` は既存命名に合わせ**スマート前置**で復元（`buildProductName`）。※当初は製造国の補完が漏れ空欄化→同日修正。
 - **認可日のファイル名プレフィル**: ファイル名先頭 `YYYYMMDD` を `approval_date`／`changed_on` の初期値に（`dateFromFilename`）。
 - **重複判定の厳密化**: 新規認可は「銘柄名＋容量(重量g)」両一致時のみ重複扱い（容量違いは別商品として追加）。
 - **Gemini 429/503 耐性**: 同一モデルで retry+backoff＋控えめモデルフォールバック（env 駆動・既定 OFF・PDF/structured 対応モデルのみ）。判断詳細: [[V-PEACH/DECISIONS]] ADR-20260615-02。
+
+#### Phase 14 安定化（2026-06-16）— 変更認可PDFの非2xxを根治
+
+更新（変更認可）で `parse-approval-pdf` が **502/504/546（フロントは "Edge Function returned a non-2xx status code"）** を返す不具合を `parse-approval-pdf` **v13→v16** で解決。実測で原因を3つ特定（令和対応v12もPDFもモデルも無罪）:
+
+- **①150sタイムアウト**: 共用 `GEMINI_API_KEY`（IORI同一）の 429 ＋ お人好し retry → フォールバック先 `gemini-2.5-flash` が 503『high demand』で **80秒+ハング**し 150s 突破。
+- **②degenerate 暴走**: flash-lite が数字を MAX_TOKENS まで吐いて JSON 破綻（→502）。引き金は **ROW_SCHEMA の `description`**（『変更前/変更後』だと暴走、PDF列見出し『現行小売定価/変更小売定価』一致で 6/6 正常）。
+- **③price_after 取りこぼし**: プロンプト冗長で『変更小売定価』列を空にしていた。
+
+対策: **2.5-flash をフォールバックから除外**／各呼び出しに **AbortController（45s）**／**全体上限120s**／retry・待機予算を圧縮／`maxOutputTokens 65536→16384`／**プロンプト＋ROW_SCHEMA を簡潔化＆PDF列見出しに一致**（thinking 有効化は degenerate を誘発するため不採用）。**本番で変更認可3連続 200・2.5〜4.4秒・全項目正解、新規も正常**。詳細: [[V-PEACH/TROUBLESHOOTING]]「変更認可PDFが必ず失敗」・[[V-PEACH/CHANGELOG_DEV]] 2026-06-16。
 
 ---
 
@@ -659,6 +669,12 @@ V-MINT が棚卸しデータを正確に蓄積し続けているからこそ、F
     - Edge Function `parse-approval-pdf`（Gemini 構造化抽出）を V-PEACH 初の Supabase Edge Function として導入
     - フロント: ApprovalApp.vue（閲覧/更新サブタブ）、ApprovalBrowse.vue（FAB 絞り込み・段階表示）、ApprovalUpdate.vue（PDF→AI抽出→プレビュー→確定）
     - ポータルメニュー 3→４モード、AppHeaderに認可状況モード追加
+
+2026-06-16
+  Phase 14 安定化: 変更認可PDFの非2xx（150sタイムアウト＋数字暴走）を根治
+    - parse-approval-pdf v13→v16: 2.5-flashフォールバック除外・AbortController(45s)・全体上限120s・retry/予算圧縮・maxOutputTokens 16384
+    - プロンプト＋ROW_SCHEMA を簡潔化＆PDF列見出し一致（price_after 取りこぼし・degenerate 暴走を根治）
+    - 本番で変更認可3連続成功（2.5〜4.4s・全項目正解）。詳細: TROUBLESHOOTING / CHANGELOG_DEV 2026-06-16
 ```
 
 ### 14. 本プロジェクトが示したこと
