@@ -1,5 +1,15 @@
 # CHANGELOG_DEV
 
+## 2026-06-15（認可状況: parse-approval-pdf に retry+backoff＋控えめモデルフォールバックを追加）
+- What: Edge Function `parse-approval-pdf` に Gemini の **429/503/5xx 耐性**を追加（Edge Function **v6** デプロイ）。
+  - **同一モデルで retry+backoff**（最大2回・`retryDelay`/`Please retry in Xs` をパース・既定5s/上限30s）。
+  - **モデルフォールバック（env 駆動・既定 OFF）**: `GEMINI_MODEL_FALLBACKS`（カンマ区切り）が空なら主軸 `gemini-2.5-flash` のみ。設定時のみ順に切替。**PDF入力＋responseSchema 対応モデルのみ**許容（gemma 等テキスト専用は不可）。
+  - `thinkingConfig` は 2.5-flash 系のみ付与（pro は無効化不可・2.0 は非搭載で 400 回避）。全滅時はレート制限を示す日本語ヒント付き 502。応答 `model` に成功モデル名を返す。
+- Why: 共用 `GEMINI_API_KEY`（IORI と同一）の無料枠で PDF 取込時に 429/503 が頻発。精度最優先（主軸モデル固定）のまま可用性を上げるため。IOA `erika-cloud/src/gemini.js` の多段フォールバックを V-PEACH の抽出用途に合わせて安全化。
+- Files: `supabase/functions/parse-approval-pdf/index.ts`, `notes/V-PEACH_architecture.md`, `DECISIONS.md`(ADR-20260615-02)
+- Related: [[V-PEACH/DECISIONS]] ADR-20260615-02, [[V-PEACH/notes/V-PEACH_architecture]]
+- 運用: フォールバックを使う場合は Edge Function secret `GEMINI_MODEL_FALLBACKS` に例 `gemini-2.0-flash,gemini-2.5-pro` を設定（既定は未設定＝OFF）。
+
 ## 2026-06-15（認可状況: 新フォーマットで製造国が空欄になる不具合を修正）
 - What: 新フォーマット PDF の取込で **製造国（`origin_country`）だけが空欄**になる不具合を修正。原因は、財務省の新フォーマットでは左側グルーピング列のうち **ブランド名だけでなく製造国も同一ブランド内でセル結合**されており、2行目以降が空欄で返るため。ブランド名にしか入れていなかったキャリーフォワード補完を製造国にも適用した。
   - `parse-approval-pdf/index.ts`: プロンプトのセル結合補完指示を「ブランド名・製造国など左側グルーピング列」に一般化（brand も origin_country も直前行の値を引き継ぐよう明記）。Edge Function **v5** をデプロイ。

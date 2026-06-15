@@ -1,5 +1,33 @@
 # DECISIONS
 
+## ADR-20260615-02: parse-approval-pdf は「同一モデル retry+backoff ＋ 控えめフォールバック（既定OFF）」
+- Status: Accepted
+- Date: 2026-06-15
+- Owners: daiki100325
+
+### Context
+- 共用 `GEMINI_API_KEY`（IORI/IOA と同一）の無料枠で、PDF 取込時に **429（分あたり TPM/RPM レート制限）・503（高負荷）** が頻発。PDF はトークンが大きく分あたり上限に張り付きやすい。
+- IOA `erika-cloud/src/gemini.js` は多段モデルフォールバック（flash-lite→gemma 等）を実装済みだが、**会話用途**。V-PEACH は **PDF構造化抽出**で精度がシビア（価格・容量・セル結合の誤読は preview で気づきにくい）。
+
+### Decision
+- **同一モデルで retry+backoff を最優先**（429/503/5xx を最大2回・`retryDelay`/`Please retry in Xs` をパース・既定5s/上限30s）。精度を一切変えずに一過性スパイクを吸収。
+- **フォールバックは控えめ・env 駆動・既定 OFF**（`GEMINI_MODEL_FALLBACKS` 空）。有効化する場合も **「PDF入力＋responseSchema 対応」モデルのみ**許容（`gemini-2.0-flash` / `gemini-2.5-pro` 等）。**gemma 等テキスト専用は PDF 不可・構造化非対応のため不可**。
+- 主軸は `gemini-2.5-flash` 固定。`thinkingConfig`（thinking 無効・タイムアウト回避）は 2.5-flash 系のみ付与（pro は無効化不可・2.0 は非搭載で 400 回避）。
+- 全モデル失敗時はレート制限を示す日本語ヒント付き 502。応答 `model` に成功モデル名を返す。
+
+### Alternatives
+- IOA のフルチェーンをそのまま流用 → gemma/lite は PDF・構造化・精度の点で不適、却下。
+- フォールバック既定 ON → 静かに低精度モデルへ落ちて誤データが入るリスク、却下（既定 OFF・必要時のみ）。
+- クライアント側リトライのみ → Edge Function 内集約の方が UX・一貫性で優る。
+
+### Consequences
+- Positive: 一過性 429/503 に強くなり、精度は主軸モデル維持で不変。必要時だけ env でフォールバック解禁できる。
+- Negative: 分あたり制限が長く続くと内部リトライ（最大~60s）後に失敗する。フォールバック ON 時はモデル差で抽出傾向が変わりうる（preview で吸収）。
+
+### Links
+- Related note: [[V-PEACH/notes/V-PEACH_architecture]]（認可状況モード）
+- Source: `supabase/functions/parse-approval-pdf/index.ts`, 参考: `IOA/erika-cloud/src/gemini.js`
+
 ## ADR-20260615-01: 認可状況モードの PDF 抽出は Gemini Edge Function、データは正規化2テーブル
 - Status: Accepted
 - Date: 2026-06-15

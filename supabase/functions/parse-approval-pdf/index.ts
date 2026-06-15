@@ -11,7 +11,74 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-const MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash"
+// モデル選定（精度最優先・主軸は 2.5-flash）。
+// GEMINI_MODEL_FALLBACKS は既定 OFF（空）。429/503 が常態化する場合のみ
+// 「PDF入力＋responseSchema 対応」モデルだけをカンマ区切りで指定する（例: gemini-2.0-flash,gemini-2.5-pro）。
+// ※ gemma 等のテキスト専用モデルは PDF 不可・responseSchema 非対応のため指定しないこと。
+const MODELS: string[] = (() => {
+  const primary = (Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash").trim()
+  const fallbacks = (Deno.env.get("GEMINI_MODEL_FALLBACKS") ?? "").split(",").map((s) => s.trim())
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const m of [primary, ...fallbacks]) {
+    if (m && !seen.has(m)) { seen.add(m); out.push(m) }
+  }
+  return out
+})()
+
+// 同一モデルでの最大リトライ回数（初回 + この回数）。429/503/5xx のみ対象。
+const MAX_RETRIES_PER_MODEL = 2
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// 429/503 応答から待機秒数を推定する。`retryDelay:"12s"` / `Please retry in 12.3s` を拾い、
+// 取れなければ既定 5s。上限 30s（Edge Function 全体のタイムアウトを超えないため）。
+function parseRetryAfterMs(detail: string): number {
+  const s = String(detail || "")
+  const m = s.match(/retry(?:Delay)?["\s:]*([0-9.]+)\s*s/i) || s.match(/retry in\s+([0-9.]+)\s*s/i)
+  const sec = m ? Number(m[1]) : NaN
+  const ms = Number.isFinite(sec) && sec > 0 ? Math.ceil(sec * 1000) : 5000
+  return Math.min(ms, 30_000)
+}
+
+// 1モデルへ generateContent を投げる（同一モデルで retry 込み）。
+// 返り値: { ok:true, data } | { ok:false, status, detail, retryable }
+async function callGeminiModel(apiKey: string, model: string, payload: unknown) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  for (let attempt = 0; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
+    let res: Response
+    try {
+      res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+    } catch (e) {
+      // ネットワーク例外はリトライ可能扱い
+      if (attempt < MAX_RETRIES_PER_MODEL) { await sleep(5000); continue }
+      return { ok: false as const, status: 0, detail: `Gemini 呼び出し失敗: ${e}`, retryable: true }
+    }
+    if (res.ok) return { ok: true as const, data: await res.json() }
+    const detail = await res.text()
+    // 429（レート制限）・503（高負荷）・その他 5xx はリトライ可能。それ以外（4xx）は即失敗。
+    const retryable = res.status === 429 || res.status >= 500
+    if (retryable && attempt < MAX_RETRIES_PER_MODEL) { await sleep(parseRetryAfterMs(detail)); continue }
+    return { ok: false as const, status: res.status, detail, retryable }
+  }
+  return { ok: false as const, status: 0, detail: "unknown", retryable: false }
+}
+
+// モデル別の generationConfig を組む。thinking 無効化（タイムアウト回避）は 2.5-flash 系のみ対応。
+// pro は thinking 無効化不可・2.0 は thinking 非搭載のため、付けると 400 になりうる→付与しない。
+function buildPayload(model: string, kind: string, pdfBase64: string) {
+  const generationConfig: Record<string, unknown> = {
+    responseMimeType: "application/json",
+    responseSchema: { type: "object", properties: { rows: { type: "array", items: ROW_SCHEMA } }, required: ["rows"] },
+    temperature: 0,
+    maxOutputTokens: 65536,
+  }
+  if (/2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 }
+  return {
+    contents: [{ parts: [{ inline_data: { mime_type: "application/pdf", data: pdfBase64 } }, { text: buildPrompt(kind) }] }],
+    generationConfig,
+  }
+}
 
 const ROW_SCHEMA = {
   type: "object",
@@ -81,38 +148,27 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "PDF が大きすぎます（~9MB 以下にしてください）" }), { status: 413, headers: { ...CORS, "Content-Type": "application/json" } })
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`
-  const payload = {
-    contents: [{
-      parts: [
-        { inline_data: { mime_type: "application/pdf", data: pdfBase64 } },
-        { text: buildPrompt(kind) },
-      ],
-    }],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: { type: "object", properties: { rows: { type: "array", items: ROW_SCHEMA } }, required: ["rows"] },
-      temperature: 0,
-      // thinking を無効化（抽出タスクには不要・100品目超の変更認可で 150s タイムアウトを回避）
-      thinkingConfig: { thinkingBudget: 0 },
-      // 100行超の JSON 出力が途中で切れないよう上限を拡大
-      maxOutputTokens: 65536,
-    },
+  // モデルを順に試行: 各モデルで retry+backoff（429/503/5xx）→ なお失敗ならフォールバック先へ。
+  // リトライ不能（4xx 非429・例: 不正リクエスト）はモデルを変えても無駄なので即中断する。
+  // deno-lint-ignore no-explicit-any — Gemini 応答は any（元実装踏襲）
+  let data: any = null
+  let usedModel = ""
+  let lastStatus = 0
+  let lastDetail = "unknown"
+  for (const model of MODELS) {
+    const r = await callGeminiModel(apiKey, model, buildPayload(model, kind, pdfBase64))
+    if (r.ok) { data = r.data; usedModel = model; break }
+    lastStatus = r.status
+    lastDetail = r.detail
+    if (!r.retryable) break
   }
-
-  let geminiRes: Response
-  try {
-    geminiRes = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-  } catch (e) {
-    return new Response(JSON.stringify({ error: `Gemini 呼び出し失敗: ${e}` }), { status: 502, headers: { ...CORS, "Content-Type": "application/json" } })
-  }
-  if (!geminiRes.ok) {
-    const detail = await geminiRes.text()
-    return new Response(JSON.stringify({ error: `Gemini エラー (${geminiRes.status})`, detail: detail.slice(0, 500) }),
+  if (data === null) {
+    const hint = (lastStatus === 429 || lastStatus >= 500)
+      ? "（全モデルがレート制限/高負荷で失敗しました。1〜2分おいて再試行してください）"
+      : ""
+    return new Response(JSON.stringify({ error: `Gemini エラー (${lastStatus})${hint}`, detail: String(lastDetail).slice(0, 500) }),
       { status: 502, headers: { ...CORS, "Content-Type": "application/json" } })
   }
-
-  const data = await geminiRes.json()
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}"
   let rows: unknown[] = []
   try {
@@ -123,5 +179,5 @@ Deno.serve(async (req: Request) => {
       { status: 502, headers: { ...CORS, "Content-Type": "application/json" } })
   }
 
-  return new Response(JSON.stringify({ rows, kind, model: MODEL }), { headers: { ...CORS, "Content-Type": "application/json" } })
+  return new Response(JSON.stringify({ rows, kind, model: usedModel }), { headers: { ...CORS, "Content-Type": "application/json" } })
 })
