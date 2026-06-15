@@ -472,7 +472,7 @@ V-MINT 2.0・V-PEACH はともに、店舗（`baba_main` / `nakano` / `baba_2nd`
 
 従来 Google スプレッドシートで属人管理し、財務省 PDF を手動転記していた**パイプたばこ認可銘柄の一覧**を V-PEACH に統合した。ポータルメニューに 4 番目のモード「認可状況」を追加し、閲覧と更新の 2 サブモードで構成。
 
-**閲覧サブモード**: `pe_approval_items` の全銘柄一覧（5526 件）を FAB パネルからブランド絞り込み・銘柄名検索・並び替え。PostgREST の 1000 行上限を `.range()` 分割取得で回避し全件取得。DOM 負荷対策として 200 件ずつ段階表示。行展開で `pe_approval_price_history` の変更履歴を表示。
+**閲覧サブモード**: `pe_approval_items` の全銘柄一覧（5526 件）を FAB パネルからブランド絞り込み（複数選択チェックボックス・OR 検索）・銘柄名検索・並び替え。PostgREST の 1000 行上限を `.range()` 分割取得で回避し全件取得。DOM 負荷対策として 200 件ずつ段階表示。行展開で `pe_approval_price_history` の変更履歴を表示。
 
 **更新サブモード**: 財務省 PDF（新規認可 / 変更認可）をアップロード → Edge Function `parse-approval-pdf`（Gemini 構造化抽出・パイプたばこ行のみ）→ プレビュー（手修正・行削除可）→ 確定で DB 反映。V-PEACH で初めて **Supabase Edge Function** を導入。
 
@@ -481,6 +481,13 @@ V-MINT 2.0・V-PEACH はともに、店舗（`baba_main` / `nakano` / `baba_2nd`
 - 変更認可のマッチングは銘柄名 NFKC 正規化＋重量 g 数値で突合（ブランド揺れ・容器表記揺れに非依存）
 - 新規挿入時のブランド表記は `normalizeBrand` ＋ 既存 DB 表記スナップで統一
 - 判断詳細: [[V-PEACH/DECISIONS]] ADR-20260615-01
+
+**同日の追加改修（2026-06-15・[[V-PEACH/notes/V-PEACH_approval-update-reqs]] 由来）**:
+- **最終更新日時の常時表示**: ヘッダー右に「最終更新日時」を表示（`getApprovalLastUpdated`＝items.updated_at と history.created_at の新しい方）。更新確定後に自動再取得。
+- **新フォーマット対応（2026-04-17 以降）**: 財務省 PDF がブランド名と銘柄名の列を分離。セル結合で空欄になる**ブランド名・製造国**を直前行の値で補完（Gemini プロンプト＋フロントのファイル単位キャリーフォワードの二重防御）。`product_name` は既存命名に合わせ**スマート前置**で復元（`buildProductName`）。※当初は製造国の補完が漏れ空欄化→同日修正。
+- **認可日のファイル名プレフィル**: ファイル名先頭 `YYYYMMDD` を `approval_date`／`changed_on` の初期値に（`dateFromFilename`）。
+- **重複判定の厳密化**: 新規認可は「銘柄名＋容量(重量g)」両一致時のみ重複扱い（容量違いは別商品として追加）。
+- **Gemini 429/503 耐性**: 同一モデルで retry+backoff＋控えめモデルフォールバック（env 駆動・既定 OFF・PDF/structured 対応モデルのみ）。判断詳細: [[V-PEACH/DECISIONS]] ADR-20260615-02。
 
 ---
 
