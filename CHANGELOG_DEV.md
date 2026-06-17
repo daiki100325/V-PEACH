@@ -1,5 +1,13 @@
 # CHANGELOG_DEV
 
+## 2026-06-17（認可状況/閲覧: 容量(重量)フィルタ＋表示中銘柄のCSVエクスポートを追加）
+- What: 「認可状況」閲覧画面の絞り込みパネルに **容量フィルタ** と **CSVエクスポート** を追加。変更認可申請の準備を楽にする。
+  - **容量フィルタ**: `package_size`（例 `100.0g 缶` / `100.0gﾊﾟｳﾁ`）から正規表現で**重量(g)だけを抽出**し、容器表記（缶/箱/パウチ）の違いを無視して**同じ 100g として束ねる**。チップ型の複数選択（ブランドとは AND）。**DB・PDFパーサーは無改修**、抽出はすべてフロント側（`rawItems` から `weightOptions` を導出 → `items` をクライアント絞り込み）。
+  - **CSVエクスポート**: 「表示中（＝絞り込み後の全件）」を CSV 出力。列は **`銘柄名, 容量(package_size)`** の2列。Excel 日本語の文字化け回避のため **BOM付きUTF-8・CRLF**。ファイル名 `認可状況_YYYYMMDD.csv`。
+- Why: つーくん依頼。package_size での絞り込みと、現在表示中の銘柄一覧の書き出しがあると変更認可申請が一気に楽になるため。重量での集約は DB/パーサー改修を避けてフロント変換で実現。
+- Files: `src/components/apps/approval/ApprovalBrowse.vue`
+- Related: [[V-PEACH/notes/V-PEACH_requirements]]（認可状況モード）
+
 ## 2026-06-16（認可状況/更新: 変更認可PDFの非2xx＝①150sタイムアウト＋②degenerate暴走を解消）
 - What: 「認可状況 > 更新（変更認可）」で `parse-approval-pdf` が **502/504/546（フロントには "Edge Function returned a non-2xx status code"）** を返す不具合を修正。Edge Function **v13→v16** で2段階に解決。実測で原因を3つ特定（令和対応v12もPDFもモデルも無罪）。
   - **原因①（150sタイムアウト）**: **共用 `GEMINI_API_KEY`（IORIと同一）のレート制限 ＋ お人好しすぎる retry/fallback**。主軸 flash-lite が一瞬 429（RPM競合）→ retry待機（旧:最大60s×3・予算90s）で時間を溶かし → フォールバック先 **gemini-2.5-flash が 503『high demand』のまま 80秒以上ハング**（単一呼び出しで150s到達・RPD20即枯渇で429量産）→ 合計が **150sハード上限**を突破。

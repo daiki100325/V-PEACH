@@ -96,6 +96,28 @@
                     </div>
                 </div>
 
+                <!-- 容量（重量 g でまとめ。100.0g缶 と 100.0gﾊﾟｳﾁ は同じ 100g 扱い） -->
+                <div v-if="weightOptions.length > 0">
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5">容量（複数選択可・重量でまとめ）</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button @click="selectedWeights = []; onWeightChange()"
+                            class="text-sm font-bold px-3 py-1.5 rounded-full border transition-colors"
+                            :class="selectedWeights.length === 0
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'">
+                            すべて
+                        </button>
+                        <label v-for="w in weightOptions" :key="String(w)"
+                            class="text-sm font-bold px-3 py-1.5 rounded-full border cursor-pointer transition-colors"
+                            :class="selectedWeights.includes(w)
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'">
+                            <input type="checkbox" :value="w" v-model="selectedWeights" @change="onWeightChange" class="hidden">
+                            {{ weightLabel(w) }}
+                        </label>
+                    </div>
+                </div>
+
                 <!-- 銘柄名検索 -->
                 <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1.5">銘柄名で検索</label>
@@ -116,6 +138,15 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- CSV エクスポート（絞り込み後の全件・列: 銘柄名 / 容量） -->
+                <button @click="exportCsv" :disabled="items.length === 0"
+                    class="w-full text-sm font-bold py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    表示中の {{ items.length }} 件を CSV 出力
+                </button>
 
                 <div class="flex gap-2 pt-1">
                     <button @click="resetFilters"
@@ -141,10 +172,11 @@ export default {
         return {
             brands: [],
             selectedBrand: [],
+            selectedWeights: [],   // 重量(g)での絞り込み（package_size から抽出・クライアント側）
             search: '',
             sortKey: 'product_name',
             sortDir: 'asc',
-            items: [],
+            rawItems: [],          // API から取得した銘柄（ブランド・検索で server 絞り込み済）
             loading: false,
             renderLimit: 200,   // 初期描画件数（「もっと見る」で +300）
             expandedId: null,
@@ -161,11 +193,28 @@ export default {
         }
     },
     computed: {
+        // 重量(g)で絞り込んだ最終表示リスト。selectedWeights が空なら rawItems をそのまま返す。
+        items() {
+            if (this.selectedWeights.length === 0) return this.rawItems
+            const sel = new Set(this.selectedWeights)
+            return this.rawItems.filter(it => sel.has(this.parseWeight(it.package_size)))
+        },
+        // rawItems から抽出した distinct な重量(g)の一覧（昇順・容量不明は末尾）。
+        // 100.0g缶 と 100.0gﾊﾟｳﾁ は同じ 100 に束ねられる。
+        weightOptions() {
+            const set = new Set()
+            for (const it of this.rawItems) set.add(this.parseWeight(it.package_size))
+            return [...set].sort((a, b) => {
+                if (a === null) return 1
+                if (b === null) return -1
+                return a - b
+            })
+        },
         visibleItems() {
             return this.items.slice(0, this.renderLimit)
         },
         hasActiveFilters() {
-            return this.selectedBrand.length > 0 || !!this.search || this.sortKey !== 'product_name' || this.sortDir !== 'asc'
+            return this.selectedBrand.length > 0 || this.selectedWeights.length > 0 || !!this.search || this.sortKey !== 'product_name' || this.sortDir !== 'asc'
         },
         sortLabel() {
             const opt = this.sortOptions.find(o => o.key === this.sortKey && o.dir === this.sortDir)
@@ -185,21 +234,64 @@ export default {
             if (v === null || v === undefined) return '—'
             return '¥' + Number(v).toLocaleString('ja-JP')
         },
+        /** package_size（"100.0g 缶" / "100.0gﾊﾟｳﾁ" 等）から重量(g)を数値抽出。
+         *  容器表記（缶・箱・パウチ）の違いを無視して重量だけで束ねるための正規化。
+         *  抽出できなければ null（容量不明）。 */
+        parseWeight(packageSize) {
+            if (!packageSize) return null
+            const m = String(packageSize).match(/(\d+(?:\.\d+)?)\s*g/i)
+            if (!m) return null
+            return Math.round(parseFloat(m[1]) * 10) / 10   // 0.1g 精度で丸め
+        },
+        /** 重量(g)の表示ラベル。null は「容量不明」。 */
+        weightLabel(g) {
+            return g === null ? '容量不明' : `${g}g`
+        },
+        /** 重量フィルタ変更時：先頭から描画し直す（再取得は不要・クライアント側絞り込み）。 */
+        onWeightChange() {
+            this.renderLimit = 200
+            this.expandedId = null
+        },
         async loadItems() {
             this.loading = true
             this.expandedId = null
             this.renderLimit = 200   // 条件変更時は初期描画件数に戻す
             try {
-                this.items = await getApprovalItems({
+                this.rawItems = await getApprovalItems({
                     brand: this.selectedBrand, search: this.search,
                     sortKey: this.sortKey, sortDir: this.sortDir
                 })
             } catch (e) {
                 console.error('銘柄取得失敗:', e)
-                this.items = []
+                this.rawItems = []
             } finally {
                 this.loading = false
             }
+        },
+        /** 現在表示中（絞り込み後の全件）を CSV 出力。列は 銘柄名 / 容量(package_size)。
+         *  Excel 日本語対応のため BOM 付き UTF-8・CRLF 改行で書き出す。 */
+        exportCsv() {
+            const esc = (v) => {
+                const s = (v === null || v === undefined) ? '' : String(v)
+                return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+            }
+            const header = ['銘柄名', '容量']
+            const lines = [header, ...this.items.map(it => [it.product_name, it.package_size])]
+                .map(r => r.map(esc).join(','))
+            const BOM = String.fromCharCode(0xFEFF)   // Excel 日本語の文字化け回避
+            const csv = BOM + lines.join('\r\n')
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const pad = (n) => String(n).padStart(2, '0')
+            const d = new Date()
+            const name = `認可状況_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.csv`
+            const a = document.createElement('a')
+            a.href = url
+            a.download = name
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
         },
         onSearchInput() {
             clearTimeout(this.searchTimer)
@@ -212,6 +304,7 @@ export default {
         },
         resetFilters() {
             this.selectedBrand = []
+            this.selectedWeights = []
             this.search = ''
             this.sortKey = 'product_name'
             this.sortDir = 'asc'
